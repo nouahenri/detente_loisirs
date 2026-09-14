@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="meta.devis.titre">Simulateur de Devis & Réservation | Henri & Philippe</title>
+  <meta name="description" content="Estimez le tarif de votre séjour en villa à Assinie en temps réel : choix de la résidence, calcul des nuitées, options chef cuisinier et bateau. Réservation WhatsApp instantanée." data-i18n-attr="content:meta.devis.desc">
+  
+  <meta property="og:title" content="Simulateur de Devis & Réservation | Henri & Philippe">
+  <meta property="og:description" content="Calculez le montant exact de votre séjour à Assinie en FCFA et confirmez instantanément sur WhatsApp.">
+  <meta property="og:image" content="https://henri-philippe.com/assets/images/banner-devis.jpg">
+  <meta property="og:image:width" content="1376">
+  <meta property="og:image:height" content="768">
+  <meta property="og:url" content="https://henri-philippe.com/devis.html">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/images/logo.png">
+  <!-- Application installable : manifest.webmanifest, sw.js et js/pwa.js. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#151837">
+  <link rel="apple-touch-icon" href="assets/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Détente Assinie">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css?v=20260912a">
+  <link rel="stylesheet" href="css/premium.css?v=20260912a">
+  <link rel="stylesheet" href="css/design-polish.css?v=20260912a">
+  <link rel="stylesheet" href="css/refonte.css?v=20260913r">
+</head>
+<body>
+
+  <!-- 1. Header & Navigation Blanche -->
+  <header class="site-header">
+    <div class="container nav-wrapper">
+      <a href="index.html" class="brand-logo">
+        <img src="assets/images/logo.png" alt="Logo Henri & Philippe - Détente & Loisirs" class="brand-logo-img" width="220" height="220" decoding="async">
+        <div class="logo-texts">
+          <span class="logo-title">HENRI & PHILIPPE</span>
+          <span class="logo-subtitle">Détente & Loisirs • Assinie</span>
+        </div>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="index.html" class="nav-link" data-i18n="t.accueil">Accueil</a></li>
+          <li><a href="residences.html" class="nav-link" data-i18n="t.nos-residences">Nos Résidences</a></li>
+          <li><a href="terrains.html" class="nav-link" data-i18n="t.terrains">Terrains</a></li>
+          <li><a href="loisirs.html" class="nav-link" data-i18n="t.activites-loisirs">Activités & Loisirs</a></li>
+          <li><a href="devis.html" class="nav-link active" data-i18n="t.calculer-un-devis">Calculer un Devis</a></li>
+          <li><a href="faq.html" class="nav-link">FAQ</a></li>
+          <li><a href="contact.html" class="nav-link" data-i18n="t.contact">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20Je%20souhaite%20un%20devis." 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="btn-book-nav" data-i18n="t.reserver">
+          Réserver
+        </a>
+        <!-- Sélecteur de langue : il occupe en desktop la place du bouton
+             burger, masqué à cette largeur puisque le menu y est déjà déroulé. -->
+        <div class="selecteur-langue" data-selecteur-langue>
+          <button type="button" class="langue-bouton" aria-haspopup="listbox" aria-expanded="false"
+                  aria-label="Choisir la langue" data-i18n-attr="aria-label:langue.choisir">
+            <span class="langue-drapeau-hote" data-langue-drapeau></span>
+            <span data-langue-actuelle>FR</span>
+          </button>
+          <ul class="langue-menu" role="listbox" hidden>
+            <li><button type="button" role="option" data-langue="fr" aria-selected="true">Français</button></li>
+            <li><button type="button" role="option" data-langue="en" aria-selected="false">English</button></li>
+            <li><button type="button" role="option" data-langue="es" aria-selected="false">Español</button></li>
+          </ul>
+        </div>
+        <button class="mobile-menu-toggle" aria-label="Ouvrir le menu">
+          ☰
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. Page Hero -->
+  <section class="page-hero hero-devis" style="background-image: url('assets/images/banner-devis-wide.png');">
+    <div class="container">
+      <div class="breadcrumb-nav">
+        <a href="index.html" data-i18n="t.accueil">Accueil</a>
+        <span>/</span>
+        <span data-i18n="t.calculer-un-devis">Calculer un Devis</span>
+      </div>
+      <h1 class="page-hero-title" data-i18n="t.simulateur-de-devis-reservation">Simulateur de Devis & Réservation</h1>
+      <p class="page-hero-subtitle" data-i18n="t.configurez-votre-sejour-sur-mesure">
+        Configurez votre séjour sur-mesure en temps réel avec les options de votre choix et confirmez instantanément par WhatsApp.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3. Simulateur de Devis Interactif -->
+  <section class="container" style="margin-bottom: 5rem;">
+    <div class="simulator-box">
+      
+      <!-- Formulaire -->
+      <div class="simulator-form-col">
+        <h3 data-i18n="t.personnalisez-votre-sejour">Personnalisez votre Séjour</h3>
+
+        <!-- Type de demande : rendu explicite et visible d'emblée.
+             Auparavant, « activités sans hébergement » était la première ligne
+             de la liste des résidences — donc invisible tant qu'on n'ouvrait
+             pas la liste. Un visiteur venu uniquement pour une sortie bateau
+             ne pouvait pas deviner que c'était possible. -->
+        <fieldset class="sim-mode" id="simMode">
+          <legend data-i18n="t.que-souhaitez-vous-reserver">Que souhaitez-vous réserver ?</legend>
+          <label class="sim-mode-option">
+            <input type="radio" name="simMode" value="sejour" checked>
+            <span><strong data-i18n="t.sejour-en-residence">Séjour en résidence</strong><small data-i18n="t.hebergement-activites-au-choix">Hébergement + activités au choix</small></span>
+          </label>
+          <label class="sim-mode-option">
+            <input type="radio" name="simMode" value="activites">
+            <span><strong data-i18n="t.activites-uniquement">Activités uniquement</strong><small data-i18n="t.sans-hebergement">Sans hébergement</small></span>
+          </label>
+        </fieldset>
+
+        <div style="margin-bottom: 1.2rem;" id="simVillaField">
+          <label for="simVillaFilter" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.filtrer-les-residences">
+            Filtrer les résidences :
+          </label>
+          <select id="simVillaFilter" class="form-control" style="width: 100%; margin-bottom: 0.9rem;">
+            <!-- Rempli par app.js à partir des résidences réellement publiées -->
+          </select>
+
+          <label for="simVilla" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.choisir-la-residence-souhaitee">
+            Choisir la Résidence souhaitée :
+          </label>
+          <select id="simVilla" class="form-control" style="width: 100%;">
+            <!-- Rempli par app.js -->
+          </select>
+        </div>
+
+        <div class="simulator-date-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.2rem;">
+          <div>
+            <label for="simCheckin" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.arrivee-check-in-14h">
+              Arrivée (Check-in 14h) :
+            </label>
+            <input type="date" id="simCheckin" class="form-control" style="width: 100%;">
+          </div>
+          <div>
+            <label for="simCheckout" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.depart-check-out-12h">
+              Départ (Check-out 12h) :
+            </label>
+            <input type="date" id="simCheckout" class="form-control" style="width: 100%;">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1.5rem;">
+          <label for="simGuests" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.nombre-de-voyageurs">
+            Nombre de voyageurs :
+          </label>
+          <select id="simGuests" class="form-control" style="width: 100%;">
+            <option value="2" data-i18n="t.2-personnes-couple-intime">2 personnes (Couple / Intime)</option>
+            <option value="4" data-i18n="t.4-personnes">4 personnes</option>
+            <option value="6" data-i18n="t.6-personnes">6 personnes</option>
+            <option value="8" selected data-i18n="t.8-personnes">8 personnes</option>
+            <option value="10" data-i18n="t.10-personnes">10 personnes</option>
+            <option value="12" data-i18n="t.12-personnes-2">12 personnes</option>
+            <option value="15+" data-i18n="t.15-personnes-grand-groupe-evenement">15+ personnes (Grand groupe / Événement)</option>
+          </select>
+          <!-- Rempli par js/app.js quand les voyageurs dépassent la capacité
+               de la résidence choisie. -->
+          <p id="simCapaciteAlerte" class="sim-alerte-capacite" role="status" hidden></p>
+        </div>
+
+        <div style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-forest); margin-bottom: 0.8rem;" data-i18n="t.services-vip-loisirs-additionnels">
+          Services VIP & Loisirs Additionnels :
+        </div>
+
+        <div>
+          <!-- Liste ENTIÈREMENT générée par js/app.js à partir des activités
+               publiées : chaque prestation, transferts compris, est une fiche du
+               studio. Rien n'est codé en dur ici, sinon la prestation serait
+               invisible dans le studio et impossible à modifier ou à masquer. -->
+          <div id="simAddons"></div>
+        </div>
+      </div>
+
+      <!-- Récapitulatif Dynamique -->
+      <div class="simulator-summary-col">
+        <div>
+          <span style="font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold); display: block; margin-bottom: 0.4rem;" data-i18n="t.recapitulatif-du-sejour">
+            RÉCAPITULATIF DU SÉJOUR
+          </span>
+          <h4 id="summaryVillaName" style="font-family: var(--font-serif); font-size: 1.5rem; color: #fff; margin-bottom: 1.5rem;">
+            Villa Oasis Lagune
+          </h4>
+
+          <div class="summary-row">
+            <span data-i18n="t.tarif-de-la-nuitee">Tarif de la nuitée :</span>
+            <span id="summaryNightlyRate" style="font-weight: 700; color: #fff;">-</span>
+          </div>
+
+          <div class="summary-row">
+            <span data-i18n="t.duree-du-sejour">Durée du séjour :</span>
+            <span id="summaryNightsCount" style="font-weight: 700; color: #fff;">-</span>
+          </div>
+
+          <div class="summary-row">
+            <span data-i18n="t.sous-total-hebergement">Sous-total Hébergement :</span>
+            <span id="summaryLodgingTotal" style="font-weight: 700; color: #fff;">-</span>
+          </div>
+
+          <div class="summary-row">
+            <span data-i18n="t.prestations-loisirs-vip">Prestations & Loisirs VIP :</span>
+            <span id="summaryAddonsTotal" style="font-weight: 700; color: #fff;">-</span>
+          </div>
+
+          <div style="border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 1.5rem 0 1.2rem 0; padding-top: 1.2rem;">
+            <div style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: #cbd5e1; margin-bottom: 0.3rem;" data-i18n="t.montant-total-estime">
+              Montant Total Estimé :
+            </div>
+            <div class="total-amount-fcfa" id="summaryGrandTotal">0 FCFA</div>
+            <div id="summaryEuroTotal" style="font-size: 0.85rem; color: var(--color-gold); margin-top: 0.2rem;">~ 0 €</div>
+          </div>
+
+          <p style="font-size: 0.76rem; color: #94a3b8; line-height: 1.4; margin-bottom: 1.2rem;" data-i18n="t.acompte-de-30-requis-a">
+            * Acompte de 30% requis à la confirmation. Solde à la remise des clés sur place à Assinie. Caution remboursable à l'état des lieux.
+          </p>
+
+        </div>
+
+        <!-- Détail des prestations : frère DIRECT du bouton WhatsApp, donc collé
+             juste au-dessus de lui. Placé dans le bloc précédent, l'espacement
+             de la colonne l'éloignait du bouton et laissait un vide. -->
+        <div id="summaryAddonsDetail" class="summary-detail" hidden></div>
+
+        <!-- Coordonnées du demandeur : reprises dans le message WhatsApp et dans
+             la demande enregistrée au studio (rubrique Demandes). -->
+        <div class="sim-contact">
+          <span class="sim-contact-titre" data-i18n="t.vos-coordonnees">Vos coordonnées</span>
+          <label for="simNom" class="requis" data-i18n="t.nom-et-prenom">Nom et prénom :</label>
+          <input type="text" id="simNom" class="form-control" autocomplete="name" maxlength="120" required
+                 placeholder="Ex. : Kouassi Aya" data-i18n-attr="placeholder:t.ex-nom-prenom">
+          <label for="simTel" class="requis" data-i18n="t.telephone-contact">Téléphone de contact WhatsApp :</label>
+          <input type="tel" id="simTel" class="form-control" autocomplete="tel" inputmode="tel" maxlength="40" required
+                 placeholder="Ex. : +225 07 00 00 00 00" data-i18n-attr="placeholder:t.ex-telephone">
+          <label for="simEmail" data-i18n="t.adresse-email">Adresse e-mail :</label>
+          <input type="email" id="simEmail" class="form-control" autocomplete="email" inputmode="email" maxlength="180"
+                 placeholder="Ex. : aya.kouassi@gmail.com" data-i18n-attr="placeholder:t.ex-email">
+          <!-- Accord pour les offres WhatsApp : décoché par défaut (accord
+               explicite exigé, décision du 13/09/2026). Alimente le menu
+               « Messages » du studio. -->
+          <label class="sim-optin" for="simOptin">
+            <input type="checkbox" id="simOptin">
+            <span data-i18n="t.optin-whatsapp">J’accepte de recevoir les offres de Détente &amp; Loisirs à Assinie par WhatsApp (désinscription à tout moment en répondant STOP).</span>
+          </label>
+          <!-- Rempli par js/app.js quand le nom ou le téléphone manque au clic. -->
+          <p id="simContactAlerte" class="sim-contact-alerte" role="alert" hidden></p>
+        </div>
+
+        <a id="btnConfirmWhatsApp" 
+           href="https://wa.me/2250767696318" 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="btn btn-whatsapp" 
+           style="width: 100%; justify-content: center; font-size: 0.92rem; padding: 0.9rem;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
+          </svg>
+          Réserver Instantanément sur WhatsApp
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 4. Prestations VIP Incluses -->
+  <section class="container" style="margin-bottom: 5rem;">
+    <div class="section-header-flex">
+      <div>
+        <span class="section-tag" data-i18n="t.services-conciergerie">SERVICES CONCIERGERIE</span>
+        <h2 class="section-title" data-i18n="t.ce-qui-rend-votre-sejour">Ce Qui Rend Votre Séjour Inoubliable</h2>
+      </div>
+    </div>
+
+    <div class="highlights-3grid">
+      <div class="highlight-card">
+        <div class="highlight-icon">👨‍🍳</div>
+        <h3 data-i18n="t.chef-cuisinier-dedie">Chef Cuisinier Dédié</h3>
+        <p data-i18n="t.savourez-poissons-braises-frais-de">Savourez poissons braisés frais de la lagune, carpaccios d'attiéké, gambas grillées et cuisine internationale préparée sur place par nos chefs expérimentés.</p>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">🚤</div>
+        <h3 data-i18n="t.ponton-traversee-lagunaire">Ponton & Traversée Lagunaire</h3>
+        <p data-i18n="t.embarquement-immediat-depuis-le-ponton">Embarquement immédiat depuis le ponton privé de votre villa pour des excursions vers La Passe, les îles Éhotilés ou les plages sauvages.</p>
+      </div>
+
+      <div class="highlight-card">
+        <div class="highlight-icon">⚡</div>
+        <h3 data-i18n="t.energie-continue-24-7">Énergie Continue 24/7</h3>
+        <p data-i18n="t.toutes-nos-residences-sont-equipees">Toutes nos résidences sont équipées de groupes électrogènes automatiques de forte puissance, climatiseurs silencieux et réserve d'eau traitée.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Bandeau Newsletter Ocre Doré -->
+  <section class="newsletter-ochre-section">
+    <div class="container">
+      <div class="newsletter-ochre-inner">
+        <div class="newsletter-ochre-left">
+          <div class="newsletter-ochre-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          </div>
+          <div class="newsletter-ochre-texts">
+            <h3 data-i18n="t.restez-informe-e-de-nos">Restez Informé(e) de Nos Offres Exclusives</h3>
+            <p data-i18n="t.recevez-en-avant-premiere-les">Recevez en avant-première les disponibilités du week-end et les réductions spéciales à Assinie.</p>
+          </div>
+        </div>
+
+        <form class="newsletter-ochre-form" action="/api/newsletter" method="post" data-newsletter-form>
+          <input type="email" id="newsletterEmail_devis" name="email" autocomplete="email" aria-label="Votre adresse email" placeholder="Entrez votre adresse email..." class="newsletter-ochre-input" required>
+          <input type="tel" id="newsletterPhone_devis" name="phone" autocomplete="tel" inputmode="tel" maxlength="40" aria-label="Votre numéro WhatsApp avec indicatif pays, facultatif" placeholder="WhatsApp : +225…" title="Votre numéro WhatsApp avec son indicatif pays, par exemple +225 07 07 12 34 56. Facultatif." class="newsletter-ochre-input newsletter-ochre-phone">
+          <button type="submit" class="btn-newsletter-subscribe" data-i18n="t.s-inscrire">S'inscrire</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. Footer Structuré -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-col footer-brand">
+          <div class="brand-logo">
+            <img src="assets/images/logo.png" alt="Logo Henri & Philippe - Détente & Loisirs" class="brand-logo-img" width="220" height="220" loading="lazy" decoding="async">
+            <div class="logo-texts">
+              <span class="logo-title" style="color: #fff;">HENRI & PHILIPPE</span>
+              <span class="logo-subtitle">Détente & Loisirs • Assinie</span>
+            </div>
+          </div>
+          <p data-i18n="t.villas-privees-avec-piscine-residences">
+            Villas privées avec piscine, résidences de vacances et organisation d'activités nautiques d'exception à Assinie.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4 data-i18n="t.navigation">Navigation</h4>
+          <ul class="footer-links-list">
+            <li><a href="index.html" data-i18n="t.accueil">Accueil</a></li>
+            <li><a href="residences.html" data-i18n="t.nos-residences">Nos Résidences</a></li>
+            <li><a href="terrains.html" data-i18n="t.terrains">Terrains</a></li>
+            <li><a href="loisirs.html" data-i18n="t.activites-loisirs">Activités & Loisirs</a></li>
+            <li><a href="devis.html" data-i18n="t.calculer-un-devis">Calculer un Devis</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+            <li><a href="contact.html" data-i18n="t.contact">Contact</a></li>
+            <li><a href="confidentialite.html">Politique de confidentialité</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4 data-i18n="t.prestations-vip">Prestations VIP</h4>
+          <ul class="footer-links-list">
+            <li><a href="devis.html" data-i18n="t.chef-cuisinier-a-domicile">Chef Cuisinier à Domicile</a></li>
+            <li><a href="devis.html" data-i18n="t.traversee-lagunaire">Traversée lagunaire</a></li>
+            <li><a href="loisirs.html" data-i18n="t.bateau-la-passe">Bateau La Passe</a></li>
+            <li><a href="loisirs.html" data-i18n="t.jet-ski-bouee">Jet Ski & Bouée</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4 data-i18n="t.contact-direct">Contact Direct</h4>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            <span>Assinie-Mafia, Km 8, Côte d'Ivoire</span>
+          </div>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            <a href="tel:+2250767696318">+225 07 67 69 63 18</a>
+          </div>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <a href="mailto:contact@henri-philippe.com">contact@henri-philippe.com</a>
+          </div>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+            <a href="https://wa.me/2250767696318" data-i18n="t.whatsapp-direct-7j-7">WhatsApp Direct 7j/7</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p data-i18n="t.2026-henri-philippe-detente-loisirs">© 2026 Henri & Philippe - Détente & Loisirs à Assinie. Tous droits réservés.</p>
+        <p data-i18n="t.concu-pour-sublimer-vos-sejours">Conçu pour sublimer vos séjours en Côte d'Ivoire 🌴🇨🇮</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Bouton Flottant WhatsApp -->
+  <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20Je%20souhaite%20r%C3%A9server%20une%20villa." 
+     target="_blank" 
+     rel="noopener noreferrer" 
+     class="floating-whatsapp-btn"
+     title="Discuter sur WhatsApp">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+    <span data-i18n="t.whatsapp-direct">WhatsApp Direct</span>
+  </a>
+
+  <!-- Scripts -->
+  <script src="js/i18n.js?v=20260913i"></script>
+  <script src="js/data.js?v=20260912a"></script>
+  <script src="js/app.js?v=20260914c"></script>
+  <script src="js/premium.js?v=20260913g"></script>
+  <script src="js/pwa.js?v=20260914a" defer></script>
+</body>
+</html>

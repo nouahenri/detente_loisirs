@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# Secrets — ne doivent JAMAIS quitter le serveur ni ce poste.
+# `.env` contient le mot de passe MySQL, le secret de l'application Meta,
+# le jeton de Page et les identifiants SMTP. `.env.example` reste versionné,
+# mais ses valeurs doivent rester VIDES : c'est un modèle, pas une sauvegarde.
+# ---------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+
+# ---------------------------------------------------------------------------
+# Données d'exploitation — propres au serveur, jamais partagées.
+# On y trouve les adresses des abonnés, les demandes clients, les comptes
+# du studio et les sessions ouvertes.
+# ---------------------------------------------------------------------------
+data/
+!data/.gitkeep
+
+# Médias téléversés depuis le studio
+assets/uploads/
+
+# ---------------------------------------------------------------------------
+# Dépendances et artefacts
+# ---------------------------------------------------------------------------
+node_modules/
+npm-debug.log*
+*.log
+
+# Archives de déploiement créées à la main
+deploy-*.zip
+maj*.zip
+sauvegarde-*/
+
+# Fichiers système
+Desktop.ini
+.DS_Store
+Thumbs.db
+
+# Scripts temporaires de mise au point
+tmp-*.js

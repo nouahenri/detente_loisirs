@@ -1,0 +1,588 @@
+/* ==========================================================================
+   Vente de terrains à Assinie — styles spécifiques
+   Chargé après style.css / premium.css / design-polish.css et AVANT refonte.css.
+   Ne contient que ce qui n'existe pas déjà : la page réutilise .container,
+   .section-tag, .section-title, .filter-tabs-row, .filter-btn, .btn, .page-hero,
+   .modal-* et .spec-pill du socle existant.
+   Mobile d'abord : aucune règle ne peut provoquer de débordement horizontal.
+   ========================================================================== */
+
+/* Bannière de la page (repli si le designer n'a pas encore défini la sienne) */
+.page-hero.hero-terrains {
+  background-image: url('../assets/images/plage-assinie-passe.jpg');
+}
+
+/* Libellé masqué visuellement mais lu par les lecteurs d'écran */
+.sr-only-label,
+.sr-only-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.terrains-intro {
+  max-width: 46ch;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-muted, #5a5f6b);
+  margin: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Filtres
+   -------------------------------------------------------------------------- */
+.terrains-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin: 1.6rem 0 1rem;
+}
+
+.terrains-filter-group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.terrains-filter-legend {
+  padding: 0;
+  margin-bottom: 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5a5f6b);
+}
+
+.terrains-filters .filter-tabs-row {
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.terrains-selects {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.85rem;
+}
+
+.terrains-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.terrains-select-field label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5a5f6b);
+}
+
+.terrains-select {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.72rem 0.9rem;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-main, #1f2430);
+  background-color: #fff;
+  border: 1px solid var(--color-border, #e3e5ea);
+  border-radius: var(--radius-sm, 8px);
+  cursor: pointer;
+}
+
+.terrains-select:focus-visible {
+  outline: 2px solid var(--color-gold, #c9a227);
+  outline-offset: 2px;
+}
+
+.terrains-count {
+  margin: 0 0 1.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted, #5a5f6b);
+}
+
+/* --------------------------------------------------------------------------
+   Grille et cartes
+   -------------------------------------------------------------------------- */
+.terrains-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.6rem;
+}
+
+.terrain-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background-color: var(--color-white, #fff);
+  border: 1px solid var(--color-border, #e3e5ea);
+  border-radius: var(--radius-md, 14px);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.terrain-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 40px rgba(21, 24, 55, 0.12);
+}
+
+.terrain-card-media {
+  position: relative;
+  width: 100%;
+  height: 210px;
+  overflow: hidden;
+  background-color: #eee;
+}
+
+.terrain-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.terrain-status-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  padding: 0.34rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  background-color: #1f7a4d;
+}
+
+.terrain-status-badge.is-reserve {
+  background-color: #b57614;
+}
+
+.terrain-status-badge.is-vendu {
+  background-color: #6b6f7a;
+}
+
+.terrain-reference {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  padding: 0.28rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+  background-color: rgba(21, 24, 55, 0.82);
+}
+
+.terrain-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.15rem 1.15rem 1.25rem;
+  min-width: 0;
+}
+
+/* Le statut foncier est le critère de confiance décisif : il ouvre la carte. */
+.terrain-land-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.62rem 0.75rem;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid rgba(31, 122, 77, 0.28);
+  background-color: rgba(31, 122, 77, 0.07);
+  color: #16613c;
+}
+
+.terrain-land-status svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.terrain-land-status span {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.94rem;
+  font-weight: 800;
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.terrain-land-status small {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.terrain-card-title {
+  margin: 0;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 1.22rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-forest, #14392a);
+  overflow-wrap: anywhere;
+}
+
+.terrain-card-location {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--text-muted, #5a5f6b);
+  min-width: 0;
+}
+
+.terrain-card-location svg {
+  flex: none;
+}
+
+.terrain-card-location span {
+  overflow-wrap: anywhere;
+}
+
+.terrain-figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.7rem 0;
+  border-top: 1px solid var(--color-border, #e3e5ea);
+  border-bottom: 1px solid var(--color-border, #e3e5ea);
+}
+
+.terrain-figures > div {
+  min-width: 0;
+}
+
+.terrain-figures dt {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #5a5f6b);
+}
+
+.terrain-figures dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text-main, #1f2430);
+  overflow-wrap: anywhere;
+}
+
+.terrain-utilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.terrain-utility {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--color-border, #e3e5ea);
+  border-radius: 999px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: var(--text-muted, #5a5f6b);
+  background-color: #fafafa;
+  max-width: 100%;
+}
+
+.terrain-utility svg {
+  flex: none;
+  color: var(--color-forest, #14392a);
+}
+
+.terrain-utilities-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #5a5f6b);
+}
+
+.terrain-price-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.terrain-price {
+  font-size: 1.28rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--color-forest, #14392a);
+  overflow-wrap: anywhere;
+}
+
+.terrain-price-euro {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted, #5a5f6b);
+}
+
+.terrain-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.btn-terrain-detail,
+.btn-terrain-wa {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.68rem 0.9rem;
+  border-radius: var(--radius-sm, 8px);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-terrain-detail {
+  color: var(--color-forest, #14392a);
+  background-color: transparent;
+  border: 1px solid var(--color-forest, #14392a);
+}
+
+.btn-terrain-detail:hover {
+  color: #fff;
+  background-color: var(--color-forest, #14392a);
+}
+
+.btn-terrain-wa {
+  color: #fff;
+  background-color: #128c7e;
+  border: 1px solid #128c7e;
+  text-decoration: none;
+}
+
+.btn-terrain-wa:hover {
+  background-color: #0e6f64;
+  border-color: #0e6f64;
+}
+
+.btn-terrain-wa svg {
+  flex: none;
+}
+
+/* Terrain vendu : grisé, sans action de contact */
+.terrain-card.is-sold {
+  opacity: 0.62;
+  filter: grayscale(0.85);
+}
+
+.terrain-card.is-sold:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.terrain-card.is-sold .terrain-land-status {
+  border-color: var(--color-border, #e3e5ea);
+  background-color: #f4f4f5;
+  color: #4b5059;
+}
+
+.terrain-sold-note {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b6f7a;
+}
+
+/* --------------------------------------------------------------------------
+   Cas vide et rappel de procédure
+   -------------------------------------------------------------------------- */
+.terrains-empty {
+  grid-column: 1 / -1;
+  padding: 2.6rem 1.4rem;
+  text-align: center;
+  background-color: var(--color-white, #fff);
+  border: 1px solid var(--color-border, #e3e5ea);
+  border-radius: var(--radius-md, 14px);
+}
+
+.terrains-empty h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.08rem;
+  color: var(--color-forest, #14392a);
+}
+
+.terrains-empty p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.terrains-reset-link {
+  padding: 0;
+  font: inherit;
+  font-weight: 800;
+  color: var(--color-gold-hover, #a5811a);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.terrains-legal-note {
+  margin-top: 2.6rem;
+  padding: 1.5rem 1.3rem;
+  border: 1px solid var(--color-border, #e3e5ea);
+  border-radius: var(--radius-md, 14px);
+  background-color: #fafaf8;
+}
+
+.terrains-legal-note h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1.1rem;
+  color: var(--color-forest, #14392a);
+}
+
+.terrains-legal-note p {
+  margin: 0 0 1.1rem;
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+/* --------------------------------------------------------------------------
+   Modale de détail — complète les classes .modal-* existantes
+   -------------------------------------------------------------------------- */
+.terrain-spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.2rem;
+  font-size: 0.88rem;
+}
+
+.terrain-spec-table th,
+.terrain-spec-table td {
+  padding: 0.55rem 0.2rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border, #e3e5ea);
+  overflow-wrap: anywhere;
+}
+
+.terrain-spec-table th {
+  width: 45%;
+  font-weight: 700;
+  color: var(--text-muted, #5a5f6b);
+}
+
+.terrain-spec-table td {
+  font-weight: 700;
+  color: var(--text-main, #1f2430);
+}
+
+.modal-specs .spec-pill.is-land-status {
+  color: #16613c;
+  background-color: rgba(31, 122, 77, 0.12);
+}
+
+.modal-specs .spec-pill.is-reserve {
+  color: #7a520d;
+  background-color: rgba(181, 118, 20, 0.14);
+}
+
+.modal-specs .spec-pill.is-vendu {
+  color: #4b5059;
+  background-color: rgba(107, 111, 122, 0.16);
+}
+
+.terrain-gps-link {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   Section « Terrains à vendre » sur l'accueil
+   -------------------------------------------------------------------------- */
+.home-terrains {
+  margin-bottom: 5rem;
+}
+
+.home-terrains .terrains-grid {
+  margin-top: 1.6rem;
+}
+
+.home-terrains-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--color-forest, #14392a);
+  white-space: nowrap;
+}
+
+.home-terrains-link:hover {
+  color: var(--color-gold-hover, #a5811a);
+}
+
+/* --------------------------------------------------------------------------
+   Points de rupture
+   -------------------------------------------------------------------------- */
+@media (min-width: 600px) {
+  .terrains-selects {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .terrains-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .terrains-filters {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.6rem;
+  }
+
+  .terrains-selects {
+    flex: none;
+    width: min(420px, 45%);
+  }
+}
+
+@media (min-width: 1100px) {
+  .terrains-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

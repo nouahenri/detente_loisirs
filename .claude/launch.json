@@ -1,0 +1,8 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "detente-loisirs", "runtimeExecutable": "node", "runtimeArgs": ["app.js"], "port": 3456, "autoPort": true },
+    { "name": "relais-api-mobile", "runtimeExecutable": "node", "runtimeArgs": ["mobile/natif/scripts/relais-dev.js"], "port": 5175 },
+    { "name": "app-mobile-web", "runtimeExecutable": "node", "runtimeArgs": ["mobile/natif/node_modules/expo/bin/cli", "start", "mobile/natif", "--web", "--port", "8081"], "port": 8081 }
+  ]
+}

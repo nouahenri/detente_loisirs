@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "relais-api", "runtimeExecutable": "node", "runtimeArgs": ["scripts/relais-dev.js"], "port": 5175 },
+    { "name": "app-web", "runtimeExecutable": "npx", "runtimeArgs": ["expo", "start", "--web", "--port", "8081"], "port": 8081, "env": { "CI": "1", "BROWSER": "none" } }
+  ]
+}

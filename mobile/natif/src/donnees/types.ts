@@ -1,0 +1,74 @@
+/** Formes des données de /api/content (champs utilisés par l'app). */
+
+export type Libelles = { fr?: string; en?: string; es?: string };
+/** Traductions saisies dans le studio : { en: { title: '…' }, es: { … } }. */
+export type Traductions = Record<string, Record<string, unknown>>;
+export type EntreeReferentiel = { id: string; nom?: string; libelle?: Libelles; ordre?: number; actif?: boolean; cible?: string; code?: string };
+export type Referentiels = {
+  localisations?: EntreeReferentiel[];
+  categories?: EntreeReferentiel[];
+  equipements?: EntreeReferentiel[];
+  badges?: EntreeReferentiel[];
+  statuts?: EntreeReferentiel[];
+};
+
+export type Villa = {
+  id: string; name: string; tagline?: string; category?: string; categoryLabel?: string; environment?: string;
+  location?: string; localisationId?: string; badgeId?: string; badge?: string; equipements?: string[];
+  description?: string; pricePerNight: number; priceEuro: number; weekendPackage: number;
+  capacity: number; bedrooms: number; bathrooms: number; beds?: string; status?: string;
+  visible?: boolean; featured?: boolean; rating: number; reviewsCount: number;
+  images: string[]; features: string[]; highlights: string[];
+  translations?: Traductions;
+};
+
+export type Terrain = {
+  id: string; reference: string; title: string; location: string; localisationId?: string; district: string;
+  areaSqm: number; priceTotal: number; pricePerSqm: number; priceEuro: number;
+  landStatus: string; landStatusLabel: string; utilities: string[]; status: string;
+  description?: string; images: string[]; highlights: string[]; visible?: boolean; featured?: boolean;
+  badge?: string; badgeId?: string; latitude?: number | null; longitude?: number | null;
+  translations?: Traductions;
+};
+
+export type Activite = {
+  id: string; title: string; subtitle?: string; description?: string; image: string; images: string[];
+  duration?: string; price?: string; priceAmount?: number; groupPriceAmount?: number; groupSize?: number;
+  priceUnit?: string; pricePrefix?: string; priceSuffix?: string; badge?: string; badgeId?: string;
+  visible?: boolean; featured?: boolean;
+  translations?: Traductions;
+};
+
+export type FichePublication = {
+  name?: string; tagline?: string; category?: string; categoryLabel?: string; environment?: string; location?: string;
+  pricePerNight?: number | null; capacity?: number | null; bedrooms?: number | null; bathrooms?: number | null;
+  beds?: string; badge?: string; features?: string[]; highlights?: string[]; localisationId?: string; equipements?: string[];
+};
+
+export type Publication = {
+  id: string; message?: string; created_time?: string; permalink_url?: string; full_picture?: string;
+  images?: string[]; fiche?: FichePublication; video?: { url?: string; vertical?: boolean } | null;
+};
+
+export type Avis = { id: string; author?: string; city?: string; stay?: string; rating?: number; date?: string; comment?: string };
+export type Faq = { id: string; q: string; a: string };
+export type Reglages = { officeHours?: string; phone?: string; facebookPage?: string };
+
+export type Donnees = {
+  villas: Villa[];
+  terrains: Terrain[];
+  activites: Activite[];
+  publications: Publication[];
+  avis: Avis[];
+  faq: Faq[];
+  refs: Referentiels | null;
+  reglages: Reglages;
+};
+
+export type TypeAnnonce = 'villa' | 'terrain' | 'activite' | 'publication';
+
+export type Criteres = { cat: string; ville: string; location: string; budget: string; guests: string; equip: string; chambres: string };
+export type CriteresTerrains = { ville: string; foncier: string };
+export type Segment = 'tout' | 'villas' | 'terrains' | 'activites' | 'publications';
+
+export type Manifeste = Record<string, { webp?: Record<string, string>; width?: number; height?: number }>;

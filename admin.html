@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Studio Assinie — Administration</title>
+  <!-- Même logo que le site public : l'onglet du studio reste reconnaissable
+       parmi les onglets du site quand on travaille sur les deux en parallèle. -->
+  <link rel="icon" type="image/png" href="assets/images/logo.png">
+  <link rel="apple-touch-icon" href="assets/images/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css?v=20260913l">
+</head>
+<body>
+  <!-- Écran d'attente affiché le temps que `/api/auth/session` réponde, pour
+       ne montrer ni page blanche ni formulaire de connexion trompeur. -->
+  <div class="boot-screen" id="bootScreen">
+    <img src="assets/images/logo.png" alt="">
+    <span>Vérification de la session…</span>
+  </div>
+  <style>
+    .boot-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;
+      justify-content:center;gap:1rem;background:#151837;color:#fff;z-index:9999;
+      font:500 .82rem/1.4 'DM Sans',system-ui,sans-serif;letter-spacing:.04em}
+    .boot-screen img{height:54px;opacity:.9}
+    .boot-screen span{opacity:.62}
+    .boot-screen[hidden]{display:none}
+  </style>
+
+  <!-- Masqué au départ : sans cela, l'écran de connexion s'affiche pendant que
+       `/api/auth/session` est interrogé, puis disparaît dès que la session est
+       confirmée — ce clignotement donnait l'impression d'être déconnecté à
+       chaque rechargement. C'est `restoreSession()` qui décide quel écran
+       montrer, une fois la réponse du serveur connue. -->
+  <section class="login-screen" id="loginScreen" hidden>
+    <div class="login-visual"><div><span>HENRI & PHILIPPE</span><h1>Le studio de votre destination.</h1><p>Pilotez vos villas, expériences, demandes et publications depuis un seul endroit.</p></div></div>
+    <div class="login-card">
+      <img src="assets/images/logo.png" alt="Henri & Philippe">
+      <span class="eyebrow">ESPACE PRIVÉ</span>
+      <h2>Bienvenue</h2>
+      <p>Identifiez-vous avec votre nom d’utilisateur et votre mot de passe.</p>
+      <form id="loginForm" autocomplete="on">
+        <label>Nom d’utilisateur<input type="text" id="loginUsername" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+        <label>Mot de passe<input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="••••••••••••" required></label>
+        <button type="submit" id="loginSubmit">Ouvrir le studio</button>
+      </form>
+      <p class="login-error" id="loginError" role="alert"></p>
+
+      <!-- Bloc affiché UNIQUEMENT tant qu'aucun compte n'existe encore : il
+           disparaît de lui-même dès la création du premier utilisateur. -->
+      <section class="login-fallback" id="loginFallback" hidden>
+        <strong>Aucun compte n’a encore été créé</strong>
+        <p>Le studio accepte provisoirement l’ancienne clé partagée. Cet accès est un <strong>mode dégradé</strong> : il est journalisé et se désactive automatiquement dès la création du premier compte.</p>
+        <form id="keyForm">
+          <label>Clé de secours<input type="password" id="adminKey" autocomplete="off" placeholder="••••••••••••"></label>
+          <button type="submit" class="secondary">Entrer en mode dégradé</button>
+        </form>
+        <small>Créez ensuite un vrai compte depuis un terminal :<br><code>node scripts/creer-utilisateur.js --username &lt;nom&gt; --role proprietaire</code></small>
+      </section>
+    </div>
+  </section>
+
+  <div class="admin-shell" id="adminShell" hidden>
+    <!-- Voile du menu mobile : un clic à côté du panneau le referme. -->
+    <div class="admin-menu-voile" id="adminMenuVoile" hidden></div>
+    <aside class="admin-sidebar" id="adminSidebar">
+      <a class="admin-brand" href="index.html"><img src="assets/images/logo.png" alt=""><span>Studio<br>Assinie</span></a>
+      <!-- `data-permission` : chaque onglet n'apparaît que si le rôle connecté
+           possède la permission correspondante. Le serveur refait le même
+           contrôle sur chaque route : masquer un onglet n'est qu'un confort
+           d'affichage, jamais une protection. -->
+      <nav id="adminNav">
+        <button class="active" data-view="dashboard" data-permission="dashboard:view"><span>◈</span> Vue d’ensemble</button>
+        <button data-view="villas" data-permission="content:write"><span>⌂</span> Villas</button>
+        <button data-view="terrains" data-permission="content:write"><span>◱</span> Terrains</button>
+        <button data-view="activities" data-permission="content:write"><span>⌁</span> Activités</button>
+        <button data-view="referentiels" data-permission="content:write"><span>☷</span> Référentiels</button>
+        <button data-view="leads" data-permission="leads:read"><span>◎</span> Demandes</button>
+        <button data-view="messages" data-permission="leads:read"><span>✆</span> Messages</button>
+        <button data-view="newsletter" data-permission="newsletter:read"><span>✉</span> Newsletter</button>
+        <button data-view="facebook" data-permission="facebook:read"><span>f</span> Publications</button>
+        <button data-view="users" data-permission="users:manage"><span>◍</span> Utilisateurs</button>
+        <button data-view="settings" data-permission="settings:write"><span>⚙</span> Réglages</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="sidebar-identity" id="sidebarIdentity" hidden><strong id="identityName">—</strong><small id="identityRole">—</small></div>
+        <a href="index.html" target="_blank">Voir le site ↗</a>
+        <button id="passwordBtn">Changer mon mot de passe</button>
+        <button id="logoutBtn">Déconnexion</button>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+      <header class="admin-topbar"><button type="button" class="admin-menu-btn" id="adminMenuBtn" aria-controls="adminSidebar" aria-expanded="false" aria-label="Ouvrir le menu"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></button><div><span class="eyebrow" id="viewKicker">PILOTAGE</span><h1 id="viewTitle">Vue d’ensemble</h1></div><div class="top-actions"><span class="sync-state" id="saveState">Tout est à jour</span><button class="primary" id="saveAllBtn">Publier les changements</button></div></header>
+
+      <!-- Bandeau du mode dégradé : impossible à manquer, il ne s'affiche que
+           lorsque la session provient de l'ancienne clé partagée. -->
+      <div class="degraded-banner" id="degradedBanner" role="status" hidden>
+        <strong>Mode dégradé — accès par clé partagée</strong>
+        <p>Aucun compte utilisateur n’existe encore : personne ne peut être identifié et chaque action est journalisée sous « clé de secours ». Créez un compte propriétaire depuis un terminal, puis reconnectez-vous.</p>
+        <code>node scripts/creer-utilisateur.js --username &lt;nom&gt; --role proprietaire</code>
+      </div>
+
+      <section class="admin-view active" data-panel="dashboard">
+        <div class="welcome-card"><div><span class="eyebrow">MARDI · ASSINIE</span><h2>Bonjour, votre activité en un coup d’œil.</h2><p>Les indicateurs sont alimentés par les demandes reçues sur le site.</p></div><a href="devis.html" target="_blank">Tester le parcours client ↗</a></div>
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <article class="panel operations-panel">
+          <div><span class="eyebrow">SÉCURITÉ & DONNÉES</span><h3>Centre de contrôle</h3><p>Sauvegardez le site et exportez les demandes sans quitter le studio.</p></div>
+          <div class="operations-actions">
+            <button id="refreshAdminBtn">↻ Actualiser</button>
+            <button id="exportLeadsBtn">⇩ Demandes CSV</button>
+            <button id="exportBackupBtn">⇩ Sauvegarde JSON</button>
+            <button class="primary" id="createBackupBtn">＋ Créer un point de reprise</button>
+          </div>
+          <div class="operations-status" id="operationsStatus"></div>
+        </article>
+        <div class="dashboard-grid"><article class="panel"><div class="panel-head"><div><span class="eyebrow">DEMANDES</span><h3>Derniers contacts</h3></div><button data-jump="leads">Tout voir</button></div><div id="recentLeads"></div></article><article class="panel pulse-panel"><div class="panel-head"><div><span class="eyebrow">RYTHME DE RÉSERVATION</span><h3>Projection mensuelle</h3></div></div><div class="bar-chart" id="barChart"></div><p class="chart-note">Projection visuelle basée sur les demandes enregistrées.</p></article></div>
+      </section>
+
+      <section class="admin-view" data-panel="villas">
+        <div class="section-tools"><p>Gérez le catalogue, les prix, les galeries et la visibilité sur le site.</p><button class="primary" data-new="villa">＋ Ajouter une villa</button></div>
+        <div class="content-table" id="villasTable"></div>
+      </section>
+
+      <section class="admin-view" data-panel="terrains">
+        <div class="section-tools"><p>Gérez les parcelles en vente : références, superficies, prix, statut foncier et viabilisation.</p><button class="primary" data-new="terrain">＋ Ajouter un terrain</button></div>
+        <div class="content-table" id="terrainsTable"></div>
+      </section>
+
+      <!-- Référentiels : listes de choix des annonces et des fiches de
+           publication (localisations, catégories, équipements, badges,
+           statuts). Rendu par js/admin.js → renderReferentiels(). -->
+      <section class="admin-view" data-panel="referentiels">
+        <div class="section-tools"><p>Les listes de choix proposées quand vous créez une annonce (villa, terrain, activité) ou complétez une publication Facebook. Une entrée déjà utilisée par une annonce ne peut pas être supprimée : désactivez-la pour ne plus la proposer.</p><button class="primary" id="refNouveauBtn">＋ Ajouter</button></div>
+        <div class="filter-pills ref-onglets" id="refOnglets">
+          <button type="button" data-ref-type="localisations" class="active" aria-pressed="true">Localisations</button>
+          <button type="button" data-ref-type="categories" aria-pressed="false">Catégories</button>
+          <button type="button" data-ref-type="equipements" aria-pressed="false">Équipements</button>
+          <button type="button" data-ref-type="badges" aria-pressed="false">Badges</button>
+          <button type="button" data-ref-type="statuts" aria-pressed="false">Statuts</button>
+        </div>
+        <p class="ref-aide" id="refAide"></p>
+        <div class="content-table" id="refTable"></div>
+      </section>
+
+      <section class="admin-view" data-panel="activities">
+        <div class="section-tools"><p>Composez les expériences, leurs visuels et leur mise en avant.</p><button class="primary" data-new="activity">＋ Ajouter une activité</button></div>
+        <div class="content-table" id="activitiesTable"></div>
+      </section>
+
+      <section class="admin-view" data-panel="leads">
+        <div class="section-tools lead-tools"><p>Suivez chaque demande jusqu’à sa confirmation.</p><label class="admin-search"><span>Rechercher</span><input id="leadSearch" type="search" placeholder="Nom, téléphone, villa…"></label><div class="filter-pills" id="leadFilters"><button class="active" data-status="all">Toutes</button><button data-status="nouveau">Nouvelles</button><button data-status="contacte">Contactées</button><button data-status="confirme">Confirmées</button><button data-status="archive">Archivées</button></div></div>
+        <div class="content-table" id="leadsTable"></div>
+      </section>
+
+      <!-- Messages WhatsApp promotionnels (13/09/2026) : envoi par liens wa.me,
+           uniquement aux clients ayant donné leur accord dans le simulateur. -->
+      <section class="admin-view" data-panel="messages">
+        <div class="wa-intro" id="waIntro"></div>
+        <div class="wa-grille">
+          <form class="wa-bloc wa-form" id="waForm" novalidate>
+            <h3>Nouvelle campagne</h3>
+            <label>Titre <small>(visible dans le studio seulement)</small><input name="titre" maxlength="120" placeholder="Ex. : Offre Tabaski villas lagune" required></label>
+            <label>Message
+              <textarea name="message" rows="7" placeholder="Bonjour {prenom}, profitez de -15 % sur nos villas en bord de lagune ce week-end…" required></textarea>
+            </label>
+            <div class="wa-variables">Insérer : <button type="button" data-inserer="{prenom}">{prenom}</button><button type="button" data-inserer="{nom}">{nom}</button> <small id="waCompteur"></small></div>
+            <div class="wa-apercu"><span>Aperçu pour <strong id="waApercuNom">un client</strong></span><p id="waApercu"></p></div>
+            <!-- Destinataires : un, plusieurs ou tous, parmi les clients qui ont
+                 donné leur accord (les autres ne sont pas sélectionnables). -->
+            <fieldset class="wa-selection" id="waSelection">
+              <legend>Destinataires</legend>
+              <div class="wa-selection-tete">
+                <label class="wa-tous"><input type="checkbox" id="waTous"> <span>Tous</span></label>
+                <input type="search" id="waSelRecherche" placeholder="Rechercher un client…" aria-label="Rechercher un destinataire">
+              </div>
+              <div class="wa-selection-liste" id="waSelListe"></div>
+              <p class="wa-destinataires" id="waDestinataires"></p>
+            </fieldset>
+            <div class="wa-form-actions"><button class="primary" type="submit" id="waCreer">Préparer la campagne</button></div>
+          </form>
+          <div class="wa-bloc wa-campagnes">
+            <h3>Campagnes</h3>
+            <div id="waCampagnes"></div>
+          </div>
+        </div>
+        <div class="wa-bloc wa-contacts">
+          <div class="wa-contacts-tete">
+            <h3>Contacts</h3>
+            <div class="filter-pills" id="waFiltres"><button class="active" data-filtre="tous">Tous</button><button data-filtre="accord">Avec accord</button><button data-filtre="sans">Sans accord</button><button data-filtre="stop">Ne plus contacter</button></div>
+          </div>
+          <div id="waContacts"></div>
+        </div>
+      </section>
+
+      <section class="admin-view" data-panel="newsletter">
+        <div class="mail-status-panel panel" id="mailStatus" aria-live="polite"></div>
+        <div class="kpi-grid newsletter-kpis" id="newsletterKpis"></div>
+
+        <article class="panel compose-card newsletter-compose">
+          <span class="eyebrow">CAMPAGNE</span>
+          <h2>Rédiger un envoi</h2>
+          <p>Le message part uniquement aux abonnés ayant confirmé leur adresse. Chaque envoi contient automatiquement un lien de désabonnement.</p>
+          <label>Objet<input id="campaignSubject" type="text" maxlength="240" placeholder="Nouvelles parcelles disponibles à Assinie"></label>
+          <label>Message<textarea id="campaignBody" rows="9" maxlength="20000" placeholder="Bonjour,&#10;&#10;Deux nouvelles villas sont disponibles pour les vacances de Pâques.&#10;&#10;À bientôt à Assinie."></textarea></label>
+          <div class="campaign-actions">
+            <button id="campaignSendBtn" class="primary">Envoyer aux abonnés confirmés</button>
+            <span class="campaign-hint" id="campaignHint"></span>
+          </div>
+          <div class="campaign-report" id="campaignReport" hidden></div>
+        </article>
+
+        <div class="section-tools lead-tools">
+          <p>Abonnés à la newsletter et historique des envois.</p>
+          <label class="admin-search"><span>Rechercher</span><input id="subscriberSearch" type="search" placeholder="Adresse e-mail, nom…"></label>
+          <div class="filter-pills" id="subscriberFilters">
+            <button class="active" data-status="all">Tous</button>
+            <button data-status="confirme">Confirmés</button>
+            <button data-status="en-attente">En attente</button>
+            <button data-status="desabonne">Désabonnés</button>
+          </div>
+          <button id="exportSubscribersBtn" class="content-action">⇩ Export CSV</button>
+        </div>
+        <div class="content-table" id="subscribersTable"></div>
+
+        <article class="panel campaign-history">
+          <div class="panel-head"><div><span class="eyebrow">HISTORIQUE</span><h3>Campagnes envoyées</h3></div></div>
+          <div id="campaignList"></div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-panel="users">
+        <div class="section-tools"><p>Comptes autorisés à ouvrir le studio. Chaque rôle donne accès à un périmètre précis, appliqué par le serveur.</p><button class="primary" id="newUserBtn">＋ Ajouter un utilisateur</button></div>
+        <div class="content-table" id="usersTable"></div>
+        <article class="panel roles-panel">
+          <div class="panel-head"><div><span class="eyebrow">RÔLES</span><h3>Qui peut faire quoi</h3></div></div>
+          <div class="roles-grid" id="rolesGrid"></div>
+        </article>
+      </section>
+
+      <section class="admin-view" data-panel="facebook">
+        <div class="facebook-status-panel panel" id="fbConnection" aria-live="polite"></div>
+        <div class="social-grid social-grid-solo">
+          <article class="panel compose-card"><span class="eyebrow">SITE → FACEBOOK</span><h2>Créer une publication</h2><p>Partagez une offre ou une expérience sur la Page officielle sans quitter le studio.</p><label>Préparer depuis le catalogue<select id="fbContentSource"><option value="">Publication libre</option></select></label><label>Message<textarea id="fbMessage" rows="7" maxlength="60000" placeholder="Ce week-end à Assinie…"></textarea></label><label>Lien associé<input id="fbLink" type="url" placeholder="https://votre-site.com/residences.html"></label><div class="fb-media"><div class="fb-media-head"><div><strong>Images</strong><small>Une seule photo, ou plusieurs pour créer un album. La première ouvre la publication.</small></div><label class="upload-button">＋ Importer<input type="file" accept="image/jpeg,image/png,image/webp" multiple id="fbImageFiles"></label></div><div class="fb-media-list" id="fbImageList"></div><div class="media-url-row"><input type="text" id="fbImageUrl" placeholder="Ou collez une URL / un chemin d’image"><button type="button" id="fbAddImageUrl">Ajouter</button></div><small class="upload-status" id="fbImageStatus">JPG, PNG ou WebP · 8 Mo maximum par image · 10 images maximum</small></div><button class="primary" id="fbPublishBtn">Publier sur Facebook</button><small id="fbPublishHelp">La publication reste désactivée tant que la connexion Meta n’est pas prête.</small></article>
+          
+        </div>
+        <article class="panel fb-liste-panel"><div class="panel-head"><div><span class="eyebrow">FACEBOOK → SITE</span><h3>Dernières publications</h3></div><button id="fbSyncBtn">Synchroniser maintenant</button></div><p class="facebook-sync-note">Les publications reçues de la Page paraissent sur l’accueil du site. Décochez « Afficher sur le site » pour en retirer une : elle reste sur Facebook et dans ce studio, elle disparaît seulement du site.</p><ul id="fbPosts" class="social-posts social-posts-rangee"></ul></article>
+        <div class="fb-subscription" id="fbSubscription"><span>Abonnement webhook au champ <code>feed</code> :</span><strong>non vérifié</strong><button type="button" id="fbCheckSubBtn">Vérifier l’abonnement</button></div>
+        <article class="panel facebook-setup"><span class="eyebrow">MISE EN SERVICE</span><h3>Connexion sécurisée en 4 étapes</h3><ol><li>Créer ou ouvrir l’application Meta de l’entreprise.</li><li>Ajouter l’identifiant de Page, le jeton d’accès de Page et le secret d’application uniquement sur le serveur.</li><li>Déclarer l’adresse HTTPS <code>/api/facebook/webhook</code> comme webhook de Page avec le jeton de vérification choisi.</li><li>Abonner la Page aux changements de publications, puis revenir ici pour lancer une synchronisation.</li></ol><p>Aucun mot de passe ni jeton Meta n’est saisi ou affiché dans ce dashboard.</p></article>
+      </section>
+
+      <section class="admin-view" data-panel="settings">
+        <form class="panel settings-form" id="settingsForm"><span class="eyebrow">IDENTITÉ ÉDITORIALE</span><h2>Réglages du site</h2><div class="form-grid"><label class="wide">Titre du hero<input name="heroTitle" placeholder="Là où vos rêves prennent vie"></label><label class="wide">Sous-titre du hero<textarea name="heroSubtitle" rows="3"></textarea></label><label>Téléphone<input name="phone" placeholder="+225 07 67 69 63 18"></label><label>Lien Facebook<input name="facebookPage" type="url"></label><label>Horaires<input name="officeHours" placeholder="7j/7 · 7h–22h"></label><label>Devise<input name="currency" value="FCFA"></label></div></form>
+      </section>
+    </main>
+  </div>
+
+  <div class="admin-toast" id="adminToast"></div>
+  <script src="js/data.js?v=20260912a"></script>
+  <script src="js/admin.js?v=20260913m"></script>
+</body>
+</html>

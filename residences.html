@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="meta.residences.titre">Nos Résidences & Villas de Prestige | Détente & Loisirs à Assinie</title>
+  <meta name="description" content="Catalogue complet des villas et résidences de luxe à Assinie. Filtrez par bord de lagune, bord d'océan, piscine privée et réservez instantanément en ligne ou sur WhatsApp." data-i18n-attr="content:meta.residences.desc">
+  
+  <meta property="og:title" content="Nos Résidences & Villas | Henri & Philippe - Détente & Loisirs">
+  <meta property="og:description" content="Découvrez notre collection exclusive de villas meublées avec piscine privée et ponton à Assinie-Mafia.">
+  <meta property="og:image" content="https://henri-philippe.com/assets/images/banner-residences.jpg">
+  <meta property="og:image:width" content="1376">
+  <meta property="og:image:height" content="768">
+  <meta property="og:url" content="https://henri-philippe.com/residences.html">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/images/logo.png">
+  <!-- Application installable : manifest.webmanifest, sw.js et js/pwa.js. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#151837">
+  <link rel="apple-touch-icon" href="assets/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Détente Assinie">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/style.css?v=20260912a">
+  <link rel="stylesheet" href="css/premium.css?v=20260912a">
+  <link rel="stylesheet" href="css/design-polish.css?v=20260912a">
+  <link rel="stylesheet" href="css/refonte.css?v=20260913r">
+</head>
+<body>
+
+  <!-- 1. Header & Navigation Blanche -->
+  <header class="site-header">
+    <div class="container nav-wrapper">
+      <a href="index.html" class="brand-logo">
+        <img src="assets/images/logo.png" alt="Logo Henri & Philippe - Détente & Loisirs" class="brand-logo-img" width="220" height="220" decoding="async">
+        <div class="logo-texts">
+          <span class="logo-title">HENRI & PHILIPPE</span>
+          <span class="logo-subtitle">Détente & Loisirs • Assinie</span>
+        </div>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="index.html" class="nav-link" data-i18n="t.accueil">Accueil</a></li>
+          <li><a href="residences.html" class="nav-link active" data-i18n="t.nos-residences">Nos Résidences</a></li>
+          <li><a href="terrains.html" class="nav-link" data-i18n="t.terrains">Terrains</a></li>
+          <li><a href="loisirs.html" class="nav-link" data-i18n="t.activites-loisirs">Activités & Loisirs</a></li>
+          <li><a href="devis.html" class="nav-link" data-i18n="t.calculer-un-devis">Calculer un Devis</a></li>
+          <li><a href="faq.html" class="nav-link">FAQ</a></li>
+          <li><a href="contact.html" class="nav-link" data-i18n="t.contact">Contact</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20Je%20souhaite%20r%C3%A9server%20une%20villa." 
+           target="_blank" 
+           rel="noopener noreferrer" 
+           class="btn-book-nav" data-i18n="t.reserver">
+          Réserver
+        </a>
+        <!-- Sélecteur de langue : il occupe en desktop la place du bouton
+             burger, masqué à cette largeur puisque le menu y est déjà déroulé. -->
+        <div class="selecteur-langue" data-selecteur-langue>
+          <button type="button" class="langue-bouton" aria-haspopup="listbox" aria-expanded="false"
+                  aria-label="Choisir la langue" data-i18n-attr="aria-label:langue.choisir">
+            <span class="langue-drapeau-hote" data-langue-drapeau></span>
+            <span data-langue-actuelle>FR</span>
+          </button>
+          <ul class="langue-menu" role="listbox" hidden>
+            <li><button type="button" role="option" data-langue="fr" aria-selected="true">Français</button></li>
+            <li><button type="button" role="option" data-langue="en" aria-selected="false">English</button></li>
+            <li><button type="button" role="option" data-langue="es" aria-selected="false">Español</button></li>
+          </ul>
+        </div>
+        <button class="mobile-menu-toggle" aria-label="Ouvrir le menu">
+          ☰
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. Page Hero -->
+  <section class="page-hero hero-residences" style="background-image: url('assets/images/banner-residences-wide.png');">
+    <div class="container">
+      <div class="breadcrumb-nav">
+        <a href="index.html" data-i18n="t.accueil">Accueil</a>
+        <span>/</span>
+        <span data-i18n="t.nos-residences-villas">Nos Résidences & Villas</span>
+      </div>
+      <h1 class="page-hero-title" data-i18n="t.nos-residences-demeures-d-exception">Nos Résidences & Demeures d'Exception</h1>
+      <p class="page-hero-subtitle" data-i18n="t.des-cadres-idylliques-equipes-avec">
+        Des cadres idylliques équipés avec piscine privée, ponton lagon ou accès direct à l'océan pour vos vacances et week-ends d'exception à Assinie.
+      </p>
+    </div>
+  </section>
+
+  <!-- 3. Catalogue : résidences et publications de la Page -->
+  <section class="container catalogue-unifie" id="catalogSection" data-catalogue-unifie="1" style="margin-bottom: 5rem;">
+
+    <!-- Recherche multicritère : même barre que l'accueil. Ici les choix
+         s'appliquent aussitôt (js/app.js → initMultiFieldSearch) ; le bouton
+         amène aux résultats. -->
+    <div class="search-widget-wrapper recherche-catalogue" id="rechercheCatalogue">
+      <div class="search-widget-card">
+        <form class="search-form-grid search-form-grid--5" onsubmit="event.preventDefault();">
+
+          <div class="search-field">
+            <div class="search-field-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            </div>
+            <div class="search-field-content">
+              <label class="search-field-label" for="searchVille" data-i18n="t.localisation">Localisation</label>
+              <select id="searchVille" class="search-select">
+                <option value="all" data-i18n="t.toutes-court">Toutes</option>
+                <!-- Villes du référentiel, ajoutées par js/app.js -->
+              </select>
+            </div>
+          </div>
+
+          <div class="search-field">
+            <div class="search-field-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 7c2 0 2-1.5 4-1.5S8 7 10 7s2-1.5 4-1.5S16 7 18 7s2-1.5 4-1.5"></path><path d="M2 12c2 0 2-1.5 4-1.5S8 12 10 12s2-1.5 4-1.5S16 12 18 12s2-1.5 4-1.5"></path><path d="M2 17c2 0 2-1.5 4-1.5S8 17 10 17s2-1.5 4-1.5S16 17 18 17s2-1.5 4-1.5"></path></svg>
+            </div>
+            <div class="search-field-content">
+              <label class="search-field-label" for="searchLocation" data-i18n="t.emplacement">Emplacement</label>
+              <select id="searchLocation" class="search-select">
+                <option value="all" data-i18n="t.tous-court">Tous</option>
+                <option value="lagune" data-i18n="t.bord-de-lagune">Bord de Lagune</option>
+                <option value="ocean" data-i18n="t.bord-d-ocean">Bord d'Océan</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="search-field">
+            <div class="search-field-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            </div>
+            <div class="search-field-content">
+              <label class="search-field-label" for="searchType" data-i18n="t.type-de-residence">Type de Résidence</label>
+              <select id="searchType" class="search-select">
+                <option value="all" data-i18n="t.tous-court">Tous</option>
+                <option value="piscine" data-i18n="t.avec-piscine-privee">Avec Piscine Privée</option>
+                <option value="evenement" data-i18n="t.grands-groupes-evenements">Grands Groupes &amp; Événements</option>
+                <option value="romantique" data-i18n="t.escapades-en-amoureux">Escapades en Amoureux</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="search-field">
+            <div class="search-field-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+            </div>
+            <div class="search-field-content">
+              <label class="search-field-label" for="searchBudget" data-i18n="t.budget-nuitee">Budget / Nuitée</label>
+              <select id="searchBudget" class="search-select">
+                <option value="all" data-i18n="t.tous-court">Tous</option>
+                <option value="eco" data-i18n="t.budget-eco">≤ 250 000 F</option>
+                <option value="luxe" data-i18n="t.budget-luxe">≥ 250 000 F</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="search-field">
+            <div class="search-field-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </div>
+            <div class="search-field-content">
+              <label class="search-field-label" for="searchGuests" data-i18n="t.voyageurs">Voyageurs</label>
+              <select id="searchGuests" class="search-select">
+                <option value="all" data-i18n="t.tous-court">Tous</option>
+                <option value="2-6" data-i18n="t.voyageurs-2-6">2 à 6 pers.</option>
+                <option value="8-12" data-i18n="t.voyageurs-8-12">8 à 12 pers.</option>
+                <option value="12+" data-i18n="t.voyageurs-12">12 pers. et +</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="search-action-col">
+            <button type="button" id="btnSearchProperties" class="btn-search-properties">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <span data-i18n="t.rechercher">Rechercher</span>
+            </button>
+            <button type="button" class="btn-filter-toggle recherche-avancee-btn" id="btnRechercheAvancee" aria-expanded="false" aria-controls="rechercheAvancee" title="Plus de critères" aria-label="Plus de critères" data-i18n-attr="title:t.plus-de-criteres,aria-label:t.plus-de-criteres">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
+              <span class="recherche-avancee-compte" id="rechercheAvanceeCompte" hidden></span>
+            </button>
+            <button type="button" class="btn-filter-toggle recherche-effacer" id="btnEffacerRecherche" title="Effacer les critères" aria-label="Effacer les critères" data-i18n-attr="title:js.effacerCriteres,aria-label:js.effacerCriteres" hidden>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><polyline points="3 3 3 9 9 9"></polyline></svg>
+            </button>
+          </div>
+        </form>
+        <!-- Critères avancés : équipements (référentiel) et chambres. Rempli
+             et piloté par js/app.js → initRechercheAvancee(). -->
+        <div class="recherche-avancee" id="rechercheAvancee" role="region" aria-labelledby="rechercheAvanceeTitre" hidden>
+          <div class="recherche-avancee-tete">
+            <p class="recherche-avancee-titre" id="rechercheAvanceeTitre" data-i18n="t.plus-de-criteres">Plus de critères</p>
+            <button type="button" class="recherche-avancee-fermer" id="rechercheAvanceeFermer" aria-label="Fermer" data-i18n-attr="aria-label:t.fermer">×</button>
+          </div>
+          <div class="recherche-avancee-corps">
+            <fieldset class="recherche-avancee-groupe">
+              <legend data-i18n="t.equipements">Équipements</legend>
+              <div class="recherche-avancee-cases" id="rechercheEquipements"></div>
+            </fieldset>
+            <div class="recherche-avancee-groupe recherche-avancee-chambres">
+              <label for="searchChambres" data-i18n="t.chambres-minimum">Chambres (minimum)</label>
+              <select id="searchChambres" class="terrains-select">
+                <option value="all" data-i18n="t.indifferent">Indifférent</option>
+                <option value="1">1+</option>
+                <option value="2">2+</option>
+                <option value="3">3+</option>
+                <option value="4">4+</option>
+                <option value="5">5+</option>
+              </select>
+            </div>
+          </div>
+          <div class="recherche-avancee-pied">
+            <button type="button" class="recherche-avancee-effacer" id="rechercheAvanceeEffacer" data-i18n="t.effacer">Effacer</button>
+            <button type="button" class="btn-search-properties" id="rechercheAvanceeValider" data-i18n="t.fermer-appliquer">Terminé</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recherche transversale aux deux rubriques -->
+    <div class="catalogue-barre">
+      <label class="catalogue-recherche" for="catalogueRecherche">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <input type="search" id="catalogueRecherche" autocomplete="off" placeholder="Rechercher une résidence ou une publication…" aria-label="Rechercher dans le catalogue et les publications">
+        <button type="button" class="catalogue-effacer" id="catalogueEffacer" aria-label="Effacer la recherche" hidden>&times;</button>
+      </label>
+      <p class="catalogue-resultat" id="catalogueResultat" role="status" aria-live="polite"></p>
+    </div>
+
+    <!-- Rubriques -->
+    <div class="catalogue-rubriques">
+      <button type="button" class="catalogue-rubrique-btn active" data-rubrique="tout" aria-pressed="true">Tout le catalogue</button>
+      <button type="button" class="catalogue-rubrique-btn" data-rubrique="residences" aria-pressed="false">Résidences</button>
+      <button type="button" class="catalogue-rubrique-btn" data-rubrique="facebook" aria-pressed="false">Depuis Facebook</button>
+    </div>
+
+    <!-- Rubrique : résidences -->
+    <div class="catalogue-section" data-rubrique="residences">
+      <div class="catalogue-section-tete">
+        <h2 data-i18n="t.nos-residences">Résidences &amp; villas</h2>
+        <span class="catalogue-nombre" data-compteur="residences"></span>
+      </div>
+
+      <div class="filter-tabs-row">
+        <button class="filter-btn active" data-category="all" data-i18n="t.toutes-nos-residences">Toutes nos Résidences</button>
+        <button class="filter-btn" data-category="lagune" data-i18n="t.bord-de-lagune">Bord de Lagune</button>
+        <button class="filter-btn" data-category="ocean" data-i18n="t.bord-d-ocean">Bord d'Océan</button>
+        <button class="filter-btn" data-category="piscine" data-i18n="t.piscines-privees">Piscines Privées</button>
+        <button class="filter-btn" data-category="evenement" data-i18n="t.grands-groupes-evenements">Grands Groupes &amp; Événements</button>
+        <button class="filter-btn" data-category="romantique" data-i18n="t.escapades-en-amoureux">Escapades en Amoureux</button>
+      </div>
+
+      <div class="properties-4grid" id="villasGrid">
+        <!-- Rendu dynamique via js/app.js -->
+      </div>
+    </div>
+
+    <!-- Rubrique : publications de la Page.
+         Masquée tant que js/premium.js n'a rien reçu : une rubrique vide
+         ferait croire à une panne alors que la Page n'a simplement rien
+         publié, ou que la passerelle Meta est momentanément coupée. -->
+    <div class="catalogue-section" data-rubrique="facebook" id="rubriqueFacebook" hidden>
+      <div class="catalogue-section-tete">
+        <h2>Depuis notre page Facebook</h2>
+        <span class="catalogue-nombre" data-compteur="facebook"></span>
+      </div>
+      <div class="social-wall-carrousel">
+        <button type="button" class="social-wall-fleche social-wall-fleche-avant" data-sens="-1" aria-label="Publications précédentes" aria-controls="cataloguePublicationsGrid">‹</button>
+        <ul class="social-wall-piste" id="cataloguePublicationsGrid">
+          <!-- Rendu dynamique via js/premium.js -->
+        </ul>
+        <button type="button" class="social-wall-fleche social-wall-fleche-apres" data-sens="1" aria-label="Publications suivantes" aria-controls="cataloguePublicationsGrid">›</button>
+      </div>
+    </div>
+
+    <p class="catalogue-vide" id="catalogueVide" role="status" hidden>
+      Aucune annonce ne correspond à cette recherche.
+      <button type="button" class="catalogue-reset" id="catalogueReset">Afficher tout le catalogue</button>
+    </p>
+  </section>
+
+  <!-- 4. Bandeau Newsletter Ocre Doré -->
+  <section class="newsletter-ochre-section">
+    <div class="container">
+      <div class="newsletter-ochre-inner">
+        <div class="newsletter-ochre-left">
+          <div class="newsletter-ochre-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          </div>
+          <div class="newsletter-ochre-texts">
+            <h3 data-i18n="t.restez-informe-e-de-nos">Restez Informé(e) de Nos Offres Exclusives</h3>
+            <p data-i18n="t.recevez-en-avant-premiere-les">Recevez en avant-première les disponibilités du week-end et les réductions spéciales à Assinie.</p>
+          </div>
+        </div>
+
+        <form class="newsletter-ochre-form" action="/api/newsletter" method="post" data-newsletter-form>
+          <input type="email" id="newsletterEmail_residences" name="email" autocomplete="email" aria-label="Votre adresse email" placeholder="Entrez votre adresse email..." class="newsletter-ochre-input" required>
+          <input type="tel" id="newsletterPhone_residences" name="phone" autocomplete="tel" inputmode="tel" maxlength="40" aria-label="Votre numéro WhatsApp avec indicatif pays, facultatif" placeholder="WhatsApp : +225…" title="Votre numéro WhatsApp avec son indicatif pays, par exemple +225 07 07 12 34 56. Facultatif." class="newsletter-ochre-input newsletter-ochre-phone">
+          <button type="submit" class="btn-newsletter-subscribe" data-i18n="t.s-inscrire">S'inscrire</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Footer Structuré -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-col footer-brand">
+          <div class="brand-logo">
+            <img src="assets/images/logo.png" alt="Logo Henri & Philippe - Détente & Loisirs" class="brand-logo-img" width="220" height="220" loading="lazy" decoding="async">
+            <div class="logo-texts">
+              <span class="logo-title" style="color: #fff;">HENRI & PHILIPPE</span>
+              <span class="logo-subtitle">Détente & Loisirs • Assinie</span>
+            </div>
+          </div>
+          <p data-i18n="t.location-de-residences-de-vacances">
+            Location de résidences de vacances avec piscine, villas d'exception pieds dans l'eau et conciergerie nautique à Assinie, Côte d'Ivoire.
+          </p>
+        </div>
+
+        <div class="footer-col">
+          <h4 data-i18n="t.navigation">Navigation</h4>
+          <ul class="footer-links-list">
+            <li><a href="index.html" data-i18n="t.accueil">Accueil</a></li>
+            <li><a href="residences.html" data-i18n="t.nos-residences">Nos Résidences</a></li>
+            <li><a href="terrains.html" data-i18n="t.terrains">Terrains</a></li>
+            <li><a href="loisirs.html" data-i18n="t.activites-loisirs">Activités & Loisirs</a></li>
+            <li><a href="devis.html" data-i18n="t.calculer-un-devis">Calculer un Devis</a></li>
+            <li><a href="faq.html">FAQ</a></li>
+            <li><a href="contact.html" data-i18n="t.contact">Contact</a></li>
+            <li><a href="confidentialite.html">Politique de confidentialité</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4 data-i18n="t.prestations-vip">Prestations VIP</h4>
+          <ul class="footer-links-list">
+            <li><a href="devis.html" data-i18n="t.chef-cuisinier-a-domicile">Chef Cuisinier à Domicile</a></li>
+            <li><a href="devis.html" data-i18n="t.traversee-lagunaire">Traversée lagunaire</a></li>
+            <li><a href="loisirs.html" data-i18n="t.excursions-bateau-la-passe">Excursions Bateau La Passe</a></li>
+            <li><a href="loisirs.html" data-i18n="t.jet-ski-randonnees-quad">Jet Ski & Randonnées Quad</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h4 data-i18n="t.contact-direct">Contact Direct</h4>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+            <span>Assinie-Mafia, Km 8, Côte d'Ivoire</span>
+          </div>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+            <a href="tel:+2250767696318">+225 07 67 69 63 18</a>
+          </div>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+            <a href="mailto:contact@henri-philippe.com">contact@henri-philippe.com</a>
+          </div>
+          <div class="footer-contact-item">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+            <a href="https://wa.me/2250767696318" data-i18n="t.whatsapp-direct-7j-7">WhatsApp Direct 7j/7</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <p data-i18n="t.2026-henri-philippe-detente-loisirs">© 2026 Henri & Philippe - Détente & Loisirs à Assinie. Tous droits réservés.</p>
+        <p data-i18n="t.concu-pour-sublimer-vos-sejours">Conçu pour sublimer vos séjours en Côte d'Ivoire 🌴🇨🇮</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Modal Pop-up pour Villa -->
+  <div class="villa-modal-overlay" id="villaModal">
+    <div class="villa-modal-container" id="modalContainer">
+      <!-- Rendu dynamique par app.js -->
+    </div>
+  </div>
+
+  <!-- Bouton Flottant WhatsApp -->
+  <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20J'ai%20une%20question." 
+     target="_blank" 
+     rel="noopener noreferrer" 
+     class="floating-whatsapp-btn"
+     title="Discuter sur WhatsApp">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/></svg>
+    <span data-i18n="t.whatsapp-direct">WhatsApp Direct</span>
+  </a>
+
+  <!-- Scripts -->
+  <script src="js/i18n.js?v=20260913i"></script>
+  <script src="js/data.js?v=20260912a"></script>
+  <script src="js/app.js?v=20260914c"></script>
+  <script src="js/premium.js?v=20260913g"></script>
+  <script src="js/pwa.js?v=20260914a" defer></script>
+  <script src="js/catalogue.js?v=20260913a"></script>
+</body>
+</html>

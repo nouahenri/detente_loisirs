@@ -1,0 +1,88 @@
+{
+  "expo": {
+    "name": "Détente & Loisirs",
+    "slug": "detente-loisirs",
+    "version": "2.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icone.png",
+    "scheme": "detenteloisirs",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#f3f4f9",
+    "ios": {
+      "bundleIdentifier": "com.henriphilippe.detenteloisirs",
+      "buildNumber": "3",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "whatsapp",
+          "tel",
+          "mailto"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.henriphilippe.detenteloisirs",
+      "versionCode": 3,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icone-android-premier-plan.png",
+        "backgroundColor": "#ffffff"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "./plugins/ecran-demarrage-android",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#ffffff",
+          "image": "./assets/images/logo-splash.png",
+          "imageWidth": 220,
+          "dark": {
+            "backgroundColor": "#ffffff"
+          },
+          "android": {
+            "imageWidth": 164
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": [
+              "fr",
+              "en",
+              "es"
+            ],
+            "android": [
+              "fr",
+              "en",
+              "es"
+            ]
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icone-notification.png",
+          "color": "#151837",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-background-task",
+      "./plugins/jdk-gradle-21"
+    ],
+    "experiments": {
+      "typedRoutes": false,
+      "reactCompiler": true
+    }
+  }
+}

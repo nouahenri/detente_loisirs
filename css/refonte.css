@@ -1,0 +1,3703 @@
+/* ==========================================================================
+   refonte.css — Feuille de correction et d'harmonisation
+   Henri & Philippe · Détente & Loisirs à Assinie
+   --------------------------------------------------------------------------
+   Chargée EN DERNIER, après style.css, premium.css, design-polish.css
+   (et terrains.css). Elle ne remplace pas ces fichiers : elle corrige les
+   incohérences accumulées et rattrape les bugs mobile mesurés.
+
+   Principe de travail : retirer avant d'ajouter. Les effets décoratifs
+   (dégradés animés sur le texte, empilements de flous, ombres colorées)
+   sont neutralisés au profit de l'espace, du contraste et de la hiérarchie.
+
+   Les `!important` sont réservés aux propriétés déjà déclarées `!important`
+   dans premium.css / design-polish.css. Chacun est signalé par un
+   commentaire « surcharge premium.css » ou « surcharge design-polish.css ».
+
+   Sommaire
+   A. Jetons de design
+   B. Correctifs de débordement horizontal
+   C. Points de rupture manquants (560 px / 400 px)
+   D. Hero de l'accueil
+   E. Éléments flottants du bas d'écran
+   F. Accessibilité
+   G. Harmonisation des composants
+   ========================================================================== */
+
+
+/* ==========================================================================
+   A. JETONS DE DESIGN
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   A.1 — Couleurs
+   Problème constaté : l'or de marque #e8b904 est utilisé indifféremment sur
+   fond sombre et sur fond clair. Sur blanc son ratio de contraste est de
+   1,85:1 — très loin des 4,5:1 exigés par WCAG AA. Les surtitres
+   `.section-tag` et plusieurs libellés étaient donc illisibles.
+   Correction : trois variantes d'or, chacune avec un usage exclusif.
+     --or            #e8b904  → fond sombre uniquement (9,3:1 sur #151837)
+     --or-texte      #7f6300  → texte sur fond clair       (5,7:1 sur blanc)
+     --or-clair      #f6d873  → texte large sur photo voilée (3,4:1)
+   Les ratios sont recalculés dans docs/DESIGN-SYSTEM.md.
+   -------------------------------------------------------------------------- */
+:root {
+  /* Marque */
+  --bleu-nuit:        #151837;
+  --bleu-nuit-fonce:  #0e1026;
+  --bleu-nuit-clair:  #232859;
+  --or:               #e8b904;
+  --or-texte:         #7f6300; /* seule variante autorisée sur fond clair */
+  --or-clair:         #f6d873; /* texte large sur photo assombrie */
+  --or-survol:        #cca203;
+
+  /* Surfaces */
+  --papier:           #ffffff;
+  --page:             #f8f9fc;
+  --surface-2:        #f0f2f7;
+  --trait:            rgba(21, 24, 55, 0.12);
+  --trait-fort:       rgba(21, 24, 55, 0.22);
+
+  /* Texte — tous vérifiés ≥ 4,5:1 sur --papier et --page */
+  --texte:            #141414; /* 16,9:1 */
+  --texte-doux:       #5a5f6b; /* 6,6:1  */
+  --texte-tertiaire:  #6b6b6b; /* 5,3:1  (remplace #8e8e8e à 3,3:1) */
+  --texte-inverse:    #ffffff;
+
+  /* Voile de lisibilité posé sur les photos (voir bloc D) */
+  --voile: 9, 11, 28;
+
+  /* Espacement — base 4 px, progression régulière */
+  --e-1: 0.25rem;  /*  4 px */
+  --e-2: 0.5rem;   /*  8 px */
+  --e-3: 0.75rem;  /* 12 px */
+  --e-4: 1rem;     /* 16 px */
+  --e-5: 1.5rem;   /* 24 px */
+  --e-6: 2rem;     /* 32 px */
+  --e-7: 3rem;     /* 48 px */
+  --e-8: 4rem;     /* 64 px */
+  --e-9: 6rem;     /* 96 px */
+
+  /* Rythme vertical des sections : une seule valeur fluide, 56 → 112 px */
+  --rythme-section: clamp(3.5rem, 2.357rem + 5.714vw, 7rem);
+
+  /* Gouttière latérale : valeur unique, reprise telle quelle de `.container`
+     dans premium.css, pour que les marges négatives des bandeaux défilants
+     retombent exactement sur le bord de l'écran. */
+  --gouttiere: clamp(1rem, 4vw, 3.5rem);
+
+  /* Rayons — trois valeurs seulement, plus la pilule */
+  --r-xs:   8px;   /* puces, badges */
+  --r-sm:   12px;  /* champs de formulaire */
+  --r-md:   20px;  /* cartes, panneaux */
+  --r-pilule: 999px;
+
+  /* Ombres — neutres, jamais colorées */
+  --ombre-1: 0 1px 2px rgba(21, 24, 55, 0.06), 0 4px 12px rgba(21, 24, 55, 0.05);
+  --ombre-2: 0 2px 4px rgba(21, 24, 55, 0.05), 0 12px 32px rgba(21, 24, 55, 0.09);
+  --ombre-3: 0 4px 8px rgba(21, 24, 55, 0.06), 0 24px 64px rgba(21, 24, 55, 0.14);
+
+  /* Zone tactile minimale (WCAG 2.5.5) */
+  --touche: 44px;
+
+  /* ------------------------------------------------------------------------
+     A.2 — Échelle typographique fluide
+     Chaque `clamp()` interpole linéairement entre 320 px et 1440 px de
+     largeur de fenêtre. Pente = (taille1440 − taille320) / 1120 px,
+     exprimée en vw ; ordonnée à l'origine = taille320 − pente × 320.
+     Racine à 16 px.
+     ------------------------------------------------------------------------ */
+  --fs-xs:   clamp(0.75rem,   0.7321rem + 0.089vw, 0.8125rem); /* 12 → 13 px */
+  --fs-sm:   clamp(0.8125rem, 0.7946rem + 0.089vw, 0.875rem);  /* 13 → 14 px */
+  --fs-base: clamp(0.9375rem, 0.9018rem + 0.179vw, 1.0625rem); /* 15 → 17 px */
+  --fs-md:   clamp(1.0625rem, 1.0089rem + 0.268vw, 1.25rem);   /* 17 → 20 px */
+  --fs-lg:   clamp(1.25rem,   1.1607rem + 0.446vw, 1.5625rem); /* 20 → 25 px */
+  --fs-xl:   clamp(1.5rem,    1.3393rem + 0.804vw, 2.0625rem); /* 24 → 33 px */
+  --fs-2xl:  clamp(1.8125rem, 1.5446rem + 1.339vw, 2.75rem);   /* 29 → 44 px */
+  --fs-3xl:  clamp(2.125rem,  1.6964rem + 2.143vw, 3.625rem);  /* 34 → 58 px */
+  --fs-hero: clamp(2.375rem,  1.6964rem + 3.393vw, 4.75rem);   /* 38 → 76 px */
+
+  /* Interlignes associés */
+  --il-titre: 1.08;
+  --il-sous:  1.25;
+  --il-texte: 1.62;
+
+  /* Transitions — une durée courte, une moyenne, une seule courbe */
+  --t-rapide: 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  --t-moyen:  320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Alignement des jetons hérités des trois feuilles gelées sur les nouveaux,
+   pour éviter que deux valeurs différentes cohabitent pour la même intention. */
+:root {
+  --text-light: var(--texte-tertiaire);   /* était #8e8e8e — 3,3:1, échec AA */
+  --text-muted: var(--texte-doux);        /* était #666666 */
+  --color-border: var(--trait);
+  --polish-radius-sm: var(--r-sm);
+  --polish-radius-md: var(--r-md);
+  --polish-radius-lg: var(--r-md);
+}
+
+
+/* ==========================================================================
+   B. CORRECTIFS DE DÉBORDEMENT HORIZONTAL — priorité absolue
+   Mesure avant correction, accueil à 375 px :
+     document.body.scrollWidth = 430 pour clientWidth = 375 (55 px de trop).
+   Objectif : documentElement.scrollWidth <= clientWidth sur les 6 pages,
+   à 320 / 360 / 375 / 414 / 768 px.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   B.0 — Filet de sécurité global
+   `overflow-x: clip` existait déjà sur body dans design-polish.css : il
+   masquait le débordement sans le corriger (contenu réellement coupé et
+   inaccessible). On le conserve comme garde-fou mais on traite chaque cause.
+
+   Attention : ce garde-fou ne doit JAMAIS être posé sur `html`. Quand un axe
+   vaut `clip`, la valeur `visible` de l'autre axe est calculée en `clip` :
+   la page perdrait tout défilement vertical. Il reste donc sur `body`, avec
+   l'axe vertical redéclaré explicitement.
+   -------------------------------------------------------------------------- */
+body {
+  overflow-x: clip;
+  overflow-y: visible;
+  max-width: 100%;
+}
+
+/* Aucun média ne dépasse jamais sa colonne. */
+img,
+svg,
+video,
+iframe {
+  max-width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   B.1 — `.search-form-grid` : la cause principale (bord droit mesuré à 430 px)
+   Problème constaté : la grille fait 283 px de large mais ses colonnes se
+   résolvent à 227,8 px + 132 px + 24 px de gouttière = 383,8 px. En cause,
+   la valeur par défaut `min-width: auto` des éléments de grille : les
+   `<select>` refusent de descendre sous la largeur de leur option la plus
+   longue et poussent la colonne au-delà du conteneur.
+   Correction : `minmax(0, 1fr)` sur les pistes + `min-width: 0` sur les
+   enfants, ce qui autorise enfin la compression.
+   -------------------------------------------------------------------------- */
+.search-form-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: var(--e-4) var(--e-5);
+}
+
+.search-form-grid > * {
+  min-width: 0;
+}
+
+.search-field,
+.search-field-content {
+  min-width: 0;
+}
+
+/* Le `<select>` natif doit pouvoir rétrécir et tronquer proprement. */
+.search-select,
+.search-input {
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+/* --------------------------------------------------------------------------
+   B.2 — `.section-link-all` (bord droit mesuré à 428 px)
+   Problème constaté : le lien porte `white-space: nowrap` et vit dans un
+   `.section-header-flex` en `flex-wrap: nowrap`. Sur 343 px de conteneur,
+   le titre occupe la place et pousse le lien hors écran.
+   Correction : le conteneur passe en `wrap`, le lien retrouve une largeur
+   minimale nulle et se place sous le titre quand la place manque.
+   -------------------------------------------------------------------------- */
+.section-header-flex {
+  flex-wrap: wrap;
+  gap: var(--e-4) var(--e-5);
+}
+
+.section-header-flex > * {
+  min-width: 0;
+}
+
+.section-link-all {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   B.3 — `.hero-media-layer` (bord gauche −5 px, bord droit 380 px)
+   Problème constaté : `transform: scale(1.025)` appliqué à un calque en
+   `inset: 0` produit 375 × 1,025 = 384 px, soit 5 px qui débordent de chaque
+   côté. Le débordement est aujourd'hui masqué par `overflow: hidden` du
+   parent, mais le calque reste hors cadre et déclenche des recalculs.
+   Correction : le zoom lent est supprimé. Il ne servait qu'à animer une
+   photo de fond pendant sept secondes, au prix d'une composition GPU
+   permanente sur mobile — coûteux sur les réseaux et appareils visés.
+   Le fondu enchaîné entre deux photos suffit. Plus aucun débordement.
+   -------------------------------------------------------------------------- */
+.hero-section {
+  overflow: clip;
+}
+
+.hero-media-layer {
+  transform: none !important;  /* surcharge premium.css : supprime scale(1.025) */
+  transform-origin: center center;
+  will-change: opacity;
+  transition: opacity 900ms ease;
+}
+
+/* --------------------------------------------------------------------------
+   B.4 — `.trip-drawer` fermé
+   Problème constaté : le tiroir « Mon séjour » fermé reste dans le flux,
+   simplement translaté hors écran (`translateX(105%)`). Il déborde donc de
+   375 px vers la droite, et ses liens restent focalisables au clavier —
+   l'utilisateur tabule dans un panneau invisible.
+   Correction : `visibility: hidden` + `pointer-events: none` à l'état
+   fermé, rétablis à l'ouverture après la transition.
+   -------------------------------------------------------------------------- */
+.trip-drawer {
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 480ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              visibility 0s linear 480ms;
+  max-width: 100vw;
+}
+
+.trip-drawer.is-open {
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 480ms cubic-bezier(0.2, 0.8, 0.2, 1),
+              visibility 0s linear 0s;
+}
+
+/* --------------------------------------------------------------------------
+   B.5 — Autres conteneurs susceptibles de pousser la page
+   -------------------------------------------------------------------------- */
+.stats-banner-section {
+  width: min(100% - 2 * var(--gouttiere), 1500px);
+  margin-inline: auto;
+  max-width: 100%;
+}
+
+/* --------------------------------------------------------------------------
+   B.6 — Bandeaux défilants horizontalement (filtres du catalogue)
+   Problème constaté sur residences.html : design-polish.css sort le bandeau
+   de filtres du conteneur avec `margin-inline: -1rem` codé en dur, alors que
+   la gouttière du conteneur est fluide. Écart mesuré : 2 px de chaque côté à
+   320 / 360 / 375 px (body.scrollWidth = 377 pour clientWidth = 375).
+   Correction : la marge négative est calculée à partir de la gouttière.
+   -------------------------------------------------------------------------- */
+.container {
+  padding-inline: var(--gouttiere);
+}
+
+#catalogSection .filter-tabs-row,
+.filter-tabs-row {
+  margin-inline: calc(-1 * var(--gouttiere)) !important; /* surcharge design-polish.css */
+  padding-inline: var(--gouttiere);
+  max-width: calc(100% + 2 * var(--gouttiere));
+  overscroll-behavior-x: contain;
+}
+
+.toast-stack {
+  max-width: calc(100vw - 2 * var(--gouttiere));
+}
+
+.site-toast {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Les grilles à pistes fixes ne doivent jamais imposer leur largeur. */
+.properties-4grid,
+.activities-grid,
+.highlights-3grid,
+.social-wall-grid,
+.experience-showcase,
+.stats-grid,
+.footer-top,
+.categories-quick-bar,
+.search-guarantees-bar,
+.modal-features-grid,
+#modalFeatures {
+  grid-template-columns: none;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.properties-4grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.activities-grid,
+.highlights-3grid,
+.social-wall-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stats-grid,
+.search-guarantees-bar { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.categories-quick-bar { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.footer-top { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr); }
+.experience-showcase { grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr) minmax(0, 0.85fr); }
+
+/* Les mots longs (noms de résidences, URLs) ne créent plus de piste large. */
+.property-card,
+.activity-card,
+.highlight-card,
+.social-wall-card,
+.trip-item {
+  min-width: 0;
+}
+
+.property-title,
+.activity-title,
+.trip-item h4,
+.footer-links-list a {
+  overflow-wrap: break-word;
+}
+
+
+/* ==========================================================================
+   C. POINTS DE RUPTURE MANQUANTS
+   Problème constaté : aucune règle sous 768 px dans style.css. Entre 320 et
+   560 px, `.search-form-grid` et `.categories-quick-bar` restaient sur deux
+   colonnes de moins de 130 px, et les titres gardaient une taille de
+   tablette. Deux paliers sont ajoutés : 560 px et 400 px.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   C.1 — Palier tablette basse / grand mobile : ≤ 768 px
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .properties-4grid,
+  .activities-grid,
+  .highlights-3grid,
+  .social-wall-grid,
+  .experience-showcase {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .search-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .categories-quick-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-guarantees-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .section-header-flex {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  /* Le titre de section revient à une taille de lecture mobile. */
+  .section-title,
+  .experience-content-col h2 {
+    font-size: var(--fs-2xl) !important; /* surcharge premium.css (!important) */
+    line-height: var(--il-sous) !important;
+  }
+
+  /* Rythme vertical mobile : moitié du rythme desktop, régulier. */
+  .home-experiences,
+  .social-wall {
+    padding-block: var(--rythme-section);
+  }
+
+  .stats-banner-section {
+    margin-block: var(--rythme-section);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   C.2 — Palier mobile : ≤ 560 px
+   Toutes les grilles de saisie et de cartes passent en colonne unique.
+   -------------------------------------------------------------------------- */
+@media (max-width: 560px) {
+  .search-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--e-2);
+  }
+
+  /* Le trait vertical de séparation devient horizontal et discret. */
+  .search-field {
+    border-right: 0;
+    border-bottom: 1px solid var(--trait);
+    padding-right: 0;
+    padding-bottom: var(--e-3);
+  }
+
+  .search-field:last-of-type {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  .search-widget-card {
+    padding: var(--e-5) var(--e-4);
+  }
+
+  .search-guarantees-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--e-3);
+    padding: var(--e-5) var(--e-4);
+  }
+
+  .stats-grid,
+  .footer-top,
+  .modal-features-grid,
+  #modalFeatures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .categories-quick-bar {
+    padding: var(--e-4);
+    gap: var(--e-2);
+  }
+
+  /* Les tuiles d'expérience n'ont plus besoin de 470 px de haut sur mobile. */
+  .experience-tile,
+  .experience-tile:first-child {
+    min-height: 320px;
+  }
+
+  .experience-img {
+    min-height: 300px;
+    border-radius: var(--r-md) !important; /* surcharge premium.css (!important) */
+  }
+}
+
+/* --------------------------------------------------------------------------
+   C.3 — Palier petit mobile : ≤ 400 px (iPhone SE, Android d'entrée de gamme)
+   -------------------------------------------------------------------------- */
+@media (max-width: 400px) {
+  :root {
+    --gouttiere: 0.875rem;
+  }
+
+  .categories-quick-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .search-widget-card,
+  .categories-quick-bar {
+    padding-inline: var(--e-3);
+  }
+
+  /* Les titres redescendent d'un cran pour éviter les coupures de mots. */
+  .section-title,
+  .experience-content-col h2 {
+    font-size: var(--fs-xl) !important; /* surcharge premium.css (!important) */
+  }
+
+  .page-hero-title {
+    font-size: var(--fs-2xl) !important; /* surcharge premium.css (!important) */
+  }
+
+  .experience-tile h3 {
+    font-size: var(--fs-lg);
+  }
+
+  /* Les CTA empilés occupent toute la largeur, sans texte coupé. */
+  .hero-cta-group .btn,
+  .activity-card-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Le formulaire d'inscription à la lettre d'information tenait sur une
+     seule ligne : à 320 px, le bouton dépassait de 14 px (bord droit 334). */
+  .newsletter-ochre-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--e-2);
+    width: 100%;
+  }
+
+  .newsletter-ochre-input,
+  .btn-newsletter-subscribe {
+    width: 100%;
+  }
+}
+
+
+/* ==========================================================================
+   D. HERO DE L'ACCUEIL
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   D.1 — Titre
+   Problème constaté : `clamp(2.65rem, 13vw, 4.15rem)` avec `max-width: 9ch`
+   donnait, à 375 px, un titre de 48,75 px sur une mesure de 9 caractères,
+   soit quatre lignes dont la dernière ne contenait que le mot « Vie ».
+   Ce mot était en plus rendu par un dégradé `background-clip: text` animé,
+   donc en or clair, sur une photo claire : illisible.
+   Correction : échelle typographique commune (--fs-hero, 38 → 76 px), mesure
+   portée à 16 caractères sur mobile, équilibrage des lignes, et suppression
+   du dégradé animé au profit d'une couleur pleine.
+   -------------------------------------------------------------------------- */
+.hero-title {
+  font-size: var(--fs-hero) !important;   /* surcharge premium.css (!important) */
+  line-height: var(--il-titre) !important;/* surcharge premium.css (!important) */
+  max-width: 16ch;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  margin: var(--e-4) 0 var(--e-5) !important; /* surcharge premium.css */
+}
+
+/* Le mot mis en valeur : couleur pleine, plus de dégradé ni de scintillement.
+   --or-clair mesure 3,4:1 sur le voile du bloc D.2 — conforme AA pour du
+   texte large (le titre fait au minimum 38 px en gras). */
+.hero-animated-word,
+.hero-title .text-gold {
+  background: none !important;            /* surcharge style.css (dégradé) */
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--or-clair) !important;      /* surcharge premium.css (!important) */
+  animation: none !important;             /* supprime goldTextShimmer */
+  min-width: 0;
+  padding: 0;
+}
+
+/* La rotation du mot reste, mais sobre : une translation courte, pas d'échelle. */
+.hero-animated-word.anim-out { transform: translateY(-14px); opacity: 0; }
+.hero-animated-word.anim-in  { transform: translateY(14px);  opacity: 0; }
+
+.hero-subtitle {
+  font-size: var(--fs-md) !important;     /* surcharge premium.css (!important) */
+  line-height: var(--il-texte) !important;
+  max-width: 46ch;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* --------------------------------------------------------------------------
+   D.2 — Voile de lisibilité
+   Problème constaté : premium.css neutralisait tout assombrissement
+   (`.hero-section::before { background: none !important }`) et compensait par
+   un panneau translucide autour du texte (`rgba(14,16,38,.30)` + bordure +
+   ombre). Résultat : trois couches d'effets, un contraste qui dépend de la
+   photo affichée par le diaporama, et un rendu « verre dépoli » daté.
+   Correction : le panneau disparaît complètement ; un vrai dégradé sombre
+   est posé sur toute la photo, plus dense en bas où se trouve le texte.
+
+   Voile réduit pour laisser voir les photos ; le renfort reste concentré
+   derrière le texte. Les anciennes mesures de contraste ne s'appliquent
+   plus à ces opacités.
+   -------------------------------------------------------------------------- */
+.hero-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* Voile allégé d'environ un quart : la photo reste visible, le texte garde un
+     contraste suffisant grâce à son ombre portée et au renfort en bas d'image,
+     là où se trouvent les boutons. */
+  background: linear-gradient(
+    180deg,
+    rgba(var(--voile), 0.20) 0%,
+    rgba(var(--voile), 0.32) 45%,
+    rgba(var(--voile), 0.58) 100%
+  ) !important; /* surcharge premium.css qui forçait `background: none` */
+}
+
+/* Le panneau translucide autour du texte est retiré : le voile suffit. */
+.hero-content {
+  background: transparent !important;     /* surcharge premium.css (!important) */
+  backdrop-filter: none !important;       /* surcharge premium.css (!important) */
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  max-width: 46rem;
+}
+
+/* Le surtitre garde une plaque opaque : c'est du texte petit, il doit être
+   garanti quelle que soit la photo (9,4:1 mesurés sur le voile). */
+.hero-tag {
+  background: rgba(var(--voile), 0.72) !important; /* surcharge premium.css */
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: #ffffff !important;
+  border-radius: var(--r-pilule);
+  padding: 0.55rem 1rem;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.14em;
+  box-shadow: none !important;
+}
+
+.concierge-live {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: var(--fs-xs);
+}
+
+/* --------------------------------------------------------------------------
+   D.3 — Sur les bannières intérieures, même logique de voile.
+   Problème constaté : `.page-hero::before { background: none !important }`
+   laissait des titres blancs sur des photos claires, rattrapés seulement par
+   un `text-shadow`. L'ombre portée n'est pas un moyen de contraste fiable.
+   -------------------------------------------------------------------------- */
+.page-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--voile), 0.52) 0%,
+    rgba(var(--voile), 0.62) 55%,
+    rgba(var(--voile), 0.82) 100%
+  ) !important; /* surcharge premium.css qui forçait `background: none` */
+}
+
+.page-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+.page-hero-title {
+  font-size: var(--fs-3xl) !important;    /* surcharge premium.css (!important) */
+  line-height: var(--il-titre) !important;
+  text-shadow: none;                      /* le voile remplace l'ombre */
+  max-width: 18ch;
+}
+
+.page-hero-subtitle {
+  font-size: var(--fs-md) !important;     /* surcharge premium.css (!important) */
+  line-height: var(--il-texte);
+  max-width: 52ch;
+  text-shadow: none;
+}
+
+/* Sur desktop, le voile devient latéral : la photo reste visible à droite,
+   le renfort derrière le texte reste à gauche. */
+@media (min-width: 900px) {
+  .hero-section::before {
+    /* Voile allégé : le côté gauche, qui porte le titre, reste assombri mais
+       laisse désormais deviner la photo ; la droite s'éclaircit franchement. */
+    background:
+      linear-gradient(180deg, transparent 58%, rgba(var(--voile), 0.30) 100%),
+      linear-gradient(
+        100deg,
+        rgba(var(--voile), 0.52) 0%,
+        rgba(var(--voile), 0.42) 38%,
+        rgba(var(--voile), 0.14) 64%,
+        rgba(var(--voile), 0.02) 88%
+      ) !important; /* surcharge premium.css */
+  }
+
+  .hero-title {
+    max-width: 13ch;
+  }
+}
+
+/* Sur mobile, le hero n'a plus besoin de 710 px de hauteur imposée. */
+@media (max-width: 768px) {
+  .hero-section {
+    min-height: min(640px, calc(100svh - 76px));
+    padding: var(--e-7) 0 var(--e-9);
+  }
+
+  .hero-title {
+    font-size: var(--fs-hero) !important; /* surcharge premium.css (!important) */
+    max-width: 100%;
+  }
+
+  .hero-content {
+    padding: 0 !important;                /* surcharge premium.css (!important) */
+    border-radius: 0;
+  }
+}
+
+
+/* ==========================================================================
+   E. ÉLÉMENTS FLOTTANTS DU BAS D'ÉCRAN
+   Problème constaté (mesures à 375 × 812) :
+     .trip-trigger        gauche 12 px, bas 12 px, 52 × 52
+     .floating-whatsapp-btn droite 24 px, bas 24 px, 52 × 52  → lignes de base
+                          différentes, l'ensemble paraît de travers
+     .hero-slider-ui      gauche 20 px, bas 82 px             → empilé au-dessus
+                          du badge « Mon séjour », dans la même colonne
+     Aucun des trois ne tient compte de env(safe-area-inset-bottom) : sur
+     iPhone à encoche, ils passent sous la barre d'accueil.
+   Correction : une seule zone d'ancrage. Les deux boutons partagent la même
+   ligne de base et la même taille ; les points du diaporama sont recentrés
+   et relevés au-dessus de cette ligne.
+   ========================================================================== */
+:root {
+  --flottant-taille: 52px;
+  --flottant-marge:  calc(var(--e-4) + env(safe-area-inset-bottom, 0px));
+  --flottant-cote:   var(--gouttiere);
+  /* Hauteur totale réservée en bas d'écran par la barre flottante. */
+  --flottant-zone:   calc(var(--flottant-marge) + var(--flottant-taille));
+}
+
+.trip-trigger,
+.floating-whatsapp-btn {
+  bottom: var(--flottant-marge);
+  min-height: var(--flottant-taille);
+  border-radius: var(--r-pilule);
+  transition: transform var(--t-rapide), box-shadow var(--t-rapide);
+}
+
+.trip-trigger {
+  left: var(--flottant-cote);
+  right: auto;
+  z-index: 930;
+  background: var(--bleu-nuit);
+  color: #fff;
+  box-shadow: var(--ombre-2);
+}
+
+.floating-whatsapp-btn {
+  right: var(--flottant-cote);
+  left: auto;
+  z-index: 930;
+  background: var(--or);
+  color: var(--bleu-nuit);
+  /* L'ombre dorée d'origine (rgba(232,185,4,.45)) faisait halo ; ombre neutre. */
+  box-shadow: var(--ombre-2);
+  border: 0;
+}
+
+.trip-trigger:hover,
+.floating-whatsapp-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ombre-3);
+}
+
+/* Les notifications ne recouvrent plus la bulle WhatsApp. */
+.toast-stack {
+  right: var(--flottant-cote);
+  bottom: calc(var(--flottant-zone) + var(--e-3));
+}
+
+/* Les points du diaporama quittent la colonne de gauche : ils sont centrés
+   et relevés au-dessus de la barre flottante, sans jamais la croiser. */
+.hero-slider-ui {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  bottom: calc(var(--flottant-zone) + var(--e-6));
+  gap: var(--e-2);
+}
+
+@media (min-width: 769px) {
+  /* Sur desktop, la place ne manque pas : les points reprennent leur ancrage
+     à droite, hors de portée de la bulle WhatsApp. */
+  .hero-slider-ui {
+    left: auto;
+    right: clamp(1.5rem, 4vw, 4rem);
+    transform: none;
+    bottom: calc(var(--flottant-zone) + var(--e-7));
+  }
+}
+
+/* --------------------------------------------------------------------------
+   E.1 — Points du diaporama : cible tactile réelle
+   Problème constaté : `.hero-dot` mesure 34 × 4 px. Impossible à viser au
+   pouce, et invisible pour le repérage clavier.
+   Correction : le bouton fait 44 px de haut (WCAG 2.5.5) ; la barre visible
+   est dessinée en pseudo-élément, l'apparence ne change pas.
+   -------------------------------------------------------------------------- */
+.hero-dot {
+  position: relative;
+  width: 44px;
+  height: var(--touche);
+  min-height: var(--touche);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-xs);
+  transition: width var(--t-moyen);
+}
+
+.hero-dot::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: var(--r-pilule);
+  background: rgba(255, 255, 255, 0.45);
+  transition: background var(--t-moyen);
+}
+
+.hero-dot.is-active {
+  width: 74px;
+  background: transparent;
+}
+
+.hero-dot.is-active::after {
+  background: #ffffff;
+}
+
+/* Le contenu de page ne se termine jamais sous la barre flottante. */
+.site-footer {
+  padding-bottom: calc(var(--flottant-zone) + var(--e-4));
+}
+
+
+/* ==========================================================================
+   F. ACCESSIBILITÉ
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   F.1 — Repère clavier
+   Problème constaté : design-polish.css pose `outline: 3px solid #e8b904`.
+   Sur les fonds clairs du site (blanc, #f8f9fc) cet or atteint 1,85:1 : le
+   repère est pratiquement invisible, alors que WCAG 1.4.11 demande 3:1.
+   Correction : anneau double — trait bleu nuit (contrasté sur fond clair) et
+   halo or (contrasté sur fond sombre). Le repère est visible partout.
+   -------------------------------------------------------------------------- */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--bleu-nuit) !important; /* surcharge design-polish.css (!important) */
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(232, 185, 4, 0.6);
+  border-radius: var(--r-xs);
+}
+
+/* Sur fond sombre, on inverse : trait or, halo bleu nuit. */
+.hero-section :where(a, button, [tabindex]):focus-visible,
+.page-hero :where(a, button, [tabindex]):focus-visible,
+.site-footer :where(a, button, [tabindex]):focus-visible,
+.stats-banner-section :where(a, button, [tabindex]):focus-visible,
+.experience-tile :where(a, button, [tabindex]):focus-visible,
+.search-guarantees-bar :where(a, button, [tabindex]):focus-visible {
+  outline-color: var(--or) !important;    /* surcharge design-polish.css */
+  box-shadow: 0 0 0 6px rgba(14, 16, 38, 0.75);
+}
+
+/* Le focus au clic ne doit pas dessiner d'anneau. */
+:where(a, button, input, select, textarea):focus:not(:focus-visible) {
+  outline: none !important;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   F.2 — Zones tactiles ≥ 44 × 44 px
+   Problème constaté à 375 px : `.search-select` 20 px de haut,
+   `.section-link-all` 26 px, `.experience-tile-link` 20 px, les liens de
+   pied de page 18 px.
+   -------------------------------------------------------------------------- */
+.search-select,
+.search-input,
+.search-field-content input,
+.search-field-content select {
+  min-height: var(--touche);
+  padding-block: var(--e-1);
+  font-size: var(--fs-base);
+}
+
+.section-link-all,
+.experience-tile-link,
+.social-wall-head a,
+.home-terrains-link,
+.trip-remove,
+.trip-close,
+.faq-question {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touche);
+}
+
+/* Le bouton de menu mobile ne mesurait que 23 px de large.
+   ATTENTION : ne jamais poser de "display" sur .mobile-menu-toggle en dehors
+   d'une media query. La règle qui se trouvait ici écrasait le
+   "display: none" de style.css : le burger restait alors affiché en desktop,
+   à côté du menu de navigation pourtant déjà visible. */
+.trip-remove,
+.trip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touche);
+  min-height: var(--touche);
+}
+
+/* Zone tactile du burger, sans le rendre visible : sa visibilité reste pilotée
+   par les seules media queries (masqué au-delà de 768 px). */
+.mobile-menu-toggle {
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touche);
+  min-height: var(--touche);
+}
+
+/* Le cœur « favoris » mesurait 42 px de large. */
+.btn-favorite-heart {
+  min-width: var(--touche);
+  min-height: var(--touche);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .site-footer a,
+  .nav-links .nav-link,
+  .breadcrumb-nav a {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--touche);
+    min-height: var(--touche);
+  }
+
+  /* Une largeur minimale pour les libellés courts (« FAQ », « Accueil »). */
+  .nav-links .nav-link {
+    justify-content: center;
+    padding-inline: var(--e-2);
+  }
+
+  .breadcrumb-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--e-1);
+  }
+
+  .brand-logo {
+    min-height: var(--touche);
+    align-items: center;
+  }
+
+  /* Le lien reste aligné à gauche malgré sa hauteur augmentée. */
+  .footer-links-list li,
+  .footer-contact-list li,
+  .site-footer li {
+    display: flex;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   F.3 — Neutralisation des animations décoratives
+   Problème constaté : deux boucles infinies tournent en permanence sur
+   toutes les pages — `goldTagShimmer` sur `.section-tag` et
+   `goldTextShimmer` sur `.hero-animated-word`. Elles reposent sur
+   `background-clip: text` + `-webkit-text-fill-color: transparent`, donc le
+   texte devient un dégradé or : illisible sur fond clair (1,85:1) et coûteux
+   en batterie sur mobile.
+   Correction : couleur pleine, aucune animation.
+   -------------------------------------------------------------------------- */
+.section-tag {
+  background: none !important;            /* surcharge style.css (dégradé) */
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: currentColor !important;
+  animation: none !important;             /* supprime goldTagShimmer */
+  color: var(--or-texte) !important;      /* surcharge premium.css (!important) et les styles inline */
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Sur fond sombre, le surtitre reprend l'or de marque (9,3:1). */
+.hero-section .section-tag,
+.page-hero .section-tag,
+.stats-banner-section .section-tag,
+.site-footer .section-tag,
+.testimonial-left-col .section-tag,
+.testimonial-split-card .section-tag,
+.experience-tile .section-tag,
+.experience-tile .micro {
+  color: var(--or) !important;            /* surcharge premium.css */
+}
+
+/* Le même surtitre en dehors d'un contexte sombre : or foncé. */
+.micro {
+  color: var(--or-texte);
+}
+
+/* Le sous-titre du logo était en or pur sur l'en-tête blanc : 1,85:1. */
+.logo-subtitle {
+  color: var(--or-texte) !important;      /* surcharge premium.css (!important) */
+}
+
+/* Encart doré des « années d'excellence » : le chiffre et le libellé
+   héritaient d'un or et d'un gris clair — donc or sur or (1:1). */
+.experience-badge-card,
+.experience-badge-card * ,
+.experience-badge-number,
+.experience-badge-text {
+  color: var(--bleu-nuit) !important;     /* surcharge premium.css (!important) */
+}
+
+/* Pied de page : le texte gris hérité de --text-light tombait à 3,5:1 sur
+   le bleu nuit. Il repasse en blanc atténué (12,7:1). */
+.site-footer p,
+.site-footer small,
+.site-footer .footer-brand p {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* Le point « conciergerie en direct » ne pulse plus indéfiniment. */
+.concierge-live::before {
+  animation: none !important;             /* surcharge premium.css (pulse-live) */
+  box-shadow: 0 0 0 4px rgba(232, 185, 4, 0.22);
+}
+
+/* --------------------------------------------------------------------------
+   F.4 — prefers-reduced-motion
+   Problème constaté : premium.css réduit les durées à 0,01 ms mais laisse
+   les transformations de départ des révélations au scroll ; un élément non
+   révélé pouvait rester à `opacity: 0`.
+   Correction : tout est rendu visible et immobile.
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal-item,
+  .motion-reveal,
+  .hero-animated-word {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .hero-media-layer {
+    transform: none !important;
+  }
+
+  .property-card:hover,
+  .trip-trigger:hover,
+  .floating-whatsapp-btn:hover,
+  :where(.activity-card, .highlight-card, .category-quick-item, .social-wall-card):hover {
+    transform: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   F.5 — Lisibilité du texte courant
+   -------------------------------------------------------------------------- */
+body {
+  font-size: var(--fs-base);
+  line-height: var(--il-texte);
+  color: var(--texte);
+  -webkit-text-size-adjust: 100%;
+}
+
+p {
+  max-width: 70ch;
+}
+
+/* Sur iOS, une police de moins de 16 px dans un champ déclenche un zoom
+   automatique qui casse la mise en page. */
+input,
+select,
+textarea {
+  font-size: max(16px, var(--fs-base));
+}
+
+
+/* ==========================================================================
+   G. HARMONISATION DES COMPOSANTS
+   Problème constaté : trois feuilles successives ont défini le même
+   composant avec des valeurs différentes. Exemples relevés :
+     rayons de carte   16 px (style.css) · 22 px (premium.css) · 20 px (design-polish.css)
+     rayons de bouton  9999 px (style.css) · 999 px (premium.css)
+     ombres            colorées or sur la bulle WhatsApp, neutres ailleurs
+     hauteurs de champ 20 px pour les `select`, 44 px pour les boutons
+   Correction : un seul jeu de valeurs, repris des jetons du bloc A.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   G.1 — Boutons
+   -------------------------------------------------------------------------- */
+.btn,
+.btn-book-nav,
+.btn-property-detail,
+.btn-search-properties,
+.btn-newsletter-subscribe,
+.btn-activity-wa,
+.btn-activity-quote,
+.filter-btn,
+.trip-footer a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e-2);
+  min-height: var(--touche);
+  padding: 0.8rem 1.5rem;
+  border-radius: var(--r-pilule);
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color var(--t-rapide),
+              border-color var(--t-rapide),
+              color var(--t-rapide),
+              transform var(--t-rapide),
+              box-shadow var(--t-rapide);
+}
+
+/* Bouton principal : or sur bleu nuit, ou bleu nuit sur clair. */
+.btn-forest,
+.btn-gold,
+.btn-search-properties {
+  background: var(--or);
+  border: 1px solid var(--or);
+  color: var(--bleu-nuit);
+}
+
+.btn-forest:hover,
+.btn-gold:hover,
+.btn-search-properties:hover {
+  background: var(--or-survol);
+  border-color: var(--or-survol);
+  color: var(--bleu-nuit-fonce);
+  transform: translateY(-1px);
+}
+
+.btn-property-detail,
+.btn-book-nav {
+  background: var(--bleu-nuit) !important;  /* surcharge premium.css (!important) */
+  border: 1px solid var(--bleu-nuit);
+  color: #ffffff !important;                /* surcharge premium.css (!important) */
+}
+
+.btn-property-detail:hover,
+.btn-book-nav:hover {
+  background: var(--bleu-nuit-clair) !important;
+  border-color: var(--bleu-nuit-clair);
+  transform: translateY(-1px);
+}
+
+.btn-outline-white {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: #ffffff;
+}
+
+.btn-outline-white:hover {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: var(--bleu-nuit);
+}
+
+/* Sur mobile, l'en-tête est serré : le bouton « Réserver » reste compact pour
+   ne pas comprimer le bloc de marque, qui passait alors sur trois lignes. */
+@media (max-width: 768px) {
+  .btn-book-nav {
+    padding: 0.6rem 0.9rem;
+    font-size: var(--fs-xs);
+  }
+
+  .brand-logo {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Le bloc de marque doit tenir sur deux lignes : « HENRI & PHILIPPE » puis
+     « DÉTENTE & LOISIRS • ASSINIE ». Agrandir la cible tactile du bouton de
+     menu l'avait fait passer à trois lignes. */
+  .logo-title,
+  .logo-subtitle {
+    white-space: nowrap;
+  }
+
+  /* La zone tactile de 44 px est obtenue par débordement de la marge, sans
+     consommer de largeur supplémentaire dans l'en-tête. */
+  .mobile-menu-toggle {
+    margin-inline: -0.625rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .btn-book-nav {
+    padding: 0.6rem 0.7rem;
+  }
+}
+
+/* État actif et état désactivé, aujourd'hui absents du site. */
+.btn:active,
+.btn-book-nav:active,
+.btn-property-detail:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled,
+.btn[aria-disabled="true"],
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   G.2 — Cartes : un seul rayon, une seule ombre, une seule élévation
+   -------------------------------------------------------------------------- */
+.property-card,
+.activity-card,
+.highlight-card,
+.social-wall-card,
+.search-widget-card,
+.testimonial-split-card,
+.faq-item,
+.experience-badge-card {
+  border-radius: var(--r-md) !important;   /* surcharge premium.css (!important) */
+  box-shadow: var(--ombre-1) !important;   /* surcharge premium.css (!important) */
+  border: 1px solid var(--trait);
+  background: var(--papier);
+  overflow: hidden;
+}
+
+.property-card:hover,
+.activity-card:hover,
+.highlight-card:hover,
+.social-wall-card:hover {
+  box-shadow: var(--ombre-2) !important;   /* surcharge premium.css (!important) */
+  transform: translateY(-4px) !important;  /* était −10 px : mouvement plus calme */
+  border-color: var(--trait-fort);
+}
+
+.experience-tile {
+  border-radius: var(--r-md);
+}
+
+/* --------------------------------------------------------------------------
+   G.3 — Badges et pastilles
+   -------------------------------------------------------------------------- */
+.badge-tag-rent,
+.badge-tag-sale,
+.activity-badge-pill,
+.btn-trip-add,
+.property-badge,
+.trip-trigger b {
+  border-radius: var(--r-pilule);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  /* Les empilements de `backdrop-filter` sont retirés : fond plein opaque. */
+  backdrop-filter: none !important;        /* surcharge premium.css (!important) */
+  background: #ffffff !important;          /* surcharge premium.css (!important) */
+  color: var(--bleu-nuit) !important;      /* surcharge premium.css (!important) */
+  box-shadow: var(--ombre-1);
+}
+
+.trip-trigger b {
+  background: var(--or) !important;        /* surcharge premium.css */
+}
+
+.btn-trip-add {
+  min-height: var(--touche);
+  padding-inline: var(--e-3);
+}
+
+/* --------------------------------------------------------------------------
+   G.4 — Champs de formulaire : hauteur, rayon et états unifiés
+   -------------------------------------------------------------------------- */
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="date"],
+input[type="number"],
+input[type="search"],
+select,
+textarea,
+.form-input,
+.form-select {
+  min-height: var(--touche);
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--r-sm);
+  background: var(--papier);
+  color: var(--texte);
+  font-family: var(--font-sans);
+  line-height: 1.4;
+  transition: border-color var(--t-rapide), box-shadow var(--t-rapide);
+}
+
+textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--trait-fort);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--surface-2);
+  color: var(--texte-tertiaire);
+  cursor: not-allowed;
+}
+
+/* Cases à cocher et boutons radio
+   Problème constaté sur devis.html : les cases mesurent 18 × 17 px (taille
+   forcée en style en ligne) et l'étiquette n'agrandit pas la zone cliquable.
+   Correction : case à 22 px, étiquette portée à 44 px de haut. */
+input[type="checkbox"],
+input[type="radio"] {
+  width: 22px !important;   /* surcharge le style en ligne des pages */
+  height: 22px !important;  /* surcharge le style en ligne des pages */
+  min-height: 22px;
+  flex: 0 0 auto;
+  accent-color: var(--bleu-nuit);
+  cursor: pointer;
+}
+
+label:has(> input[type="checkbox"]),
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]),
+.addon-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--e-3);
+  min-height: var(--touche);
+  cursor: pointer;
+}
+
+/* Le montant des options était affiché en or pur sur fond blanc (1,85:1).
+   Style en ligne dans devis.html : il faut `!important` pour le corriger. */
+.addon-checkbox-label > span,
+.addon-checkbox-label span[style*="--color-gold"],
+.simulator-box span[style*="--color-gold"],
+.simulator-box small[style*="--color-gold"] {
+  color: var(--or-texte) !important; /* surcharge un style en ligne */
+}
+
+/* Le widget de recherche garde ses champs sans bordure : ils vivent dans une
+   carte qui joue déjà ce rôle. On ne réintroduit donc pas de cadre ici. */
+.search-select,
+.search-input {
+  border: 0;
+  background: transparent;
+  padding-inline: 0;
+  border-radius: 0;
+}
+
+.search-field-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texte-tertiaire); /* 5,3:1 — remplace #8e8e8e à 3,3:1 */
+}
+
+/* --------------------------------------------------------------------------
+   G.5 — Titres et rythme vertical
+   -------------------------------------------------------------------------- */
+.section-title,
+.experience-content-col h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-3xl) !important;     /* surcharge premium.css (!important) */
+  line-height: var(--il-titre) !important; /* surcharge premium.css (!important) */
+  letter-spacing: -0.025em;
+  color: var(--bleu-nuit) !important;      /* surcharge premium.css (!important) */
+  text-wrap: balance;
+  margin: 0;
+  max-width: 22ch;
+}
+
+.section-header-flex {
+  margin-bottom: var(--e-6);
+}
+
+.section-link-all {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bleu-nuit);
+  border-bottom: 2px solid var(--or);
+  padding-bottom: 0.15rem;
+}
+
+.section-link-all:hover,
+.section-link-all:focus-visible {
+  color: var(--or-texte);                  /* 5,7:1 — l'or pur serait à 1,85:1 */
+  border-bottom-color: var(--or-texte);
+  transform: none;                         /* le décalage de 3 px est retiré */
+}
+
+/* --------------------------------------------------------------------------
+   G.6 — Le seul dégradé décoratif conservé est le voile du bloc D.
+   Les halos colorés restants sont neutralisés.
+   -------------------------------------------------------------------------- */
+.experience-badge-card {
+  background: var(--or) !important;        /* surcharge premium.css (!important) */
+  color: var(--bleu-nuit) !important;
+}
+
+/* Pied de page : cohérence des liens et contraste sur fond sombre. */
+.footer-links-list a,
+.footer-contact-list a {
+  color: rgba(255, 255, 255, 0.86);
+  transition: color var(--t-rapide);
+}
+
+.footer-links-list a:hover,
+.footer-contact-list a:hover {
+  color: var(--or);
+}
+
+/* --------------------------------------------------------------------------
+   G.7 — Images : réservation d'espace
+   Le développeur frontend posera `width`/`height` sur les balises à partir de
+   data/image-manifest.json. En attendant, le ratio est préservé ici pour
+   éviter les décalages de mise en page au chargement.
+   -------------------------------------------------------------------------- */
+.property-img,
+.activity-card img,
+.social-wall-card img,
+.experience-tile img,
+.experience-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.property-img-wrapper {
+  aspect-ratio: 4 / 3;
+}
+
+.social-wall-card img {
+  aspect-ratio: 16 / 9;
+  height: auto;
+}
+
+/* ==========================================================================
+   H. MENU PRINCIPAL — libellés coupés sur deux lignes (bureau)
+   ==========================================================================
+
+   PROBLÈME CONSTATÉ (mesuré à 1440 px, après l'ajout de la 7e entrée
+   « Terrains ») : les libellés à plusieurs mots passaient sur deux lignes.
+   Hauteur des liens relevée : 29 px pour « Accueil », « Terrains », « FAQ »
+   et « Contact » (une ligne), mais 56 px pour « Nos Résidences »,
+   « Activités & Loisirs » et « Calculer un Devis » (deux lignes).
+   Visuellement, le menu semblait « aéré » de façon incohérente : c'est en
+   réalité le retour à la ligne qui séparait les mots.
+
+   CORRECTION : on interdit le retour à la ligne dans un libellé, et on
+   resserre l'espacement inter-entrées pour que les 7 rubriques tiennent sur
+   une seule ligne, y compris sur les écrans de portable autour de 1024 px.
+   -------------------------------------------------------------------------- */
+
+.nav-links .nav-link,
+.nav-links a {
+  white-space: nowrap;      /* un libellé ne se coupe jamais au milieu */
+  hyphens: none;
+}
+
+/* L'espacement d'origine (24,5 px) était calibré pour 6 entrées.
+   On le réduit progressivement au lieu de le fixer, pour rester confortable
+   sur grand écran et compact sur écran étroit. */
+.nav-links {
+  gap: clamp(0.55rem, 1.15vw, 1.35rem);
+  flex-wrap: nowrap;
+}
+
+/* Zone intermédiaire : entre 769 et 1200 px, les 7 entrées, le logo et le
+   bouton « Réserver » se disputent la largeur. On resserre typographie et
+   espacement plutôt que de laisser le menu déborder ou se couper. */
+@media (min-width: 769px) and (max-width: 1200px) {
+  .nav-links {
+    gap: 0.55rem;
+  }
+  .nav-links .nav-link {
+    font-size: 0.72rem;
+    letter-spacing: 0.02em;   /* l'interlettrage d'origine coûtait ~8 px par entrée */
+  }
+  .btn-book-nav {
+    padding: 0.6rem 0.9rem;
+    font-size: 0.72rem;
+  }
+}
+
+/* Sur le tiroir mobile, chaque entrée reprend toute la largeur : le
+   nowrap ci-dessus ne doit pas y créer de débordement horizontal. */
+@media (max-width: 768px) {
+  .nav-links.is-open .nav-link {
+    white-space: normal;
+  }
+}
+
+/* ==========================================================================
+   I. SIMULATEUR DE DEVIS — choix du type de demande & liste des services
+   ==========================================================================
+
+   PROBLÈME 1 : l'option « activités sans hébergement » était la première ligne
+   de la liste déroulante des résidences. Invisible tant qu'on n'ouvrait pas la
+   liste — donc, pour le visiteur, la fonctionnalité n'existait pas.
+   CORRECTION : deux choix explicites, visibles dès l'ouverture de la page.
+
+   PROBLÈME 2 : les services additionnels s'empilaient sur une seule colonne.
+   Mesuré en production : 429 px pour 7 options, dont une seule visible sans
+   faire défiler. Le client croyait qu'il n'y avait qu'un service.
+   CORRECTION : grille de deux colonnes sur écran large, une seule sur mobile.
+   -------------------------------------------------------------------------- */
+
+.sim-mode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+  border: 0;
+  padding: 0;
+  margin: 0 0 1.3rem;
+}
+
+.sim-mode legend {
+  font-size: .8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-muted, #6b6f80);
+  margin-bottom: .5rem;
+  padding: 0;
+}
+
+.sim-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  padding: .8rem .9rem;
+  border: 2px solid rgba(21, 24, 55, .14);
+  border-radius: 14px;
+  cursor: pointer;
+  background: #fff;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.sim-mode-option:hover { border-color: rgba(21, 24, 55, .3); }
+
+.sim-mode-option input {
+  accent-color: #e8b904;
+  width: 18px;
+  height: 18px;
+  margin-top: .15rem;
+  flex: 0 0 auto;
+}
+
+.sim-mode-option span { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.sim-mode-option strong { font-size: .9rem; font-weight: 700; color: #151837; line-height: 1.25; }
+.sim-mode-option small { font-size: .74rem; color: #6b6f80; line-height: 1.3; }
+
+/* L'option retenue se distingue nettement : le visiteur doit voir d'un coup
+   d'œil dans quel mode il se trouve. */
+.sim-mode-option:has(input:checked) {
+  border-color: #e8b904;
+  background: rgba(232, 185, 4, .07);
+}
+
+.sim-mode-option:has(input:focus-visible) {
+  outline: 2px solid #151837;
+  outline-offset: 2px;
+}
+
+/* Liste des services additionnels : deux colonnes pour tout voir d'un coup. */
+#simAddons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin-bottom: .5rem;
+}
+
+#simAddons .addon-checkbox-label { margin: 0; min-width: 0; }
+#simAddons .addon-checkbox-label span { overflow-wrap: anywhere; }
+
+@media (max-width: 900px) {
+  .sim-mode { grid-template-columns: 1fr; }
+  #simAddons { grid-template-columns: 1fr; }
+}
+
+/* Détail des prestations dans le récapitulatif du devis.
+   La zone sous la mention d'acompte était vide : elle porte désormais le
+   décompte ligne à ligne, pour que le visiteur voie d'où vient chaque montant
+   au lieu d'un total « Prestations & Loisirs VIP » opaque. */
+.summary-detail {
+  border-top: 1px solid rgba(255, 255, 255, .15);
+  padding-top: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+}
+
+.summary-detail[hidden] { display: none; }
+
+.summary-detail-title {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #cbd5e1;
+}
+
+.summary-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: .82rem;
+}
+
+.summary-detail-row span:first-child { display: flex; flex-direction: column; min-width: 0; }
+.summary-detail-row strong { color: #fff; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.summary-detail-row small { color: #94a3b8; font-size: .72rem; }
+
+.summary-detail-amount {
+  color: #e8b904;
+  font-weight: 700;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* Note explicative sous le forfait groupe d'une activité (studio). */
+.editor-drawer .hint-groupe {
+  margin: -0.4rem 0 0.9rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+/* Aucune case vide dans la grille des services additionnels : quand le nombre
+   total de cellules est impair, la dernière occupe toute la largeur au lieu de
+   laisser un blanc à sa droite. Purement CSS, donc valable quel que soit le
+   nombre d'activités publiées dans le studio. */
+#simAddons > .addon-checkbox-label:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* Le détail des prestations doit toucher le bouton WhatsApp qui le suit.
+   La colonne est en « space-between » : l'espace libre se glissait entre le
+   détail et le bouton (168 px mesurés), alors que le visiteur doit lire le
+   décompte juste au-dessus du bouton. On reporte donc TOUT l'espace libre
+   au-dessus du détail : le duo détail + bouton reste soudé en bas de colonne. */
+.simulator-summary-col { justify-content: flex-start; }
+.simulator-summary-col > .summary-detail {
+  margin-top: auto;
+  margin-bottom: 0.9rem;
+}
+
+/* Coordonnées du demandeur, entre le détail et le bouton WhatsApp. Sans
+   détail affiché, c'est ce bloc qui prend l'espace libre au-dessus de lui :
+   coordonnées + bouton restent soudés en bas de colonne. */
+.simulator-summary-col > .sim-contact {
+  margin-top: auto;
+  margin-bottom: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, .15);
+  display: flex;
+  flex-direction: column;
+}
+.simulator-summary-col > .summary-detail:not([hidden]) + .sim-contact { margin-top: 0; }
+.sim-contact-titre {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #cbd5e1;
+  margin-bottom: .7rem;
+}
+.sim-contact label {
+  font-size: .8rem;
+  color: #c8d0e5;
+  margin-bottom: .3rem;
+}
+.sim-contact .form-control {
+  width: 100%;
+  margin-bottom: .75rem;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .25);
+  color: #fff;
+}
+.sim-contact .form-control:last-of-type { margin-bottom: 0; }
+/* Astérisque posé en CSS : data-i18n remplace le texte du libellé. */
+.sim-contact label.requis::after { content: " *"; color: var(--color-gold); }
+.sim-contact .form-control[aria-invalid="true"] { border-color: #f87171; }
+.sim-contact-alerte {
+  margin: .7rem 0 0;
+  font-size: .8rem;
+  line-height: 1.4;
+  color: #fecaca;
+}
+.sim-contact-alerte[hidden] { display: none; }
+/* Accord pour les offres WhatsApp : case décochée par défaut. */
+.sim-contact .sim-optin {
+  display: flex;
+  align-items: flex-start;
+  gap: .55rem;
+  margin: .85rem 0 0;
+  font-size: .76rem;
+  line-height: 1.45;
+  color: #c8d0e5;
+  cursor: pointer;
+}
+.sim-contact .sim-optin input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: .1rem 0 0;
+  accent-color: var(--color-gold, #e8b904);
+}
+.sim-contact .form-control::placeholder { color: #94a3b8; }
+.sim-contact .form-control:focus {
+  outline: none;
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px rgba(232, 185, 4, .25);
+}
+
+/* =========================================================================
+   SÉLECTEUR DE LANGUE
+   Il prend en desktop la place laissée par le burger, masqué à cette largeur
+   puisque le menu de navigation y est déjà déroulé. En mobile, les deux
+   cohabitent : le sélecteur reste compact (globe + deux lettres).
+   ========================================================================= */
+.selecteur-langue {
+  position: relative;
+  display: inline-flex;
+}
+
+.langue-bouton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: var(--touche);
+  padding: 0.35rem 0.55rem;
+  background: none;
+  border: 1px solid rgba(20, 20, 20, 0.18);
+  border-radius: 999px;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.langue-bouton:hover,
+.langue-bouton[aria-expanded="true"] {
+  border-color: var(--color-gold, #cca203);
+  background: rgba(204, 162, 3, 0.08);
+}
+
+.langue-bouton:focus-visible {
+  outline: 2px solid var(--color-gold, #cca203);
+  outline-offset: 2px;
+}
+
+.langue-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 1200;
+  min-width: 9.5rem;
+  margin: 0;
+  padding: 0.3rem;
+  list-style: none;
+  background: #fff;
+  border: 1px solid rgba(20, 20, 20, 0.12);
+  border-radius: 0.6rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+}
+
+.langue-menu li { margin: 0; }
+
+.langue-menu button {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  background: none;
+  border: 0;
+  border-radius: 0.4rem;
+  color: #141414;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.langue-menu button:hover,
+.langue-menu button:focus-visible {
+  background: rgba(204, 162, 3, 0.14);
+  outline: none;
+}
+
+/* La langue active est signalée autrement que par la seule couleur, pour
+   rester lisible en cas de daltonisme ou de contraste réduit. */
+.langue-menu button.est-actif {
+  font-weight: 700;
+}
+
+.langue-menu button.est-actif::after {
+  content: " ✓";
+  color: var(--color-gold, #cca203);
+}
+
+/* Fond sombre (pied de page, bandeaux) : le bouton doit rester lisible. */
+.site-footer .langue-bouton,
+.simulator-summary-col .langue-bouton {
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+/* Activité publiée avant l'envoi de sa photo : au lieu d'une image cassée, un
+   aplat discret aux couleurs de la maison. La fiche reste présentable le temps
+   que la photo soit ajoutée depuis le studio. */
+.activity-img-absente {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  background:
+    linear-gradient(135deg, rgba(204, 162, 3, 0.18), rgba(15, 42, 35, 0.28));
+}
+
+/* =========================================================================
+   BLOC TARIF DES ACTIVITÉS
+   En « space-between » sur une seule ligne, un tarif long (« 10 000 FCFA /
+   personne · 35 000 FCFA les 4 ») repoussait le libellé « TARIF : » qui se
+   coupait alors en deux lignes et venait chevaucher le montant. On passe donc
+   le libellé au-dessus dès que la place manque, au lieu de le comprimer.
+   ========================================================================= */
+.activity-price-box {
+  flex-wrap: wrap;
+  gap: 0.15rem 0.8rem;
+  align-items: baseline;
+}
+
+.activity-price-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+/* Le montant occupe la largeur restante et s'aligne à droite ; s'il ne tient
+   plus, il prend une ligne entière plutôt que de bousculer le libellé. */
+.activity-price-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 520px) {
+  .activity-price-val { text-align: left; }
+}
+
+/* Dans la grille à deux colonnes du simulateur, la place manque pour poser le
+   titre et le prix côte à côte : « + 60 000 FCFA » se coupait en trois lignes.
+   On empile donc le prix sous le titre et on le colle à droite, ce qui laisse
+   aussi la place aux tarifs longs du type « 10 000 / personne · 35 000 les 4 ». */
+#simAddons .addon-checkbox-label {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+#simAddons .addon-checkbox-label > span:last-child {
+  align-self: flex-end;
+  text-align: right;
+  /* Le montant et sa devise ne doivent jamais être séparés par un retour à la
+     ligne ; seuls les séparateurs « · » restent des points de coupure. */
+  overflow-wrap: normal;
+}
+
+/* Drapeaux du sélecteur de langue. Le ratio 3:2 est celui des drapeaux
+   français et espagnol ; le drapeau britannique (1:2 à l'origine) est ramené
+   au même gabarit pour que les trois lignes du menu restent alignées. */
+.langue-drapeau {
+  width: 18px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 2px;
+  /* Le blanc du drapeau français disparaîtrait sur le fond blanc du menu. */
+  box-shadow: 0 0 0 1px rgba(20, 20, 20, 0.18);
+  object-fit: cover;
+}
+
+.langue-drapeau-hote {
+  display: inline-flex;
+  align-items: center;
+}
+
+.langue-menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+/* La coche de la langue active est repoussée en bout de ligne, pour ne pas
+   coller au nom de la langue maintenant que la ligne est en flex. */
+.langue-menu button.est-actif::after {
+  margin-left: auto;
+}
+
+/* =========================================================================
+   RYTHME VERTICAL DE LA PAGE D'ACCUEIL
+   Les sections cumulaient leur marge basse ET le padding haut de la suivante :
+   jusqu'à 192 px de blanc entre deux blocs, mesuré en 1440 px. On neutralise
+   les marges qui s'additionnent et on confie l'espacement au seul padding des
+   sections, pour un intervalle régulier au lieu d'écarts variables.
+   Réservé à l'accueil (`body.page-accueil`) : les pages intérieures gardent
+   leur respiration propre.
+   ========================================================================= */
+body.page-accueil {
+  --rythme-accueil: 4rem; /* 64 px entre deux sections */
+}
+
+@media (min-width: 901px) {
+  body.page-accueil .hero-section {
+    padding-bottom: 5rem; /* 128 px auparavant */
+  }
+
+  /* Sections en pleine largeur : tout l'espacement passe par le padding. */
+  body.page-accueil .home-experiences {
+    padding-block: var(--rythme-accueil);
+  }
+
+  body.page-accueil .stats-banner-section {
+    margin-block: 0;
+    padding-block: 2.75rem;
+  }
+
+  body.page-accueil .newsletter-ochre-section {
+    padding-block: 3rem;
+  }
+
+  /* Sections « container » : une seule marge basse, jamais doublée. */
+  body.page-accueil > section.container,
+  body.page-accueil .experience-section,
+  body.page-accueil .testimonial-section {
+    margin-bottom: var(--rythme-accueil);
+  }
+
+  body.page-accueil .experience-section {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* La dernière section avant le pied de page n'a pas à pousser le footer. */
+  body.page-accueil .testimonial-section {
+    margin-bottom: var(--rythme-accueil);
+  }
+}
+
+/* Sur mobile, l'écart est déjà plus court : on l'allège sans le supprimer,
+   sinon les blocs se toucheraient et deviendraient illisibles au défilement. */
+@media (max-width: 900px) {
+  body.page-accueil {
+    --rythme-accueil: 2.75rem;
+  }
+
+  body.page-accueil .home-experiences,
+  body.page-accueil .stats-banner-section {
+    padding-block: var(--rythme-accueil);
+  }
+
+  body.page-accueil .stats-banner-section {
+    margin-block: 0;
+  }
+
+  body.page-accueil > section.container,
+  body.page-accueil .experience-section,
+  body.page-accueil .testimonial-section {
+    margin-bottom: var(--rythme-accueil);
+  }
+}
+
+/* =========================================================================
+   EN-TÊTE MOBILE — CHEVAUCHEMENT LOGO / BOUTON « RÉSERVER »
+   Sous 768 px, `.logo-title` et `.logo-subtitle` sont en `white-space: nowrap`
+   alors que `.logo-texts` n'avait ni `min-width: 0` ni `overflow`. Le texte
+   sortait donc de son conteneur — mesuré jusqu'à 98 px de recouvrement à
+   320 px de large — et passait sous le bouton « Réserver ». On rend le bloc
+   réellement compressible : le nom se tronque proprement au lieu de déborder.
+   ========================================================================= */
+@media (max-width: 768px) {
+  .logo-texts {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .logo-title,
+  .logo-subtitle {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Les actions gardent leur largeur : c'est la marque qui cède, jamais les
+     commandes, sinon le bouton de menu deviendrait inatteignable. */
+  .nav-actions {
+    flex: 0 0 auto;
+  }
+}
+
+/* Sous 430 px, tronquer ne suffit plus : le nom deviendrait illisible. On
+   récupère de la place sur les commandes — le sélecteur n'affiche plus que son
+   drapeau, dont la signification reste évidente, et le bouton se resserre. */
+@media (max-width: 430px) {
+  .selecteur-langue [data-langue-actuelle] {
+    display: none;
+  }
+
+  .langue-bouton {
+    padding-inline: 0.45rem;
+    gap: 0;
+  }
+
+  .btn-book-nav {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.72rem;
+  }
+
+  .nav-wrapper {
+    gap: 0.5rem;
+  }
+}
+
+/* Le nom de la marque doit tenir en entier. premium.css le passe déjà à
+   0.82rem sur mobile : il ne manquait qu'une poignée de pixels. On les prend
+   sur les marges et l'écart interne de l'en-tête, jamais sur la taille du
+   texte — le réduire davantage le rendrait illisible. */
+@media (max-width: 430px) {
+  .nav-wrapper {
+    padding-inline: 0.7rem;
+  }
+
+  .brand-logo {
+    gap: 0.45rem;
+  }
+
+  .brand-logo-img {
+    height: 36px;
+  }
+
+  .logo-title {
+    letter-spacing: 0.02em;
+  }
+}
+
+/* =========================================================================
+   CARTES D'ACTIVITÉ — BOUTONS QUI DÉBORDENT
+   La rangée d'actions était figée en deux colonnes « 1.2fr 1fr ». Dans une
+   carte étroite, « Calculer Devis » ne tenait plus et sortait de la carte, par
+   dessus le texte voisin. Les colonnes deviennent élastiques : tant que les
+   deux boutons tiennent côte à côte ils y restent, sinon ils passent l'un
+   sous l'autre sur toute la largeur, ce qui reste lisible et cliquable.
+   ========================================================================= */
+.activity-actions-group {
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+}
+
+.activity-actions-group > * {
+  min-width: 0;
+}
+
+/* Les deux boutons s'alignent sur la même ligne de base et la même hauteur,
+   au lieu du décalage de 8 px qu'entraînait leur contenu différent. */
+.btn-activity-wa,
+.btn-activity-quote {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
+   BOUTONS FLOTTANTS — RECOUVREMENT DU CONTENU
+   « Mon séjour » et « WhatsApp Direct » sont fixés au bas de la fenêtre : en
+   bas de page, ils masquaient la dernière rangée de cartes et ses boutons,
+   devenus inatteignables. On réserve leur hauteur en fin de document.
+   ========================================================================= */
+body {
+  padding-bottom: 4.5rem;
+}
+
+@media (max-width: 600px) {
+  body {
+    padding-bottom: 5.5rem;
+  }
+}
+
+/* =========================================================================
+   SEUIL DU MENU HORIZONTAL
+   Le menu déroulé apparaissait dès 769 px, mais la somme marque + menu +
+   actions demande environ 975 px : entre les deux, le nom de la marque passait
+   sous « ACCUEIL » (30 px de recouvrement mesurés à 800 px). Le bouton de menu
+   reste donc en place jusqu'à 1023 px, où le menu tient enfin sans collision.
+   ========================================================================= */
+@media (max-width: 1023px) {
+  .nav-links {
+    display: none;
+  }
+
+  .mobile-menu-toggle {
+    display: inline-flex;
+  }
+
+  /* Mêmes garde-fous que sur mobile : la marque se comprime proprement. */
+  .brand-logo {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .logo-texts {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .logo-title,
+  .logo-subtitle {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Sous 400 px, il manquait une quinzaine de pixels pour afficher « HENRI &
+   PHILIPPE » en entier. On les prend sur le logo et les marges plutôt que sur
+   le corps du texte, déjà au minimum lisible. */
+@media (max-width: 400px) {
+  .nav-wrapper {
+    padding-inline: 0.55rem;
+    gap: 0.4rem;
+  }
+
+  .brand-logo-img {
+    height: 32px;
+  }
+
+  .brand-logo {
+    gap: 0.35rem;
+  }
+
+  .btn-book-nav {
+    padding: 0.5rem 0.6rem;
+  }
+}
+
+/* Certaines sections de l'accueil conservaient 80 px de marge basse, imposée
+   par une règle plus spécifique que le rythme défini plus haut. On les aligne
+   explicitement, ainsi que leur dernier enfant dont la marge, ne pouvant pas
+   fusionner faute de padding sur le parent, s'ajoutait à celle de la section. */
+@media (min-width: 901px) {
+  body.page-accueil > section.container.reveal-item,
+  body.page-accueil > section.container.motion-reveal,
+  body.page-accueil > section.container {
+    margin-bottom: var(--rythme-accueil);
+  }
+
+  body.page-accueil > section.container > *:last-child {
+    margin-bottom: 0;
+  }
+}
+
+/* =========================================================================
+   BANDEAU DE MARQUE AVEC PARALLAXE — entre les résidences et les terrains
+   =========================================================================
+   Deux techniques ont été écartées :
+   · une couche `position: fixed` découpée par `clip-path` — `clip-path` fait
+     de la section le bloc contenant, la couche défilait donc avec elle ;
+   · `background-attachment: fixed` — Safari iOS l'ignore et affiche un fond
+     figé mal cadré.
+   On translate donc l'image en JavaScript (js/app.js, `initBandeauParallaxe`).
+
+   Le cadre est volontairement 12 % plus court que la photo : sans cette marge,
+   rien ne pourrait glisser et il n'y aurait aucun effet. 88 % de l'image est
+   visible à tout instant, et la totalité défile au fil du scroll.
+   ========================================================================= */
+.bandeau-parallaxe {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  min-height: 250px;
+  overflow: hidden;
+  /* Le cadre fait 78 % de la hauteur de la photo (572 × 0.78 ≈ 446) : c'est
+     cette différence qui constitue la course du mouvement. À 12 % l'effet
+     existait — mesuré de −20 px à −48 px — mais passait inaperçu. À 22 % la
+     course double et le glissement devient franchement lisible, tout en
+     laissant voir plus des trois quarts de l'image à chaque instant. */
+  aspect-ratio: 1024 / 446;
+  margin-block: var(--rythme-accueil, 4rem);
+}
+
+.bandeau-parallaxe-image {
+  /* Hors du dimensionnement de la grille : l'image ne doit pas agrandir
+     son propre cadre et annuler la course du parallaxe. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  display: block;
+  width: 100%;
+  height: 128%;
+  max-height: none;
+  object-fit: cover;
+  /* Le point de départ : l'image dépasse vers le bas, le script la remonte. */
+  align-self: start;
+  will-change: transform;
+}
+
+/* Aucun filtre ni voile sur la photo : elle est montrée telle quelle. La
+   lisibilité du texte repose sur son ombre portée, calibrée plus bas. */
+.bandeau-parallaxe-contenu {
+  min-width: 0;
+  align-self: center;
+  justify-self: end;
+  width: 100%;
+  max-width: none;
+  text-align: right;
+  color: #fff;
+  /* Marge droite volontairement courte : le texte doit se lire comme plaqué
+     au bord de la photo, et non flotter au milieu. */
+  padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1rem, 2.2vw, 2rem) clamp(1.5rem, 4vw, 3.5rem) clamp(1.5rem, 5vw, 4.5rem);
+}
+
+.bandeau-parallaxe-titre {
+  margin: 0;
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(1.9rem, 5.4vw, 4.6rem);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  /* Deux ombres superposées : une proche qui détache les lettres du ciel clair,
+     une large qui assombrit le fond immédiat. C'est ce qui remplace le voile. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55), 0 4px 34px rgba(0, 0, 0, 0.6);
+}
+
+.bandeau-parallaxe-soustitre {
+  margin: 0.45rem 0 0;
+  font-size: clamp(0.72rem, 1.7vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--color-gold, #e8b904);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 2px 20px rgba(0, 0, 0, 0.65);
+}
+
+/* Le slogan se lit comme une signature : italique, et un filet doré qui le
+   détache des deux lignes de titre au lieu d'en faire une troisième. */
+.bandeau-parallaxe-slogan {
+  position: relative;
+  display: inline-block;
+  margin: clamp(0.9rem, 2.4vw, 1.7rem) 0 0;
+  padding-top: clamp(0.7rem, 1.6vw, 1.15rem);
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: clamp(0.85rem, 2.1vw, 1.6rem);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6), 0 2px 22px rgba(0, 0, 0, 0.65);
+}
+
+.bandeau-parallaxe-slogan::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: clamp(2.2rem, 5vw, 3.5rem);
+  height: 2px;
+  background: var(--color-gold, #e8b904);
+}
+
+/* Desktop : même bord droit pour les trois lignes et signature rapprochée. */
+@media (min-width: 1024px) {
+  .bandeau-parallaxe-contenu > p {
+    max-width: none;
+    text-align: right;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.95), 0 0 12px rgba(0, 0, 0, 0.85), 0 4px 28px rgba(0, 0, 0, 0.7);
+  }
+
+  .bandeau-parallaxe-soustitre {
+    color: #ffe06a;
+    font-weight: 700;
+  }
+
+  .bandeau-parallaxe-slogan {
+    margin-top: 0.5rem;
+    padding-top: 0.45rem;
+  }
+}
+
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .bandeau-parallaxe-image {
+    height: 155%;
+  }
+}
+
+/* Mouvement neutralisé si la personne a demandé à réduire les animations : le
+   script ne translate plus rien et l'image est simplement centrée. */
+@media (prefers-reduced-motion: reduce) {
+  .bandeau-parallaxe-image {
+    top: -14%;
+    transform: none !important;
+  }
+}
+
+/* Ombres douces pour les textes des bannieres de pages. */
+.page-hero .page-hero-title,
+.page-hero .page-hero-subtitle,
+.page-hero .breadcrumb-nav {
+  text-shadow: 0 2px 4px rgba(9, 11, 28, 0.48), 0 5px 16px rgba(9, 11, 28, 0.32);
+}
+
+/* ==========================================================================
+   N. NEWSLETTER — champ téléphone facultatif et modale de confirmation
+   ========================================================================== */
+
+/* Le bandeau accueille désormais trois éléments (e-mail, téléphone, bouton).
+   Sur une seule ligne ils deviendraient illisibles : on autorise le retour à
+   la ligne et on donne à chaque champ une largeur de base, plutôt que de
+   forcer une grille qui casserait l'alignement sur les grands écrans. */
+.newsletter-ochre-form {
+  flex-wrap: wrap;
+  max-width: 560px;
+}
+
+.newsletter-ochre-form .newsletter-ochre-input { flex: 1 1 210px; }
+.newsletter-ochre-form .newsletter-ochre-phone { flex: 1 1 160px; }
+.newsletter-ochre-form .btn-newsletter-subscribe { flex: 0 0 auto; }
+
+/* Message de repli sous le formulaire : la confirmation passe par la modale,
+   ce paragraphe ne sert qu'aux lecteurs d'écran et aux cas où la modale n'a
+   pas pu s'ouvrir. Vide, il ne doit pas occuper d'espace. */
+.newsletter-feedback { margin: var(--e-2, .5rem) 0 0; font-size: .92rem; color: #151837; }
+.newsletter-feedback:empty { display: none; }
+
+/* --- Modale de confirmation ---------------------------------------------- */
+.newsletter-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(12, 14, 32, .62);
+  animation: newsletter-modal-fond .18s ease-out;
+}
+
+.newsletter-modal[hidden] { display: none; }
+body.has-newsletter-modal { overflow: hidden; }
+
+.newsletter-modal-box {
+  position: relative;
+  width: min(100%, 430px);
+  padding: 2.1rem 1.9rem 1.7rem;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(12, 14, 32, .32);
+  text-align: center;
+  animation: newsletter-modal-boite .22s cubic-bezier(.2, .9, .3, 1);
+}
+
+.newsletter-modal-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: rgba(22, 116, 58, .12);
+  color: #16743a;
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.newsletter-modal-box.is-erreur .newsletter-modal-icon { background: rgba(138, 28, 28, .1); color: #8a1c1c; }
+
+.newsletter-modal-box h3 {
+  margin: 0 0 .6rem;
+  font-size: 1.22rem;
+  line-height: 1.3;
+  color: #151837;
+}
+
+.newsletter-modal-text {
+  margin: 0 0 1.4rem;
+  font-size: .95rem;
+  line-height: 1.55;
+  color: #444a68;
+}
+
+.newsletter-modal-close {
+  position: absolute;
+  top: .55rem;
+  right: .7rem;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #6b7090;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.newsletter-modal-close:hover { background: rgba(21, 24, 55, .07); color: #151837; }
+
+.newsletter-modal-ok {
+  padding: .8rem 2rem;
+  border: 0;
+  border-radius: 10px;
+  background: #151837;
+  color: #fff;
+  font-size: .84rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.newsletter-modal-ok:hover { background: #23285a; }
+.newsletter-modal-close:focus-visible,
+.newsletter-modal-ok:focus-visible { outline: 3px solid #c9a227; outline-offset: 2px; }
+
+@keyframes newsletter-modal-fond { from { opacity: 0; } to { opacity: 1; } }
+@keyframes newsletter-modal-boite { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* Respect du réglage système « réduire les animations ». */
+@media (prefers-reduced-motion: reduce) {
+  .newsletter-modal, .newsletter-modal-box { animation: none; }
+}
+
+/* ==========================================================================
+   O. PAGES LÉGALES (politique de confidentialité)
+   Texte long : mesure limitée à ~72 caractères pour rester lisible, et
+   ancrage haut décalé pour que les titres visés par le sommaire ne passent
+   pas sous l'en-tête fixe.
+   ========================================================================== */
+.legal-page { padding: clamp(2rem, 6vw, 4.5rem) 0 clamp(3rem, 8vw, 5rem); background: #fbfbfd; }
+.legal-wrapper { max-width: 820px; }
+
+.legal-head { margin-bottom: clamp(2rem, 5vw, 3rem); }
+.legal-eyebrow { display: block; margin-bottom: .6rem; color: #c9a227; font-size: .7rem; font-weight: 800; letter-spacing: .16em; }
+.legal-head h1 { margin: 0 0 1rem; font-size: clamp(1.9rem, 5vw, 2.8rem); line-height: 1.15; color: #151837; }
+.legal-intro { max-width: 62ch; margin: 0 0 1rem; font-size: 1.02rem; line-height: 1.65; color: #4a5070; }
+.legal-date { margin: 0; color: #757b99; font-size: .85rem; font-style: italic; }
+
+.legal-sommaire {
+  margin-bottom: clamp(2rem, 5vw, 3rem);
+  padding: 1.3rem 1.6rem;
+  border: 1px solid rgba(21, 24, 55, .1);
+  border-radius: 14px;
+  background: #fff;
+}
+.legal-sommaire h2 { margin: 0 0 .8rem; font-size: .78rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #757b99; }
+.legal-sommaire ol { margin: 0; padding-left: 1.2rem; columns: 2; column-gap: 2rem; }
+.legal-sommaire li { margin-bottom: .45rem; font-size: .92rem; break-inside: avoid; }
+.legal-sommaire a { color: #151837; text-decoration: none; border-bottom: 1px solid transparent; }
+.legal-sommaire a:hover { border-bottom-color: #c9a227; }
+
+.legal-section { margin-bottom: clamp(2rem, 5vw, 3rem); scroll-margin-top: 110px; }
+.legal-section h2 { margin: 0 0 1rem; padding-bottom: .6rem; border-bottom: 2px solid rgba(201, 162, 39, .35); font-size: clamp(1.2rem, 3vw, 1.5rem); color: #151837; }
+.legal-section h3 { margin: 1.7rem 0 .7rem; font-size: 1.03rem; color: #23285a; }
+.legal-section p { max-width: 68ch; margin: 0 0 1rem; line-height: 1.7; color: #3f4463; }
+.legal-section ul { max-width: 68ch; margin: 0 0 1.2rem; padding-left: 1.3rem; line-height: 1.7; color: #3f4463; }
+.legal-section li { margin-bottom: .5rem; }
+.legal-section code { padding: .12rem .38rem; border-radius: 5px; background: rgba(21, 24, 55, .07); font-size: .9em; }
+.legal-section a { color: #23285a; }
+
+.legal-contact { list-style: none; padding-left: 0 !important; }
+
+/* La table peut dépasser sur mobile : elle défile dans son propre cadre
+   plutôt que d'élargir la page entière. */
+.legal-table { width: 100%; margin: 0 0 1.2rem; border-collapse: collapse; font-size: .93rem; }
+.legal-table th, .legal-table td { padding: .8rem .9rem; border: 1px solid rgba(21, 24, 55, .12); text-align: left; vertical-align: top; }
+.legal-table thead th { background: #151837; color: #fff; font-size: .82rem; letter-spacing: .04em; }
+.legal-table tbody tr:nth-child(even) { background: rgba(21, 24, 55, .03); }
+
+.legal-retour { margin-top: 2.5rem; }
+.legal-retour a { color: #151837; font-weight: 700; text-decoration: none; }
+.legal-retour a:hover { color: #c9a227; }
+
+
+@media (max-width: 640px) {
+  .legal-sommaire ol { columns: 1; }
+  .legal-table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+/* Le pied de page accueille désormais trois blocs (copyright, lien légal,
+   signature). En « nowrap » sans gouttière ils se touchaient : on autorise le
+   retour à la ligne et on impose un écart. */
+.footer-bottom { flex-wrap: wrap; gap: .5rem 1.75rem; }
+
+/* ==========================================================================
+   P. MUR SOCIAL — troncature des publications Facebook
+   Constaté en production le 12/09/2026 : les publications de la Page font
+   1100 à 2000 caractères. Affichées en entier, chaque carte montait à
+   1620 px et la section à 2032 px — un mur de texte illisible où l'on ne
+   reconnaissait plus des publications. On ramène chaque carte à un aperçu :
+   l'intégralité se lit sur Facebook, où mène déjà le lien de la carte.
+   ========================================================================== */
+.social-wall-card {
+  min-height: 0;                 /* annule le 330px de premium.css, devenu inutile */
+  align-self: start;             /* les cartes ne s'étirent plus sur la plus haute */
+}
+
+.social-wall-card p {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;         /* cinq lignes suffisent à donner le ton */
+  line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: .45rem 0 0;
+  font-size: .88rem;
+  line-height: 1.5;
+  color: #3f4463;
+  /* Les publications contiennent des mots-dièses et des URL sans espace :
+     sans cette césure, ils élargissent la carte au lieu de passer à la ligne. */
+  overflow-wrap: anywhere;
+}
+
+/* Repère visuel discret : la carte mène à Facebook. */
+.social-wall-card { position: relative; text-decoration: none; }
+.social-wall-card::after {
+  content: 'Lire la suite sur Facebook →';
+  display: block;
+  padding: 0 1.2rem 1.2rem;
+  color: #151837;
+  font-size: .74rem;
+  font-weight: 700;
+}
+.social-wall-card:hover::after { color: #c9a227; }
+
+@media (max-width: 900px) {
+  .social-wall-grid { grid-template-columns: 1fr; }
+  .social-wall-card p { -webkit-line-clamp: 4; line-clamp: 4; }
+}
+
+/* ==========================================================================
+   Q. CATALOGUE COMPACT — 5 annonces par ligne en desktop
+   Demande du 12/09/2026 : avec des cartes de 482 px, trois tiennent par
+   ligne ; à une centaine d'annonces le défilement devient interminable.
+   On passe à cinq colonnes et on resserre la carte en conséquence — une
+   carte de ~250 px ne peut pas porter la même typographie qu'une de 482.
+   ========================================================================== */
+/* design-polish.css impose « #catalogSection .properties-4grid : 2 colonnes ».
+   Un sélecteur d'ID l'emporte sur une classe : il faut le même poids ici,
+   sinon la règle est ignorée en silence. */
+@media (min-width: 1200px) {
+  #catalogSection .properties-4grid,
+  .properties-4grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; }
+}
+@media (min-width: 1600px) {
+  #catalogSection .properties-4grid,
+  .properties-4grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* --- Carte resserrée -------------------------------------------------- */
+@media (min-width: 1200px) {
+  /* L'image occupait 220 px pour une carte deux fois plus large : à 250 px
+     de large, elle écrasait le contenu utile. */
+  #catalogSection .properties-4grid .property-img-wrapper { height: 140px; }
+
+  #catalogSection .properties-4grid .property-card-body { padding: .75rem .8rem; gap: .3rem; }
+
+  #catalogSection .properties-4grid .property-card-title {
+    font-size: .92rem;
+    line-height: 1.25;
+    /* Deux lignes au plus : sans cela, un nom long décale tout le reste et
+       les cartes d'une même ligne perdent leur alignement. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  #catalogSection .properties-4grid .property-location { font-size: .7rem; gap: .25rem; }
+  #catalogSection .properties-4grid .property-location span {
+    display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1;
+    -webkit-box-orient: vertical; overflow: hidden;
+  }
+  #catalogSection .properties-4grid .property-location svg { flex: 0 0 auto; }
+
+  /* Les trois pastilles (chambres, bains, capacité) ne tiennent plus côte à
+     côte : on les laisse passer à la ligne plutôt que déborder. */
+  #catalogSection .properties-4grid .property-amenities-row { padding: .45rem 0; gap: .3rem; flex-wrap: wrap; }
+  #catalogSection .properties-4grid .amenity-pill { font-size: .66rem; gap: .2rem; }
+  #catalogSection .properties-4grid .amenity-pill svg { width: 11px; height: 11px; }
+
+  #catalogSection .properties-4grid .property-card-footer { gap: .5rem; flex-wrap: wrap; }
+  #catalogSection .properties-4grid .property-price-block { padding: .25rem .5rem; }
+  #catalogSection .properties-4grid .property-price { font-size: .88rem; }
+  #catalogSection .properties-4grid .property-period { font-size: .62rem; }
+
+  #catalogSection .properties-4grid .btn-property-detail { padding: .45rem .75rem; font-size: .7rem; white-space: nowrap; }
+
+  /* Les surcouches (Carnet, favori) doivent suivre la réduction. */
+  #catalogSection .properties-4grid .property-img-wrapper .btn-trip-add,
+  #catalogSection .properties-4grid .property-img-wrapper [data-favorite] { transform: scale(.82); transform-origin: top left; }
+  #catalogSection .properties-4grid .property-img-wrapper [data-favorite] { transform-origin: top right; }
+}
+
+/* ==========================================================================
+   R. MODALE RÉSIDENCE — image en haut, fiche en dessous
+   Demande du 12/09/2026. La modale plaçait la photo et le texte côte à côte :
+   une colonne étroite et très haute face à une photo 16:9. Quel que soit le
+   réglage, l'un des deux perdait — « cover » rognait la photo de moitié,
+   « contain » la noyait dans des bandes vides.
+   On empile donc : la photo occupe toute la largeur dans son format d'origine,
+   la fiche descriptive se lit dessous. Plus aucun conflit de proportions, et
+   la photo devient enfin le premier élément vu à l'ouverture.
+   ========================================================================== */
+@media (min-width: 992px) {
+  .modal-layout,
+  .villa-modal-layout,
+  .modal-content-grid {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  /* La galerie perd son arrondi de gauche : elle coiffe désormais la modale. */
+  .modal-gallery,
+  .villa-modal-gallery {
+    border-radius: var(--polish-radius-lg) var(--polish-radius-lg) 0 0;
+  }
+
+  .modal-main-media {
+    min-height: 0;
+    height: auto;
+    background: var(--polish-navy, #151837);
+  }
+
+  #modalMainImg,
+  #terrainModalMainImg,
+  .modal-main-img {
+    min-height: 0;
+    width: 100%;
+    /* Hauteur libre : l'image garde son ratio et s'affiche en entier.
+       Le plafond empêche une photo très haute de repousser la fiche
+       descriptive sous la ligne de flottaison. */
+    height: auto;
+    max-height: 62vh;
+    object-fit: contain;
+  }
+}
+
+/* Vignettes de la galerie — format fixe.
+   Conséquence de la disposition verticale : la bande de vignettes occupe
+   désormais toute la largeur de la modale, et `grid-auto-columns: 1fr`
+   étirait chaque vignette jusqu'à 150 px de large pour 72 px de haut. Le
+   recadrage `cover` les rendait alors méconnaissables. On leur impose le
+   format des photos (16:9) et on les aligne à gauche : elles gardent leurs
+   proportions, quel que soit leur nombre. */
+@media (min-width: 992px) {
+  .modal-thumbs,
+  #modalThumbs {
+    grid-auto-columns: 128px;
+    justify-content: start;
+  }
+
+  .modal-thumb {
+    width: 128px;
+    height: 72px;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+/* Appel au catalogue complet, désormais sous les annonces.
+   Il était à droite du titre, donc lu avant même d'avoir vu la sélection.
+   Placé après, il devient la suite logique du parcours. */
+.section-link-after {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.6rem;
+}
+
+.section-link-after .section-link-all {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .7rem 1.6rem;
+  border: 1px solid rgba(21, 24, 55, .18);
+  border-radius: 999px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color .2s ease, background .2s ease;
+}
+
+.section-link-after .section-link-all:hover {
+  border-color: #c9a227;
+  background: rgba(201, 162, 39, .08);
+}
+
+/* ==========================================================================
+   S. MUR SOCIAL — carrousel de publications au format « annonce »
+   Demande du 12/09/2026. Les publications s'affichaient dans une grille de
+   trois cartes d'un modèle qui leur était propre : un encart étranger au
+   reste de la page. Elles reprennent désormais la carte du catalogue
+   (.property-card) et sa vue détaillée, et défilent horizontalement — une
+   grille aurait allongé l'accueil sans fin à mesure que la Page publie.
+   Les règles de la section P (.social-wall-card, .social-wall-grid) ne
+   s'appliquent plus : ces classes ont disparu du balisage.
+   ========================================================================== */
+.social-wall-carrousel {
+  position: relative;
+  margin-top: 2rem;
+}
+
+.social-wall-piste {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0;
+  padding: .35rem .25rem 1.25rem;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  /* Sans cette réinitialisation, les pistes fixes définies plus haut pour
+     les grilles reprendraient la main sur le conteneur. */
+  grid-template-columns: none;
+}
+
+.social-wall-piste::-webkit-scrollbar { height: 6px; }
+.social-wall-piste::-webkit-scrollbar-thumb { background: rgba(21, 24, 55, .18); border-radius: 99px; }
+
+.social-wall-item {
+  flex: 0 0 calc((100% - 3 * 1.25rem) / 4);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.social-wall-item > .social-post-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+}
+
+.social-post-card .property-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Le visuel garde le format 16:9 des cartes du catalogue. Les photos de la
+   Page arrivent dans toutes les proportions : sans ratio imposé, chaque
+   carte prenait une hauteur différente et la rangée perdait son alignement. */
+.social-post-card .property-img-wrapper {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+
+.social-post-card .property-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.social-post-sans-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #1b2050, #2d3577);
+  color: rgba(255, 255, 255, .5);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.social-post-card .property-card-title {
+  /* Deux lignes au maximum : le titre est la première ligne de la
+     publication, elle peut être longue. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.social-post-extrait {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: .5rem 0 0;
+  font-size: .82rem;
+  line-height: 1.5;
+  color: #4a5069;
+  /* Mots-dièses et URL des publications : sans césure, ils élargissent la
+     carte au lieu de passer à la ligne. */
+  overflow-wrap: anywhere;
+}
+
+/* Le pied de carte reste collé en bas quelle que soit la longueur du texte. */
+.social-post-card .property-card-footer { margin-top: auto; }
+.social-post-card .property-price { font-size: 1.05rem; text-transform: capitalize; }
+
+/* ---- Flèches de défilement ---- */
+.social-wall-fleche {
+  position: absolute;
+  top: calc(50% - 1rem);
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  transform: translateY(-50%);
+  border: 1px solid rgba(21, 24, 55, .12);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(21, 24, 55, .16);
+  color: #151837;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, opacity .18s ease;
+}
+
+.social-wall-fleche-avant { left: -14px; }
+.social-wall-fleche-apres { right: -14px; }
+.social-wall-fleche:hover:not(:disabled) { background: #151837; color: #fff; }
+.social-wall-fleche:focus-visible { outline: 3px solid #c9a227; outline-offset: 2px; }
+
+/* Une flèche qui ne mène nulle part disparaît plutôt que de mentir. */
+.social-wall-fleche:disabled { opacity: 0; pointer-events: none; }
+/* Le carrousel du catalogue porte la classe sur son propre cadre, pas sur la
+   section : les deux cas doivent masquer les fleches quand il n y a rien a
+   faire defiler. */
+.social-wall.sans-defilement .social-wall-fleche,
+.social-wall-carrousel.sans-defilement .social-wall-fleche { display: none; }
+
+/* ---- Vue détaillée : coque empruntée à la modale des résidences ---- */
+.social-modal .modal-main-media[hidden] { display: none; }
+
+/* Le visuel d une publication n a pas à occuper 62vh comme la photo d une
+   résidence : c est une illustration, pas le sujet. En le plafonnant à 42vh,
+   le texte de la publication — qui est le contenu réel — remonte au-dessus
+   de la ligne de flottaison et la fenêtre cesse de défiler. */
+.social-modal .modal-main-img { max-height: 42vh; }
+
+/* Les actions des résidences sont sur deux colonnes (réserver / devis).
+   Ici, le lien vers Facebook occupe la place disponible et les deux flèches
+   de navigation restent compactes à côté, sur une seule ligne. */
+.social-modal .social-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+}
+
+.social-modal .social-modal-lien { flex: 1 1 220px; }
+.social-modal .social-modal-prec,
+.social-modal .social-modal-suiv { flex: 0 0 auto; }
+
+.social-modal .social-modal-texte p {
+  margin: 0 0 .85rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.social-modal .social-modal-texte p:last-child { margin-bottom: 0; }
+
+.social-modal .modal-location {
+  text-transform: capitalize;
+  color: #6a7089;
+  font-size: .9rem;
+}
+
+.social-modal-rang {
+  margin: .9rem 0 0;
+  color: #8b90a6;
+  font-size: .78rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.social-modal-actions :where(a, button):disabled {
+  opacity: .35;
+  pointer-events: none;
+}
+
+@media (max-width: 1200px) {
+  .social-wall-item { flex-basis: calc((100% - 2 * 1.25rem) / 3); }
+}
+
+@media (max-width: 900px) {
+  .social-wall-item { flex-basis: calc((100% - 1.25rem) / 2); }
+  .social-wall-fleche-avant { left: -6px; }
+  .social-wall-fleche-apres { right: -6px; }
+}
+
+@media (max-width: 620px) {
+  /* Une carte pleine et un fragment de la suivante : le geste de défilement
+     devient évident sans avoir à chercher les flèches. */
+  .social-wall-item { flex-basis: 82%; }
+  .social-wall-fleche { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .social-wall-piste { scroll-behavior: auto; }
+}
+
+/* ==========================================================================
+   T. RYTHME VERTICAL AUTOUR DU MUR SOCIAL
+   Demande du 12/09/2026 : « espace de séparation trop grand ». Entre la
+   dernière rangée d'annonces et le titre du mur social s'accumulaient
+   80 px (marge basse de la grille) + 80 px (marge basse de la section) +
+   96 px (marge intérieure haute du mur) — près de 260 px de vide pour deux
+   respirations. On resserre les trois, sans toucher au rythme des autres
+   sections : les sélecteurs ne visent que ce raccord précis.
+   ========================================================================== */
+#featuredVillasGrid { margin-bottom: 1.75rem; }
+
+/* Le bouton « Voir tout le catalogue » suit immédiatement les annonces. */
+.section-link-after { margin-top: 0; }
+
+/* `:has()` limite la réduction à la section qui précède réellement le mur.
+   Un navigateur qui l'ignore conserve simplement l'ancien écart.
+   Le !important est ici indispensable et non paresseux : la section des
+   villas vedettes porte un style="margin-bottom: 5rem" écrit dans le HTML,
+   qu aucune feuille de styles ne peut battre autrement. */
+section:has(+ #socialWall) { margin-bottom: 1.75rem !important; }
+
+.social-wall {
+  padding-top: 2.75rem;
+  padding-bottom: 3.25rem;
+}
+
+/* ==========================================================================
+   U. PIED DE CARTE — prix au-dessus, bouton en dessous
+   Demande du 12/09/2026. Côte à côte, le bloc prix et le bouton « Détails »
+   se disputaient une largeur de carte réduite à 240 px : « 250 000 FCFA »
+   tombait sur trois lignes, le bouton rétrécissait, et les deux n'avaient
+   plus la même hauteur. Empilés et étirés sur toute la largeur, ils
+   retrouvent une taille franche et un alignement identique d'une carte à
+   l'autre, quel que soit le nombre de colonnes.
+   ========================================================================== */
+.property-card-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .55rem;
+  margin-top: auto;
+}
+
+/* Le prix tient sur une ligne : montant et période côte à côte, centrés. */
+.property-price-block {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 44px;
+  padding: .5rem .85rem;
+}
+
+.property-price,
+.property-period { white-space: nowrap; }
+
+.btn-property-detail {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  /* Même arrondi que la zone de tarif juste au-dessus. La pilule de 999px
+     héritée de premium.css jurait avec le rectangle du prix, maintenant
+     qu ils sont empilés et de largeur identique. Le !important répond à
+     celui de premium.css : refonte.css est chargée après, elle l emporte. */
+  border-radius: var(--radius-sm, 8px) !important;
+}
+
+/* Catalogue compact : les règles de la section Q portent un identifiant et
+   gagnent donc sur les sélecteurs ci-dessus. On répète l'empilement à leur
+   niveau de spécificité, en gardant leurs tailles resserrées. */
+@media (min-width: 1200px) {
+  #catalogSection .properties-4grid .property-card-footer {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: .45rem;
+  }
+
+  #catalogSection .properties-4grid .property-price-block {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: .35rem;
+    min-height: 38px;
+    padding: .4rem .6rem;
+  }
+
+  #catalogSection .properties-4grid .property-price { font-size: .92rem; }
+  #catalogSection .properties-4grid .property-period { font-size: .64rem; }
+
+  #catalogSection .properties-4grid .btn-property-detail {
+    width: 100%;
+    min-width: 0;
+    min-height: 38px;
+    padding: .5rem .75rem !important;
+    font-size: .74rem;
+  }
+}
+
+/* ==========================================================================
+   V. CATALOGUE UNIFIÉ — résidences, terrains et publications
+   Demande du 12/09/2026. « Nos Résidences » devient le catalogue complet :
+   trois rubriques empilées, chacune avec ses propres filtres, coiffées d'une
+   recherche transversale. Les onglets de rubrique n'effacent rien, ils
+   masquent : les filtres de villa et de statut foncier continuent d'opérer
+   dans leur rubrique.
+   ========================================================================== */
+.catalogue-barre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.catalogue-recherche {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex: 1 1 320px;
+  max-width: 560px;
+  padding: .1rem .9rem;
+  border: 1px solid rgba(21, 24, 55, .16);
+  border-radius: 999px;
+  background: #fff;
+  color: #6a7089;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+/* La loupe et le champ forment UN SEUL contrôle visuel : la pilule. L'anneau
+   de mise au point lui appartient donc, pas à l'input qu'elle enveloppe.
+   Sans cela, la règle d'accessibilité F.1 dessinait son anneau autour de
+   l'input — un rectangle de 12 px de rayon au milieu d'une pilule de 999 px —
+   qui venait s'ajouter au liseré de la pilule : deux contours emboîtés.
+   L'anneau reste rigoureusement celui de F.1, même trait bleu nuit et même
+   halo or : il change seulement de support, le repère clavier est intact. */
+.catalogue-recherche:focus-within {
+  border-color: var(--bleu-nuit, #151837);
+  outline: 3px solid var(--bleu-nuit, #151837);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px rgba(232, 185, 4, .6);
+}
+
+.catalogue-recherche input:focus,
+.catalogue-recherche input:focus-visible {
+  /* `!important` répond à celui de la section F.1, qu'aucune spécificité seule
+     ne peut dépasser. */
+  outline: none !important;
+  box-shadow: none;
+}
+
+.catalogue-recherche svg { flex: 0 0 auto; }
+
+.catalogue-recherche input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #151837;
+  font: inherit;
+  font-size: .9rem;
+}
+
+.catalogue-recherche input:focus { outline: none; }
+.catalogue-recherche input::-webkit-search-cancel-button { display: none; }
+
+.catalogue-effacer {
+  flex: 0 0 auto;
+  width: 26px;
+  min-height: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(21, 24, 55, .07);
+  color: #151837;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.catalogue-effacer:hover { background: rgba(21, 24, 55, .14); }
+
+.catalogue-resultat {
+  margin: 0;
+  color: #6a7089;
+  font-size: .84rem;
+  font-weight: 600;
+}
+
+/* ---- Onglets de rubrique ---- */
+.catalogue-rubriques {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(21, 24, 55, .1);
+}
+
+.catalogue-rubrique-btn {
+  min-height: 40px;
+  padding: .5rem 1.15rem;
+  border: 1px solid rgba(21, 24, 55, .14);
+  border-radius: 999px;
+  background: #fff;
+  color: #151837;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.catalogue-rubrique-btn:hover { border-color: #c9a227; }
+
+.catalogue-rubrique-btn.active {
+  border-color: #151837;
+  background: #151837;
+  color: #fff;
+}
+
+/* ---- Rubriques ---- */
+.catalogue-section + .catalogue-section { margin-top: 3rem; }
+.catalogue-section[hidden] { display: none !important; }
+
+.catalogue-section-tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .75rem;
+  margin-bottom: 1.1rem;
+}
+
+.catalogue-section-tete h2 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+  line-height: 1.2;
+}
+
+.catalogue-nombre {
+  color: #8b90a6;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* Une carte écartée par la recherche disparaît de la grille : la masquer en
+   conservant sa place laisserait des trous au milieu des colonnes. */
+.catalogue-masque { display: none !important; }
+
+.catalogue-vide {
+  margin: 2.5rem 0 0;
+  padding: 2.5rem 1rem;
+  border: 1px dashed rgba(21, 24, 55, .18);
+  border-radius: var(--radius-md, 14px);
+  text-align: center;
+  color: #4a5069;
+}
+
+.catalogue-reset {
+  margin-left: .35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #151837;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: .25rem;
+  cursor: pointer;
+}
+
+.catalogue-reset:hover { color: #c9a227; }
+
+/* Critères de la recherche multicritère (13/09/2026). Sans ce rappel, les
+   critères reçus de l'accueil filtraient la page en silence : rien ne disait
+   pourquoi certaines annonces manquaient, ni comment les retrouver. */
+.catalogue-criteres {
+  flex: 1 1 100%;
+  margin: 0;
+  color: #4a5069;
+  font-size: .84rem;
+}
+
+.catalogue-criteres strong { color: #151837; }
+
+/* Devis : voyageurs au-delà de la capacité de la résidence (13/09/2026). */
+.sim-alerte-capacite {
+  margin: .6rem 0 0;
+  padding: .65rem .8rem;
+  border-left: 3px solid #c9a227;
+  border-radius: 8px;
+  background: #fef8e2;
+  color: #151837;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 620px) {
+  .catalogue-barre { gap: .6rem; }
+  .catalogue-rubriques { margin-bottom: 1.5rem; }
+  .catalogue-rubrique-btn { flex: 1 1 calc(50% - .5rem); }
+}
+
+/* ==========================================================================
+   W. PUBLICATIONS FACEBOOK — galerie complète
+   Demande du 12/09/2026 : « pourquoi les publications ne viennent pas avec
+   toutes leurs images ? ». La synchronisation ne demandait que
+   `full_picture`, un visuel unique ; elle réclame désormais l'album entier.
+   Côté affichage, la carte annonce le nombre de photos et la vue détaillée
+   les parcourt avec la bande de vignettes des résidences.
+   ========================================================================== */
+.social-post-photos {
+  position: absolute;
+  right: .6rem;
+  bottom: .6rem;
+  z-index: 2;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  background: rgba(21, 24, 55, .78);
+  color: #fff;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+
+/* Invitation à installer l'application (js/pwa.js). Posée au-dessus des
+   boutons flottants du bas, jamais par-dessus le contenu de réservation. */
+.invitation-app {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1200;
+  width: min(460px, calc(100% - 1.5rem));
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .75rem .85rem;
+  border-radius: 18px;
+  background: #151837;
+  color: #fff;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .28);
+  transform: translate(-50%, 140%);
+  transition: transform .3s ease;
+}
+.invitation-app.est-visible { transform: translate(-50%, 0); }
+.invitation-app img { flex: 0 0 auto; border-radius: 11px; background: #fff; }
+.invitation-app p { flex: 1 1 auto; min-width: 0; margin: 0; display: grid; font-size: .76rem; line-height: 1.35; color: rgba(255, 255, 255, .78); }
+.invitation-app p strong { color: #fff; font-size: .84rem; }
+.invitation-app-actions { flex: 0 0 auto; display: grid; gap: .3rem; }
+.invitation-app-oui { padding: .5rem .9rem; border: 0; border-radius: 99px; background: var(--color-gold, #e8b904); color: #151837; font-weight: 800; font-size: .78rem; cursor: pointer; }
+.invitation-app-non { padding: .3rem .6rem; border: 0; background: transparent; color: rgba(255, 255, 255, .7); font-size: .72rem; text-decoration: underline; cursor: pointer; }
+
+/* Vidéos et Reels de la Page (13/09/2026) : bouton de lecture sur la carte,
+   lecteur Facebook intégré dans la vue détaillée. */
+.social-post-lecture {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(21, 24, 55, .72);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: transform .2s ease, background .2s ease;
+}
+.social-post-lecture svg { margin-left: 3px; }
+.social-post-card:hover .social-post-lecture { transform: translate(-50%, -50%) scale(1.08); background: var(--color-gold, #e8b904); color: #151837; }
+
+/* Le cadre photo est plafonné (42vh) et découpé : la vidéo, elle, doit
+   s'afficher entière, Reel vertical compris. */
+.social-modal .modal-main-media.avec-video {
+  min-height: 0;
+  max-height: none;
+  height: auto;
+  display: flex;
+  justify-content: center;
+  background: #000;
+}
+.social-modal .social-modal-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 62vh;
+  border: 0;
+  background: #000;
+}
+/* Reel vertical : colonne étroite centrée plutôt qu'un bandeau noir. */
+.social-modal .social-modal-video.est-verticale {
+  aspect-ratio: 9 / 16;
+  width: auto;
+  height: min(62vh, 640px);
+  margin: 0 auto;
+}
+
+/* Les conteneurs de la modale portent un `display` explicite : sans ces
+   règles, `hidden` ne les masquerait pas. */
+.social-modal .social-modal-thumbs[hidden],
+.social-modal .modal-gallery-nav[hidden] { display: none !important; }
+
+.social-modal .social-modal-thumbs {
+  gap: .5rem;
+  padding-top: .75rem;
+}
+
+.social-modal .modal-gallery-nav button:disabled {
+  opacity: .3;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   X. VUE DÉTAILLÉE D'UNE PUBLICATION — deux actions, puis la navigation
+   Demande du 12/09/2026 : la publication doit offrir les mêmes portes de
+   sortie qu'une annonce du site — réserver, ou aller voir la source. Le lien
+   Facebook occupait seul toute la largeur en doré, et les flèches de
+   navigation se mêlaient aux actions. On sépare : deux boutons d'action de
+   même taille en haut, la navigation entre publications en dessous.
+   ========================================================================== */
+.social-modal .social-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: .7rem;
+}
+
+.social-modal .social-modal-whatsapp,
+.social-modal .social-modal-lien {
+  flex: 1 1 220px;
+  min-height: 48px;
+}
+
+.social-modal-pied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-top: 1.1rem;
+  padding-top: .9rem;
+  border-top: 1px solid rgba(21, 24, 55, .08);
+}
+
+.social-modal-pied .social-modal-rang { margin: 0; }
+
+.social-modal-nav {
+  display: flex;
+  gap: .5rem;
+}
+
+/* Ces deux boutons sortent de .modal-actions : ils n'héritent plus de son
+   habillage et portent donc le leur, volontairement discret — ils naviguent,
+   ils n'engagent à rien. */
+.social-modal-nav button {
+  min-height: 40px;
+  padding: .5rem 1rem;
+  border: 1px solid rgba(21, 24, 55, .16);
+  border-radius: var(--radius-sm, 8px);
+  background: #fff;
+  color: #151837;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease;
+}
+
+.social-modal-nav button:hover:not(:disabled) {
+  border-color: #151837;
+  background: rgba(21, 24, 55, .05);
+}
+
+.social-modal-nav button:disabled {
+  opacity: .35;
+  pointer-events: none;
+}
+
+@media (max-width: 620px) {
+  .social-modal .social-modal-whatsapp,
+  .social-modal .social-modal-lien { flex-basis: 100%; }
+  .social-modal-nav { width: 100%; }
+  .social-modal-nav button { flex: 1; }
+}
+
+/* ==========================================================================
+   Y. FILET DE SÉCURITÉ DE L'ANIMATION D'APPARITION
+   `.reveal-item { opacity: 0 }` (premium.css) n'est conditionné à rien : si le
+   script d'apparition ne s'exécute pas — fichier non chargé, erreur en amont,
+   navigateur sans IntersectionObserver — tout le contenu reste invisible et la
+   page paraît blanche. C'est arrivé le 12/09/2026.
+   `motion-ready` est posée sur <html> par initScrollReveal(). Tant qu'elle
+   n'est pas là, rien n'est masqué : au pire l'animation n'a pas lieu, le
+   contenu, lui, s'affiche toujours.
+   ========================================================================== */
+html:not(.motion-ready) .reveal-item {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Un bloc plus haut que l'écran ne doit jamais dépendre d'une animation pour
+   être lu : le catalogue unifié dépasse les 20 000 px. */
+#catalogSection.reveal-item {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* ==========================================================================
+   Z. PUCES DES PUBLICATIONS
+   Chaque publication est un <li>, pour que le carrousel soit une vraie liste.
+   Dans la piste du carrousel, `list-style: none` sur le <ul> suffisait. Mais
+   dès qu'un de ces <li> se retrouvait dans une grille <div> — la rubrique
+   « Depuis Facebook » du catalogue — le navigateur reprenait son marqueur par
+   défaut et affichait une puce à gauche de chaque carte (constaté le
+   12/09/2026). On neutralise le marqueur sur l'élément lui-même : il ne
+   dépend plus de son conteneur.
+   ========================================================================== */
+.social-wall-item {
+  list-style: none;
+}
+
+.social-wall-item::marker {
+  content: none;
+}
+
+/* ==========================================================================
+   X. RECHERCHE PAR LOCALISATION (13/09/2026)
+   Barre à cinq critères (accueil, résidences) et filtre « Localisation » des
+   terrains. Chaque règle de mise en page est bornée par un palier : placée
+   en fin de fichier sans condition, elle écraserait les paliers mobiles
+   définis plus haut (sections B et C).
+   ========================================================================== */
+
+/* ---- Barre à cinq critères ---- */
+@media (min-width: 1141px) {
+  /* Colonnes proportionnelles à la longueur des intitulés : « Type de
+     résidence » et « Budget / nuitée » sont les plus longs. */
+  .search-form-grid--5 {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1.1fr) minmax(0, .9fr) auto;
+    gap: var(--e-4);
+  }
+  .search-form-grid--5 .search-select { font-size: .95rem; text-overflow: ellipsis; }
+  .search-form-grid--5 .search-field-label { letter-spacing: .06em; }
+  .search-form-grid--5 .btn-search-properties { padding-inline: 1.15rem; }
+  /* L'icône rejoint la ligne de l'intitulé au lieu d'occuper sa propre
+     colonne : chaque menu gagne la largeur de l'icône, sans perdre le repère
+     visuel. `display: contents` fait de l'intitulé et du menu des cases de
+     la grille du champ. */
+  .search-form-grid--5 .search-field { padding-right: var(--e-3); }
+  .search-form-grid--5 .search-field-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Tablette : trois colonnes, deux rangées — cinq critères et le bouton. */
+@media (min-width: 769px) and (max-width: 1140px) {
+  .search-form-grid--5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--e-4) var(--e-5);
+  }
+  .search-form-grid--5 .search-action-col { justify-content: flex-end; }
+}
+
+/* Deux colonnes : le bouton occupe seul la dernière rangée, en pleine largeur. */
+@media (min-width: 561px) and (max-width: 768px) {
+  .search-form-grid--5 .search-action-col { grid-column: 1 / -1; }
+}
+@media (max-width: 768px) {
+  .search-form-grid--5 .search-action-col .btn-search-properties { flex: 1 1 auto; justify-content: center; }
+}
+
+/* ---- Page des résidences : la barre chevauche le bas du bandeau, comme
+   sur l'accueil, puis laisse respirer la recherche libre qui la suit. ---- */
+.recherche-catalogue { margin-bottom: var(--e-6); }
+.recherche-catalogue .search-widget-card { box-shadow: 0 18px 48px rgba(21, 24, 55, .12) !important; }
+
+/* Bouton « Effacer les critères » : même gabarit que le bouton d'options de
+   l'accueil, visible seulement quand un critère est choisi. */
+.recherche-effacer { flex: 0 0 auto; }
+.recherche-effacer:focus-visible { outline: 2px solid var(--color-gold, #c9a227); outline-offset: 2px; }
+
+/* ---- Terrains : trois filtres (localisation, superficie, disponibilité) ---- */
+@media (min-width: 600px) {
+  .terrains-selects--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* Entre tablette et grand écran, les onglets de statut foncier et les trois
+   menus ne tiennent pas sur une ligne : ils s'empilent, menus en pleine largeur. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .terrains-filters:has(.terrains-selects--3) { flex-direction: column; align-items: stretch; }
+  .terrains-selects--3 { width: 100%; }
+}
+@media (min-width: 1200px) {
+  .terrains-selects--3 { width: min(600px, 50%); gap: .6rem; }
+  /* Trois menus sur une demi-ligne : marges intérieures resserrées pour que
+     « Toutes les annonces » tienne sans être coupé. */
+  .terrains-selects--3 .terrains-select { padding-inline: .65rem; font-size: .88rem; }
+}
+
+/* ---- Panneau « Plus de critères » (icône de réglages) ---- */
+.recherche-avancee-btn { position: relative; flex: 0 0 auto; }
+.recherche-avancee-btn[aria-expanded="true"],
+.recherche-avancee-btn.est-actif { border-color: var(--color-forest, #151837); background-color: #fff; }
+.recherche-avancee-btn:focus-visible { outline: 2px solid var(--color-gold, #c9a227); outline-offset: 2px; }
+.recherche-avancee-compte {
+  position: absolute; top: -6px; right: -6px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  display: grid; place-items: center;
+  border-radius: 999px; background: #e8b904; color: #151837;
+  font-size: .64rem; font-weight: 800; line-height: 1;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.recherche-avancee {
+  margin-top: var(--e-4);
+  padding-top: var(--e-4);
+  border-top: 1px solid rgba(21, 24, 55, .08);
+  animation: recherche-avancee-entree .18s ease-out;
+}
+@keyframes recherche-avancee-entree { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .recherche-avancee { animation: none; } }
+
+.recherche-avancee-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--e-3); margin-bottom: var(--e-3); }
+.recherche-avancee-titre {
+  margin: 0; font-family: inherit; font-size: .72rem; font-weight: 800;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--text-light, #6a7089);
+}
+.recherche-avancee-fermer {
+  width: 32px; height: 32px; display: grid; place-items: center;
+  border: 0; border-radius: 50%; background: rgba(21, 24, 55, .05);
+  color: #151837; font-size: 1.2rem; line-height: 1; cursor: pointer;
+}
+.recherche-avancee-fermer:hover { background: rgba(21, 24, 55, .1); }
+
+.recherche-avancee-corps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  gap: var(--e-4) var(--e-6);
+  align-items: start;
+}
+.recherche-avancee-groupe { min-width: 0; margin: 0; padding: 0; border: 0; }
+.recherche-avancee-groupe legend,
+.recherche-avancee-chambres label {
+  display: block; padding: 0; margin-bottom: var(--e-2);
+  font-size: .78rem; font-weight: 700; color: #151837;
+}
+.recherche-avancee-chambres { display: flex; flex-direction: column; }
+
+/* Équipements en « pastilles » cochables : la case native reste présente et
+   focalisable (clavier, lecteur d'écran), la pastille porte l'état visuel. */
+.recherche-avancee-cases { display: flex; flex-wrap: wrap; gap: var(--e-2); }
+.recherche-avancee-case { position: relative; cursor: pointer; }
+.recherche-avancee-case input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.recherche-avancee-case span {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .45rem .8rem; border: 1px solid rgba(21, 24, 55, .16); border-radius: 999px;
+  background: #fff; color: #151837; font-size: .8rem; font-weight: 600;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.recherche-avancee-case:hover span { border-color: #151837; }
+.recherche-avancee-case input:checked + span { background: #151837; border-color: #151837; color: #fff; }
+.recherche-avancee-case input:checked + span::before { content: "✓"; font-size: .72rem; }
+.recherche-avancee-case input:focus-visible + span { outline: 2px solid #c9a227; outline-offset: 2px; }
+
+.recherche-avancee-pied {
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--e-4);
+  margin-top: var(--e-4);
+}
+.recherche-avancee-effacer {
+  padding: 0; border: 0; background: none; cursor: pointer;
+  color: #151837; font: inherit; font-size: .82rem; font-weight: 700;
+  text-decoration: underline; text-underline-offset: .25rem;
+}
+.recherche-avancee-effacer:hover { color: #9a7b12; }
+
+@media (max-width: 640px) {
+  .recherche-avancee-corps { grid-template-columns: minmax(0, 1fr); }
+  .recherche-avancee-pied { justify-content: space-between; }
+}
+
+/* L'attribut `hidden` doit l'emporter sur les `display` posés ci-dessus
+   (le site public n'a pas de règle [hidden] globale). */
+.recherche-avancee[hidden],
+.recherche-avancee-compte[hidden],
+.recherche-effacer[hidden],
+.recherche-avancee-groupe[hidden] { display: none !important; }
+
+/* Icône sur la ligne de l'intitulé, à toutes les largeurs : chaque menu
+   dispose de toute la largeur du champ. Sélecteurs à deux classes : ils
+   priment sur les règles génériques de .search-field des paliers mobiles,
+   qui ne portent pas sur ces propriétés-ci. */
+.search-form-grid--5 .search-field {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr);
+  column-gap: .4rem;
+  row-gap: .15rem;
+  align-items: center;
+}
+.search-form-grid--5 .search-field-content { display: contents; }
+.search-form-grid--5 .search-field-icon { grid-row: 1; grid-column: 1; margin: 0; display: flex; }
+.search-form-grid--5 .search-field-icon svg { width: 15px; height: 15px; }
+.search-form-grid--5 .search-field-label { grid-row: 1; grid-column: 2; margin: 0; }
+.search-form-grid--5 .search-select { grid-row: 2; grid-column: 1 / -1; }
+
+/* Téléphone : deux colonnes plutôt que cinq champs empilés — les valeurs
+   courtes (« Tous ») le permettent ; le bouton occupe la dernière rangée. */
+@media (max-width: 560px) {
+  .search-form-grid--5 { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--e-4); }
+  .search-form-grid--5 .search-action-col { grid-column: 1 / -1; }
+  .search-form-grid--5 .search-select { font-size: .95rem; }
+  /* Localisation, critère principal, en pleine largeur : les quatre autres
+     forment une grille 2 × 2 régulière, sans case vide. */
+  .search-form-grid--5 > .search-field:first-child { grid-column: 1 / -1; }
+  .search-form-grid--5 .search-field-label { font-size: .64rem; letter-spacing: .03em; white-space: nowrap; }
+}
+
+/* ---- Terrains : en-tête « Choisissez votre parcelle » (13/09/2026) ----
+   Demande du propriétaire : le gros titre sur une seule ligne, l'introduction
+   dessous, alignée à gauche. Le titre était limité à 22ch (règle générale de
+   .section-title) ; ici il prend toute la largeur et sa taille suit celle du
+   conteneur (cqi) pour ne jamais déborder — 14,8 em mesurés pour le texte FR.
+   Sur téléphone, un titre sur une ligne deviendrait trop petit : il reste sur
+   deux lignes équilibrées. */
+.section-header-flex:has(> .terrains-intro) { flex-direction: column; align-items: flex-start; }
+@media (min-width: 600px) {
+  .section-header-flex:has(> .terrains-intro) { container-type: inline-size; }
+  .section-header-flex:has(> .terrains-intro) > :first-child { width: 100%; }
+  .section-header-flex:has(> .terrains-intro) .section-title {
+    max-width: none;
+    white-space: nowrap;
+    font-size: clamp(1.9rem, 6.4cqi, 4rem) !important;
+  }
+}
+
+/* ---- Fiche villa : forfait week-end (13/09/2026) ----
+   Saisi dans le studio mais jamais affiché jusqu'ici. Placé face au tarif
+   par nuit, même rangée, en second plan : c'est une information de prix,
+   pas le prix d'appel. */
+.modal-price-weekend { display: grid; gap: .15rem; text-align: right; }
+.modal-price-weekend small { color: var(--polish-muted, #666); font-size: .72rem; font-weight: 600; }
+.modal-price-weekend strong { color: var(--polish-navy, #151837); font-family: var(--font-serif, "Playfair Display", serif);
+  font-size: clamp(1.05rem, 1.6vw, 1.3rem); font-weight: 700; line-height: 1.1; }
+.modal-price-weekend[hidden] { display: none; }

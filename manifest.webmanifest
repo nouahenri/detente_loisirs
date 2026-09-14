@@ -1,0 +1,26 @@
+{
+  "id": "/?app=detente-loisirs",
+  "name": "Détente & Loisirs à Assinie",
+  "short_name": "Détente Assinie",
+  "description": "Villas, terrains et activités à Assinie : réservez votre séjour et contactez la conciergerie sur WhatsApp.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "/index.html?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#151837",
+  "theme_color": "#151837",
+  "categories": ["travel", "lifestyle"],
+  "icons": [
+    { "src": "/assets/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/app/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Nos résidences", "short_name": "Résidences", "url": "/residences.html?source=app", "icons": [{ "src": "/assets/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Terrains à vendre", "short_name": "Terrains", "url": "/terrains.html?source=app", "icons": [{ "src": "/assets/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Activités & loisirs", "short_name": "Activités", "url": "/loisirs.html?source=app", "icons": [{ "src": "/assets/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Calculer un devis", "short_name": "Devis", "url": "/devis.html?source=app", "icons": [{ "src": "/assets/app/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
