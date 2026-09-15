@@ -78,7 +78,9 @@
         }
       ],
       "expo-background-task",
-      "./plugins/jdk-gradle-21"
+      "./plugins/jdk-gradle-21",
+      "./plugins/architecture-android",
+      "./plugins/bundle-debug-android"
     ],
     "experiments": {
       "typedRoutes": false,

@@ -12,6 +12,9 @@ import { FournisseurPreferences, usePreferences } from '@/donnees/preferences';
 
 // L'écran natif reste affiché jusqu'au montage de l'écran de démarrage animé.
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// Filet de sécurité : jamais bloqué sur l'écran natif, même si le démarrage
+// de l'app échoue avant l'écran animé (l'erreur devient alors visible).
+setTimeout(() => { SplashScreen.hideAsync().catch(() => {}); }, 4000);
 
 // Un écran ouvert directement (notification, lien, rechargement de page) est
 // posé au-dessus des onglets : son bouton retour ramène toujours à l'app.

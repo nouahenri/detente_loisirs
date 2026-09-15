@@ -111,6 +111,15 @@ tourne sur Java 21 même si Android Studio embarque Java 25. Sous Java 24+, l'ou
 prefab affiche « WARNING: A restricted method in java.lang.System has been called »
 et la synchronisation échoue.
 
+**APK de débogage** : `plugins/bundle-debug-android.js` intègre le code de l'app
+aussi dans la variante debug (`debuggableVariants = []`). Sans cela, un APK construit
+par Android Studio et lancé sans Metro restait bloqué sur l'écran de démarrage. Si
+Metro tourne (`npx expo start`), l'app l'utilise pour le rechargement à chaud.
+
+**Architecture** : `plugins/architecture-android.js` limite la compilation native à
+`arm64-v8a` (téléphones récents), trois à quatre fois plus rapide que les quatre
+architectures par défaut. Ponctuellement : `-PreactNativeArchitectures=armeabi-v7a,arm64-v8a`.
+
 **Écran de démarrage Android** : `assets/images/logo-splash.png` est le logo **détouré**
 (`logo.png` a un fond blanc opaque). Android 12+ inscrit l'icône dans un cercle de
 192 dp : le logo y fait 164 dp (`android.imageWidth`) pour ne pas être coupé.
