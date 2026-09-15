@@ -45,3 +45,7 @@ example
 # APK de test
 *.apk
 *.aab
+
+# Configuration Firebase (clé d API) : jamais dans le dépôt public
+google-services.json
+GoogleService-Info.plist

@@ -111,6 +111,27 @@ tourne sur Java 21 même si Android Studio embarque Java 25. Sous Java 24+, l'ou
 prefab affiche « WARNING: A restricted method in java.lang.System has been called »
 et la synchronisation échoue.
 
+**Permissions Android** (déclarées dans `app.json`, écrites dans `AndroidManifest.xml`) :
+
+| Permission | Pourquoi |
+| --- | --- |
+| `INTERNET` | annonces, photos, carte, envoi des demandes |
+| `ACCESS_NETWORK_STATE` | savoir si le téléphone est hors ligne |
+| `POST_NOTIFICATIONS` | notifications (Android 13+, demandée à l'activation dans le Profil) |
+| `RECEIVE_BOOT_COMPLETED` | relancer la veille des notifications après un redémarrage |
+| `WAKE_LOCK` | laisser la veille de fond se terminer |
+| `VIBRATE` | retours haptiques et notifications |
+
+Retirées (`blockedPermissions`) : `READ/WRITE_EXTERNAL_STORAGE` (aucun fichier lu ni
+écrit) et `SYSTEM_ALERT_WINDOW` (affichage par-dessus les autres apps ; seule la
+variante debug le garde, pour le menu de développement). Aucune localisation, caméra
+ni contact. Les bibliothèques ajoutent aussi `FOREGROUND_SERVICE` (tâches de fond),
+`c2dm.RECEIVE` (notifications Firebase) et les pastilles d'icône.
+`plugins/liens-android.js` déclare Téléphone, e-mail et WhatsApp (`<queries>`, Android 11+).
+
+**Firebase** : `google-services.json` (à la racine de `mobile/natif`, jamais versionné)
+est déclaré dans `app.json` → `android.googleServicesFile`.
+
 **APK de débogage** : `plugins/bundle-debug-android.js` intègre le code de l'app
 aussi dans la variante debug (`debuggableVariants = []`). Sans cela, un APK construit
 par Android Studio et lancé sans Metro restait bloqué sur l'écran de démarrage. Si
