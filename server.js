@@ -19,6 +19,7 @@ const FICHES = require('./db/fiches');
 const WA = require('./db/whatsapp-promo');
 const NOTIF = require('./db/notifications-app');
 const SYNC = require('./db/synchro-facebook');
+const DEMANDEURS = require('./db/demandeurs');
 
 const PORT = Number(process.env.PORT || 3456);
 const ROOT = __dirname;
@@ -219,6 +220,7 @@ function dbEnabled() { return Boolean(loadRepository()) && databaseReady; }
 // de `data/` sinon. Ils n'ont ainsi jamais leur propre idée de l'état de la base.
 auth.configure({ isDbReady: dbEnabled });
 newsletter.configure({ isDbReady: dbEnabled });
+DEMANDEURS.configure({ isDbReady: dbEnabled });
 mailer.configure({ isDbReady: dbEnabled });
 
 /** Exécute une opération MySQL sans jamais faire tomber la requête HTTP. */
@@ -488,6 +490,36 @@ const store = {
       console.error(`Miroir du contenu : ${error.message}`);
     }
     return { persistedToDb: true, dbExpected: true, error: null, warning };
+  },
+  /**
+   * Supprime définitivement des demandes. Base d'abord : un refus SQL remonte
+   * et le miroir reste intact, sinon la demande « supprimée » reviendrait à
+   * la prochaine lecture depuis la base.
+   */
+  async deleteLeads(ids) {
+    const liste = new Set((Array.isArray(ids) ? ids : []).map(String));
+    if (!liste.size) return 0;
+    const repo = loadRepository();
+    let supprimees = 0;
+    if (repo) {
+      try { supprimees = await repo.deleteLeads([...liste]); }
+      catch (error) {
+        databaseError = `suppression de demandes : ${error.message}`;
+        throw new Error('Suppression refusée par la base de données. Réessayez.');
+      }
+    }
+    const leads = readJSON(LEADS_FILE, []);
+    const restantes = leads.filter(lead => !liste.has(String(lead?.id)));
+    if (!repo) supprimees = leads.length - restantes.length;
+    try { writeJSON(LEADS_FILE, restantes); }
+    catch (error) { if (!repo) throw error; console.error(`Miroir des demandes : ${error.message}`); }
+    // Suivi par notification dans l'application : plus rien à suivre.
+    const memoire = readJSON(APP_NOTIF_FILE, {});
+    if (memoire.demandes && [...liste].some(id => memoire.demandes[id])) {
+      [...liste].forEach(id => { delete memoire.demandes[id]; });
+      writeJSON(APP_NOTIF_FILE, memoire);
+    }
+    return supprimees;
   },
   async readLeads() {
     const fromDb = await tryDb('lecture des demandes', repo => repo.listLeads());
@@ -1138,6 +1170,11 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['POST', /^\/api\/admin\/media$/, 'content:write'],
   ['GET', /^\/api\/admin\/leads$/, 'leads:read'],
   ['PATCH', /^\/api\/admin\/leads\/[^/]+$/, 'leads:write'],
+  ['DELETE', /^\/api\/admin\/leads\/[^/]+$/, 'leads:write'],
+  ['GET', /^\/api\/admin\/demandeurs\/restrictions$/, 'leads:read'],
+  ['POST', /^\/api\/admin\/demandeurs\/restrictions$/, 'leads:write'],
+  ['DELETE', /^\/api\/admin\/demandeurs\/restrictions\/[^/]+$/, 'leads:write'],
+  ['POST', /^\/api\/admin\/demandeurs\/supprimer$/, 'leads:write'],
   ['GET', /^\/api\/admin\/whatsapp$/, 'leads:read'],
   ['POST', /^\/api\/admin\/whatsapp\/campagnes$/, 'leads:write'],
   ['PATCH', /^\/api\/admin\/whatsapp\/campagnes\/[^/]+$/, 'leads:write'],
@@ -2592,6 +2629,13 @@ async function handleApi(req, res, url) {
         lead.whatsappOptIn = payload.whatsappOptIn;
         lead.whatsappOptInAt = payload.whatsappOptIn ? lead.createdAt : null;
       }
+      // Demandeur bloqué ou suspendu depuis le studio (17/09/2026) : refus avec
+      // un message neutre, qui ne dit pas au visiteur qu'il est bloqué.
+      const restriction = DEMANDEURS.restrictionPour(await DEMANDEURS.lister().catch(() => []), lead);
+      if (restriction) {
+        audit('lead.refuse_restriction', { restriction: restriction.id, type: restriction.type, ip: clientIp(req) });
+        return json(res, 403, { ok: false, error: DEMANDEURS.MESSAGE_REFUS });
+      }
       await store.createLead(lead);
       // Demande envoyée depuis l'application avec les notifications activées :
       // on retient le téléphone pour le prévenir du suivi (« Contacté », « Confirmé »).
@@ -2851,7 +2895,8 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'GET' && url.pathname === '/api/admin/leads') {
-    return json(res, 200, { ok: true, leads: await store.readLeads() });
+    const [leads, restrictions] = await Promise.all([store.readLeads(), DEMANDEURS.lister().catch(() => [])]);
+    return json(res, 200, { ok: true, leads: leads.map(lead => ({ ...lead, restriction: DEMANDEURS.restrictionPour(restrictions, lead) })) });
   }
 
   if (req.method === 'PATCH' && url.pathname.startsWith('/api/admin/leads/')) {
@@ -2864,6 +2909,54 @@ async function handleApi(req, res, url) {
       notifierSuiviDemandeApp(lead).catch(() => {});
       return json(res, 200, { ok: true, lead });
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+  }
+
+  // ---- Gestion des demandes et des demandeurs (17/09/2026) ---------------
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/leads/')) {
+    try {
+      const id = decodeURIComponent(url.pathname.split('/').pop());
+      const supprimees = await store.deleteLeads([id]);
+      if (!supprimees) return json(res, 404, { ok: false, error: 'Demande introuvable' });
+      audit('lead.deleted', { id }, actorLabel(actor));
+      return json(res, 200, { ok: true, supprimees });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
+  if (url.pathname === '/api/admin/demandeurs/restrictions' || url.pathname.startsWith('/api/admin/demandeurs/')) {
+    try {
+      if (req.method === 'GET' && url.pathname === '/api/admin/demandeurs/restrictions') {
+        return json(res, 200, { ok: true, restrictions: await DEMANDEURS.lister() });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/demandeurs/restrictions') {
+        const payload = await parseBody(req, 10_000);
+        const lead = (await store.readLeads()).find(entree => String(entree.id) === text(payload.leadId, 36));
+        if (!lead) return json(res, 404, { ok: false, error: 'Demande introuvable' });
+        const existante = DEMANDEURS.restrictionPour(await DEMANDEURS.lister(), lead);
+        if (existante) return json(res, 409, { ok: false, error: 'Ce demandeur est déjà bloqué ou suspendu : levez d’abord la mesure en cours.' });
+        const { restriction, erreur } = DEMANDEURS.creerRestriction({ type: payload.type, jours: payload.jours, motif: payload.motif, lead, acteur: actorLabel(actor) });
+        if (erreur) return json(res, 422, { ok: false, error: erreur });
+        await DEMANDEURS.ajouter(restriction);
+        audit('demandeur.restreint', { id: restriction.id, type: restriction.type, jusquAu: restriction.jusquAu, leadId: lead.id }, actorLabel(actor));
+        return json(res, 201, { ok: true, restriction });
+      }
+      const levee = url.pathname.match(/^\/api\/admin\/demandeurs\/restrictions\/([^/]+)$/);
+      if (req.method === 'DELETE' && levee) {
+        const retirees = await DEMANDEURS.lever(decodeURIComponent(levee[1]));
+        if (!retirees) return json(res, 404, { ok: false, error: 'Mesure introuvable (déjà levée ?)' });
+        audit('demandeur.leve', { id: levee[1] }, actorLabel(actor));
+        return json(res, 200, { ok: true });
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/demandeurs/supprimer') {
+        const payload = await parseBody(req, 10_000);
+        const leads = await store.readLeads();
+        const lead = leads.find(entree => String(entree.id) === text(payload.leadId, 36));
+        if (!lead) return json(res, 404, { ok: false, error: 'Demande introuvable' });
+        const ids = DEMANDEURS.demandesDuDemandeur(leads, lead).map(entree => entree.id);
+        const supprimees = await store.deleteLeads(ids);
+        audit('demandeur.supprime', { demandes: supprimees }, actorLabel(actor));
+        return json(res, 200, { ok: true, supprimees, ids });
+      }
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
   }
 
   // ---- Messages WhatsApp promotionnels (menu « Messages ») ----------------

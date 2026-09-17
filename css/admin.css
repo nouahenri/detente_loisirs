@@ -951,3 +951,56 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .wa-selection .wa-sel small { color: var(--muted); font-size: .68rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wa-selection .wa-destinataires { margin: .5rem 0 0; font-size: .74rem; color: var(--muted); }
 .wa-selection .wa-destinataires strong { color: var(--ink); }
+/* =====================================================================
+   GESTION DES ANNONCES (17/09/2026) : onglets d'état, pastille Facebook,
+   bandeau Suspendre / Archiver / Supprimer de la fiche.
+   Classes nouvelles uniquement : aucune règle de mise en page existante
+   n'est redéfinie ici (voir le piège de cascade mobile en tête de fichier).
+   ===================================================================== */
+.content-table > .etat-filtres { padding:.75rem 1rem; border-bottom:1px solid var(--line); background:#fbfbfd; flex-wrap:wrap; }
+.etat-filtres button span { display:inline-grid; place-items:center; min-width:1.35rem; height:1.35rem; margin-left:.3rem; padding:0 .3rem; border-radius:99px; background:rgba(21,24,55,.08); font-size:.62rem; }
+.etat-filtres button.active span { background:rgba(255,255,255,.2); }
+.visibility-note.etat-suspendue, .visibility-note.etat-archivee { display:flex; width:max-content; }
+.visibility-note.etat-suspendue { color:#8a6100; }
+.visibility-note.etat-archivee { color:#5b5f7a; }
+.fb-pastille { display:inline-grid; place-items:center; width:18px; height:18px; margin:.3rem 0 0 .4rem; border-radius:50%; background:#1877f2; color:#fff; font:800 .62rem/1 'DM Sans',sans-serif; vertical-align:middle; }
+.share-fb.en-ligne small a { color:var(--ink); font-weight:700; }
+
+.gestion-annonce { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; margin:1rem 0 .25rem; padding:.85rem 1rem; border:1px solid var(--line); border-radius:14px; background:#f8f9fc; }
+.gestion-annonce small { flex-basis:100%; color:var(--muted); font-size:.7rem; line-height:1.45; }
+.gestion-annonce-boutons { display:flex; flex-wrap:wrap; gap:.4rem; margin-left:auto; }
+.gestion-annonce-boutons button { border:1px solid var(--line); background:white; color:var(--ink); border-radius:999px; padding:.5rem .85rem; font-size:.72rem; font-weight:700; }
+.gestion-annonce-boutons button.danger, button.danger { border-color:rgba(160,30,30,.35); color:#8a1c1c; }
+.gestion-annonce-boutons button.danger:hover, button.danger:hover { background:#8a1c1c; color:#fff; }
+.etat-annonce { display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .65rem; border-radius:99px; font-size:.64rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+.etat-annonce::before { content:''; width:.5rem; height:.5rem; border-radius:50%; background:currentColor; }
+.etat-annonce.etat-active { color:#16743a; background:rgba(22,116,58,.1); }
+.etat-annonce.etat-suspendue { color:#8a6100; background:rgba(204,162,3,.14); }
+.etat-annonce.etat-archivee { color:#5b5f7a; background:rgba(21,24,55,.08); }
+@media (max-width: 760px) {
+  .gestion-annonce-boutons { margin-left:0; width:100%; }
+  .gestion-annonce-boutons button { flex:1 1 auto; }
+}
+
+/* =====================================================================
+   DEMANDES ET DEMANDEURS (17/09/2026) : bloquer, suspendre, supprimer.
+   ===================================================================== */
+.lead-restriction { flex:0 0 auto; padding:.1rem .45rem; border-radius:99px; font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+.lead-restriction.bloque { background:rgba(138,28,28,.1); color:#8a1c1c; }
+.lead-restriction.suspendu { background:rgba(204,162,3,.16); color:#7a5b00; }
+.demandeur-gestion { display:grid; gap:.6rem; margin-top:.8rem; padding-top:.8rem; border-top:1px solid rgba(21,24,55,.12); }
+.demandeur-gestion .demandeur-motif { margin:0; font-size:.7rem; }
+.demandeur-gestion .demandeur-motif input { padding:.6rem .8rem; background:white; }
+.demandeur-boutons { display:flex; flex-wrap:wrap; align-items:center; gap:.45rem; }
+.demandeur-boutons button, .demandeur-suspendre select { border:1px solid var(--line); background:white; color:var(--ink); border-radius:999px; padding:.5rem .85rem; font-size:.72rem; font-weight:700; width:auto; }
+.demandeur-suspendre { display:inline-flex; gap:.3rem; }
+.demandeur-etat { margin:0; font-size:.78rem; line-height:1.45; }
+.demandeur-etat.bloque strong { color:#8a1c1c; }
+.demandeur-etat.suspendu strong { color:#7a5b00; }
+.demandeur-etat small { color:var(--muted); }
+.lead-editor-actions { flex-wrap:wrap; }
+.lead-editor-actions [data-archiver-demande] { margin-right:auto; }
+@media (max-width: 760px) {
+  .lead-editor-actions button { flex:1 1 40%; }
+  .lead-editor-actions [data-archiver-demande] { margin-right:0; }
+}

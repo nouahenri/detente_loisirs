@@ -642,6 +642,15 @@ async function createLead(lead) {
   return lead;
 }
 
+/** Suppression définitive de demandes (fiche de la demande, demandeur supprimé). */
+async function deleteLeads(ids = []) {
+  const liste = ids.map(id => String(id)).filter(Boolean);
+  if (!liste.length) return 0;
+  // Les « ? » sont des placeholders, pas des données : aucune injection.
+  const [resultat] = await query(`DELETE FROM leads WHERE id IN (${liste.map(() => '?').join(',')})`, liste);
+  return resultat?.affectedRows || 0;
+}
+
 async function updateLead(id, patch) {
   const [rows] = await query('SELECT * FROM leads WHERE id = ? LIMIT 1', [String(id)]);
   if (!rows.length) return null;
@@ -1015,7 +1024,7 @@ module.exports = {
   // référentiels
   listReferentiels, saveReferentiel, ordonnerReferentiel, deleteReferentiel, semerReferentiels,
   // leads
-  listLeads, createLead, updateLead,
+  listLeads, createLead, updateLead, deleteLeads,
   // facebook
   listFacebookPosts, listFacebookPostFiches, updateFacebookPostFiche, upsertFacebookPosts, deleteFacebookPost, pruneFacebookPosts, pruneFacebookVideos, claimPublishKey, completePublish, failPublish,
   listPublishLog, recordFacebookEvents,

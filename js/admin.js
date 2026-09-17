@@ -9,6 +9,11 @@
     // Faux tant que le contenu réel n'est pas chargé et affiché : publier l'état
     // initial vide ci-dessus a effacé tout le catalogue le 16/09/2026.
     contenuCharge: false,
+    // Horodatage du contenu chargé : le serveur refuse de publier un état
+    // périmé (annonce mise à jour depuis Facebook entre-temps).
+    baseUpdatedAt: null,
+    // Filtre d'état des listes d'annonces (décision du 17/09/2026).
+    filtreEtat: { villa: 'active', terrain: 'active', activity: 'active' },
     leads: [], dashboard: null, dirty: false, leadFilter: 'all', leadSearch: '', backups: [], audit: [], facebook: null,
     users: [], roles: [], newsletter: null, subscriberFilter: 'all', subscriberSearch: ''
   };
@@ -198,7 +203,9 @@
     // Chaque appel est conditionné à la permission correspondante : un rôle
     // restreint ne déclenche même pas la requête (et donc aucun 403 inutile).
     const [contenuLu, leads, facebook, backups, audit, dashboard, users, newsletter] = await Promise.all([
-      fetch('/api/content', { cache:'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      // Studio : contenu complet, annonces suspendues et archivées comprises
+      // (le site public ne les reçoit pas).
+      fetch(can('content:read') ? '/api/admin/content' : '/api/content', { cache:'no-store', credentials:'same-origin' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
       can('leads:read') ? api('/api/admin/leads').catch(() => ({ leads:[] })) : Promise.resolve({ leads:[] }),
       can('facebook:read') ? api('/api/admin/facebook/posts').catch(error => ({ connected:false, posts:[], error:error.message })) : Promise.resolve(null),
       can('backup:manage') ? api('/api/admin/backups').catch(() => ({ backups:[] })) : Promise.resolve({ backups:[] }),
@@ -231,6 +238,8 @@
     state.backups = backups.backups || [];
     state.audit = audit.entries || [];
     state.facebook = facebook;
+    state.baseUpdatedAt = managed.updatedAt || null;
+    initialiserCasesFacebook();
     renderDashboard(); renderOperations();
     if (can('content:write')) { renderVillas(); renderTerrains(); renderActivities(); renderSettings(); renderReferentiels(); }
     if (can('leads:read')) { renderLeads(); chargerMessages(); }
@@ -347,11 +356,99 @@
     $('#operationsStatus').innerHTML = chips.map(label => `<span class="operation-chip">${label}</span>`).join('');
   }
 
+  // ---------------------------------------------------------------------
+  // GESTION DES ANNONCES (décisions du 17/09/2026)
+  // Suspendre (retirée du site, réactivable), Archiver (rangée dans
+  // « Archives », restaurable), Supprimer (définitif). Facebook suit
+  // l'annonce : dans les trois cas sa publication est supprimée. Tout prend
+  // effet au clic sur « Publier les changements », comme les autres réglages.
+  // ---------------------------------------------------------------------
+  const ETATS_ANNONCE = { active: 'En ligne', suspendue: 'Suspendue', archivee: 'Archivée' };
+  const COLLECTIONS = { villa: 'villas', terrain: 'terrains', activity: 'activities' };
+  const etatAnnonce = item => (['active', 'suspendue', 'archivee'].includes(item?.etat) ? item.etat : 'active');
+
+  function renderListe(kind) {
+    if (kind === 'villa') renderVillas(); else if (kind === 'terrain') renderTerrains(); else renderActivities();
+  }
+
+  /** Annonces de la rubrique dans l'état choisi, et les onglets de filtre. */
+  function annoncesFiltrees(kind) {
+    const liste = state.content[COLLECTIONS[kind]];
+    const actuel = state.filtreEtat[kind] || 'active';
+    const onglets = `<div class="filter-pills etat-filtres" role="group" aria-label="État des annonces">${Object.entries({ active: 'En ligne', suspendue: 'Suspendues', archivee: 'Archives' }).map(([etat, libelle]) => `<button type="button" data-filtre-etat="${kind}:${etat}" class="${actuel === etat ? 'active' : ''}" aria-pressed="${actuel === etat}">${libelle} <span>${liste.filter(item => etatAnnonce(item) === etat).length}</span></button>`).join('')}</div>`;
+    return { onglets, items: liste.filter(item => etatAnnonce(item) === actuel), actuel };
+  }
+
+  function brancherListe(hote, kind) {
+    $$('[data-filtre-etat]', hote).forEach(bouton => bouton.addEventListener('click', () => {
+      state.filtreEtat[kind] = bouton.dataset.filtreEtat.split(':')[1];
+      renderListe(kind);
+    }));
+  }
+
+  /** Pastilles d'une ligne : état hors ligne, présence sur Facebook. */
+  function pastillesAnnonce(kind, item) {
+    const etat = etatAnnonce(item);
+    const facebook = state.facebook?.fichesPubliees?.[`${kind}:${item.id}`];
+    return (etat !== 'active' ? `<span class="visibility-note etat-${etat}">${ETATS_ANNONCE[etat].toUpperCase()}</span>` : '')
+      + (facebook ? '<span class="fb-pastille" title="En ligne sur la Page Facebook">f</span>' : '');
+  }
+
+  function supprimerAnnonce(kind, id) {
+    const cle = COLLECTIONS[kind];
+    const item = state.content[cle].find(entree => entree.id === id);
+    if (!item) return false;
+    const surFacebook = Boolean(state.facebook?.fichesPubliees?.[`${kind}:${id}`]);
+    const nom = item.name || item.title || id;
+    if (!confirm(`Supprimer définitivement « ${nom} » ?${surFacebook ? '\n\nSa publication Facebook sera supprimée aussi.' : ''}\n\nEffectif au clic sur « Publier les changements ».`)) return false;
+    state.content[cle] = state.content[cle].filter(entree => entree.id !== id);
+    dirty(); renderListe(kind);
+    return true;
+  }
+
+  function changerEtatAnnonce(kind, id, etat) {
+    const liste = state.content[COLLECTIONS[kind]];
+    const index = liste.findIndex(entree => entree.id === id);
+    if (index < 0) return;
+    liste[index] = { ...liste[index], etat };
+    dirty(); renderListe(kind);
+    const messages = { active: 'Annonce remise en ligne', suspendue: 'Annonce suspendue', archivee: 'Annonce archivée' };
+    toast(`${messages[etat]} : effectif au clic sur « Publier les changements »`);
+  }
+
+  /** Bandeau de gestion en tête de la fiche d'une annonce existante. */
+  function barreGestionAnnonce(item) {
+    const etat = etatAnnonce(item);
+    const boutons = etat === 'active' ? [['suspendue', 'Suspendre'], ['archivee', 'Archiver']]
+      : etat === 'suspendue' ? [['active', 'Réactiver'], ['archivee', 'Archiver']]
+      : [['active', 'Restaurer']];
+    const aide = {
+      active: 'Suspendre retire l’annonce du site et de Facebook jusqu’à sa réactivation. Archiver la range dans « Archives ».',
+      suspendue: 'Annonce retirée du site et de Facebook. Réactivez-la pour la remettre en ligne.',
+      archivee: 'Annonce archivée : absente du site et de Facebook. Restaurez-la pour la remettre en ligne.'
+    }[etat];
+    return `<div class="gestion-annonce"><span class="etat-annonce etat-${etat}">${ETATS_ANNONCE[etat]}</span><div class="gestion-annonce-boutons">${boutons.map(([cible, libelle]) => `<button type="button" data-etat-annonce="${cible}">${libelle}</button>`).join('')}<button type="button" class="danger" data-supprimer-annonce>Supprimer</button></div><small>${aide} Les modifications non enregistrées de la fiche ne sont pas conservées.</small></div>`;
+  }
+
+  /**
+   * Case « Publier sur Facebook » des annonces antérieures au 17/09/2026 :
+   * jamais enregistrée, elle reprend l'état réel de la Page.
+   */
+  function initialiserCasesFacebook() {
+    const publiees = state.facebook?.fichesPubliees;
+    if (!publiees) return;
+    Object.entries(COLLECTIONS).forEach(([kind, cle]) => state.content[cle].forEach(item => {
+      if (item.facebook !== true && item.facebook !== false) item.facebook = Boolean(publiees[`${kind}:${item.id}`]);
+    }));
+  }
+
   function renderVillas() {
     const head = '<div class="table-row header"><span>Visuel</span><span>Villa</span><span>Tarif / nuit</span><span>Capacité</span><span>Catégorie</span><span>Action</span></div>';
-    $('#villasTable').innerHTML = head + state.content.villas.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}</div><div class="table-cell"><strong>${money(item.pricePerNight)}</strong></div><div>${item.capacity} pers.</div><div><span class="status">${esc(item.categoryLabel || item.category)}</span></div><div class="row-actions"><button title="Modifier" data-edit-villa="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-villa="${esc(item.id)}">×</button></div></div>`).join('');
+    const { onglets, items, actuel } = annoncesFiltrees('villa');
+    $('#villasTable').innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucune villa en ligne.' : actuel === 'suspendue' ? 'Aucune villa suspendue.' : 'Aucune villa archivée.'}</div>`) + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}${pastillesAnnonce('villa', item)}</div><div class="table-cell"><strong>${money(item.pricePerNight)}</strong></div><div>${item.capacity} pers.</div><div><span class="status">${esc(item.categoryLabel || item.category)}</span></div><div class="row-actions"><button title="Modifier" data-edit-villa="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-villa="${esc(item.id)}">×</button></div></div>`).join('');
     $$('[data-edit-villa]').forEach(button => button.addEventListener('click', () => openEditor('villa', button.dataset.editVilla)));
-    $$('[data-delete-villa]').forEach(button => button.addEventListener('click', () => { if (confirm('Retirer cette villa du catalogue ?')) { state.content.villas = state.content.villas.filter(v => v.id !== button.dataset.deleteVilla); dirty(); renderVillas(); } }));
+    $$('[data-delete-villa]').forEach(button => button.addEventListener('click', () => supprimerAnnonce('villa', button.dataset.deleteVilla)));
+    brancherListe($('#villasTable'), 'villa');
   }
 
   // --- Vente de terrain -------------------------------------------------
@@ -373,18 +470,22 @@
 
   function renderTerrains() {
     const head = '<div class="table-row header"><span>Visuel</span><span>Terrain</span><span>Superficie</span><span>Prix total</span><span>Statut</span><span>Action</span></div>';
-    $('#terrainsTable').innerHTML = state.content.terrains.length
-      ? head + state.content.terrains.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.reference)} · ${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : item.status === 'vendu' ? '<span class="visibility-note">VENDU — RETIRÉ DU SITE</span>' : ''}</div><div>${new Intl.NumberFormat('fr-FR').format(Number(item.areaSqm || 0))} m²</div><div class="table-cell"><strong>${money(item.priceTotal)}</strong><small>${money(perSqm(item))} / m²</small></div><div><span class="status ${esc(item.status)}">${esc(libelleStatut('terrain', item.status) || TERRAIN_STATUS[item.status] || item.status)}</span></div><div class="row-actions"><button title="Modifier" data-edit-terrain="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-terrain="${esc(item.id)}">×</button></div></div>`).join('')
-      : head + '<div class="empty">Aucun terrain enregistré. Cliquez sur « Ajouter un terrain » pour publier votre première parcelle.</div>';
+    const { onglets, items, actuel } = annoncesFiltrees('terrain');
+    $('#terrainsTable').innerHTML = items.length
+      ? onglets + head + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.reference)} · ${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : item.status === 'vendu' ? '<span class="visibility-note">VENDU — RETIRÉ DU SITE</span>' : ''}${pastillesAnnonce('terrain', item)}</div><div>${new Intl.NumberFormat('fr-FR').format(Number(item.areaSqm || 0))} m²</div><div class="table-cell"><strong>${money(item.priceTotal)}</strong><small>${money(perSqm(item))} / m²</small></div><div><span class="status ${esc(item.status)}">${esc(libelleStatut('terrain', item.status) || TERRAIN_STATUS[item.status] || item.status)}</span></div><div class="row-actions"><button title="Modifier" data-edit-terrain="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-terrain="${esc(item.id)}">×</button></div></div>`).join('')
+      : onglets + head + `<div class="empty">${actuel !== 'active' ? (actuel === 'suspendue' ? 'Aucun terrain suspendu.' : 'Aucun terrain archivé.') : 'Aucun terrain en ligne. Cliquez sur « Ajouter un terrain » pour publier une parcelle.'}</div>`;
     $$('[data-edit-terrain]').forEach(button => button.addEventListener('click', () => openEditor('terrain', button.dataset.editTerrain)));
-    $$('[data-delete-terrain]').forEach(button => button.addEventListener('click', () => { if (confirm('Retirer ce terrain du catalogue ?')) { state.content.terrains = state.content.terrains.filter(v => v.id !== button.dataset.deleteTerrain); dirty(); renderTerrains(); } }));
+    $$('[data-delete-terrain]').forEach(button => button.addEventListener('click', () => supprimerAnnonce('terrain', button.dataset.deleteTerrain)));
+    brancherListe($('#terrainsTable'), 'terrain');
   }
 
   function renderActivities() {
     const head = '<div class="table-row header"><span>Visuel</span><span>Activité</span><span>Tarif</span><span>Durée</span><span>Badge</span><span>Action</span></div>';
-    $('#activitiesTable').innerHTML = head + state.content.activities.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || item.image || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.subtitle)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}</div><div>${esc(item.price)}</div><div>${esc(item.duration)}</div><div><span class="status">${esc(item.badge)}</span></div><div class="row-actions"><button data-edit-activity="${esc(item.id)}">✎</button><button data-delete-activity="${esc(item.id)}">×</button></div></div>`).join('');
+    const { onglets, items, actuel } = annoncesFiltrees('activity');
+    $('#activitiesTable').innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucune activité en ligne.' : actuel === 'suspendue' ? 'Aucune activité suspendue.' : 'Aucune activité archivée.'}</div>`) + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || item.image || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.subtitle)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}${pastillesAnnonce('activity', item)}</div><div>${esc(item.price)}</div><div>${esc(item.duration)}</div><div><span class="status">${esc(item.badge)}</span></div><div class="row-actions"><button data-edit-activity="${esc(item.id)}">✎</button><button data-delete-activity="${esc(item.id)}">×</button></div></div>`).join('');
     $$('[data-edit-activity]').forEach(button => button.addEventListener('click', () => openEditor('activity', button.dataset.editActivity)));
-    $$('[data-delete-activity]').forEach(button => button.addEventListener('click', () => { if (confirm('Retirer cette activité ?')) { state.content.activities = state.content.activities.filter(v => v.id !== button.dataset.deleteActivity); dirty(); renderActivities(); } }));
+    $$('[data-delete-activity]').forEach(button => button.addEventListener('click', () => supprimerAnnonce('activity', button.dataset.deleteActivity)));
+    brancherListe($('#activitiesTable'), 'activity');
   }
 
   // ---------------------------------------------------------------------
@@ -592,7 +693,7 @@
       const contact = [lead.phone, lead.email].filter(Boolean).join(' · ');
       return `<div class="lead-item" role="button" tabindex="0" data-open-lead="${esc(lead.id)}" aria-label="Ouvrir la demande de ${esc(lead.name || 'ce client')}">
         <div class="lead-item-main">
-          <div class="lead-item-top"><strong>${esc(lead.name || lead.email || 'Visiteur')}</strong><span class="lead-type">${esc(d.formule)}</span><time datetime="${esc(lead.createdAt || '')}">${formatDate(lead.createdAt)}</time></div>
+          <div class="lead-item-top"><strong>${esc(lead.name || lead.email || 'Visiteur')}</strong><span class="lead-type">${esc(d.formule)}</span>${lead.restriction ? `<span class="lead-restriction ${esc(lead.restriction.type)}">${lead.restriction.type === 'bloque' ? 'Bloqué' : 'Suspendu'}</span>` : ''}<time datetime="${esc(lead.createdAt || '')}">${formatDate(lead.createdAt)}</time></div>
           <p class="lead-item-brief">${esc(d.brief || lead.message || '—')}</p>
           ${contact ? `<small class="lead-item-contact">${esc(contact)}</small>` : ''}
         </div>
@@ -677,7 +778,7 @@
     // Texte libre : affiché seulement s'il n'est pas déjà décomposé ci-dessus.
     const messageLibre = d.simulateur ? '' : String(lead.message || '').trim();
     document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop lead-editor-backdrop"><form class="editor-drawer lead-detail"><div class="editor-head"><div><span class="eyebrow">DEMANDE DE RÉSERVATION · ${esc(d.formule.toUpperCase())}</span><h2>${esc(lead.name || 'Visiteur')}</h2><span class="status lead-status-${esc(lead.status)}">${esc(statut)}</span> <small class="lead-recue">Reçue le ${esc(horodatage(lead.createdAt))}</small></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">
-      <section class="lead-contact-card"><strong>${esc(lead.name || 'Nom non renseigné')}</strong><small>${esc(lead.phone || 'Téléphone non renseigné')}</small><small>${esc(lead.email || 'E-mail non renseigné')}</small>${actions ? `<div class="lead-actions">${actions}</div>` : ''}</section>
+      <section class="lead-contact-card"><strong>${esc(lead.name || 'Nom non renseigné')}</strong><small>${esc(lead.phone || 'Téléphone non renseigné')}</small><small>${esc(lead.email || 'E-mail non renseigné')}</small>${actions ? `<div class="lead-actions">${actions}</div>` : ''}${can('leads:write') ? gestionDemandeur(lead) : ''}</section>
       <section class="lead-bloc"><h3>Réservation</h3><dl class="lead-dl">
         ${ligne('Formule', esc(d.formule === 'Séjour' ? 'Séjour en résidence' : d.formule === 'Activités' ? 'Activités uniquement (sans hébergement)' : d.formule))}
         ${ligne(lead.terrainRef ? 'Terrain' : 'Résidence', esc(d.lieu))}
@@ -691,7 +792,7 @@
       </dl>${messageLibre ? `<h3>Message</h3><p class="lead-message">${esc(messageLibre).replace(/\n/g, '<br>')}</p>` : ''}</section>
       <section class="lead-bloc"><h3>Suivi</h3><div class="form-grid"><label>Statut<select name="status">${LEAD_STATUTS.map(([value, label]) => `<option value="${value}" ${lead.status === value ? 'selected':''}>${label}</option>`).join('')}</select></label><label>Montant confirmé (FCFA)<input name="amount" type="number" min="0" step="1000" value="${Number(lead.amount || 0)}"></label></div><label>Notes internes<textarea name="adminNotes" rows="5" placeholder="Relance, préférences, informations utiles…">${esc(lead.adminNotes || '')}</textarea></label>
       <p class="lead-meta">Dernière mise à jour : ${esc(horodatage(lead.updatedAt || lead.createdAt))} · Réf. ${esc(String(lead.id || '').slice(0, 8))}</p></section>
-    </div><div class="editor-actions"><button type="button" data-close-editor>Fermer</button><button class="primary" type="submit">Enregistrer le suivi</button></div></form></div>`);
+    </div><div class="editor-actions lead-editor-actions">${can('leads:write') ? `<button type="button" data-archiver-demande>${lead.status === 'archive' ? 'Désarchiver' : 'Archiver'}</button><button type="button" class="danger" data-supprimer-demande>Supprimer la demande</button>` : ''}<button type="button" data-close-editor>Fermer</button><button class="primary" type="submit">Enregistrer le suivi</button></div></form></div>`);
     const backdrop = $('.lead-editor-backdrop');
     const close = () => { document.removeEventListener('keydown', onKeydown); backdrop.remove(); };
     const onKeydown = event => { if (event.key === 'Escape') close(); };
@@ -709,9 +810,89 @@
         renderDashboard(); renderLeads(); close(); toast('Dossier client enregistré');
       } catch (error) { toast(error.message); }
     });
+    brancherGestionDemande(backdrop, lead, close);
     // Focus sur « Fermer » : la fiche s'ouvre en haut, sur le client, et
     // Échap ou Entrée la referment sans rien modifier.
     $('.editor-head [data-close-editor]', backdrop)?.focus();
+  }
+
+  // ===== Gestion des demandes et des demandeurs (17/09/2026) =================
+  // Bloquer : les prochaines demandes du même téléphone ou e-mail sont refusées
+  // sur le site et l'application. Suspendre : idem pendant 7, 30 ou 90 jours.
+  // Supprimer le demandeur : toutes ses demandes sont effacées, définitivement.
+  function gestionDemandeur(lead) {
+    const r = lead.restriction;
+    if (r) {
+      const depuis = r.creeLe ? ` le ${formatDate(r.creeLe)}` : '';
+      const etat = r.type === 'bloque' ? `Bloqué${depuis}` : `Suspendu jusqu’au ${formatDate(r.jusquAu)}`;
+      return `<div class="demandeur-gestion"><p class="demandeur-etat ${esc(r.type)}"><strong>${esc(etat)}</strong>${r.motif ? ` — ${esc(r.motif)}` : ''}<br><small>Ses nouvelles demandes sont refusées sur le site et dans l’application.</small></p><div class="demandeur-boutons"><button type="button" data-lever-restriction="${esc(r.id)}">Lever ${r.type === 'bloque' ? 'le blocage' : 'la suspension'}</button><button type="button" class="danger" data-supprimer-demandeur>Supprimer le demandeur</button></div></div>`;
+    }
+    return `<div class="demandeur-gestion"><label class="demandeur-motif">Motif (facultatif, interne)<input data-motif-restriction maxlength="500" placeholder="ex. demandes fantaisistes répétées"></label><div class="demandeur-boutons"><button type="button" data-bloquer-demandeur>Bloquer</button><span class="demandeur-suspendre"><select data-duree-suspension aria-label="Durée de suspension"><option value="7">7 jours</option><option value="30">30 jours</option><option value="90">90 jours</option></select><button type="button" data-suspendre-demandeur>Suspendre</button></span><button type="button" class="danger" data-supprimer-demandeur>Supprimer le demandeur</button></div></div>`;
+  }
+
+  async function rechargerDemandes() {
+    const [leads, dashboard] = await Promise.all([api('/api/admin/leads'), api('/api/admin/dashboard').catch(() => null)]);
+    state.leads = leads.leads || [];
+    if (dashboard) state.dashboard = dashboard;
+    renderLeads(); renderDashboard(); renderOperations();
+  }
+
+  function brancherGestionDemande(racine, lead, fermer) {
+    const restreindre = async (type) => {
+      const corps = { leadId: lead.id, type, motif: $('[data-motif-restriction]', racine)?.value || '' };
+      if (type === 'suspendu') corps.jours = Number($('[data-duree-suspension]', racine).value);
+      const qui = lead.name || 'ce demandeur';
+      const quoi = type === 'bloque' ? `Bloquer ${qui}` : `Suspendre ${qui} pendant ${corps.jours} jours`;
+      if (!confirm(`${quoi} ?\n\nSes prochaines demandes (même téléphone ou même e-mail) seront refusées sur le site et dans l’application.`)) return;
+      try {
+        await api('/api/admin/demandeurs/restrictions', { method: 'POST', body: JSON.stringify(corps) });
+        await rechargerDemandes(); fermer(); openLeadEditor(lead.id);
+        toast(type === 'bloque' ? 'Demandeur bloqué' : `Demandeur suspendu ${corps.jours} jours`);
+      } catch (error) { toast(error.message); }
+    };
+    $('[data-bloquer-demandeur]', racine)?.addEventListener('click', () => restreindre('bloque'));
+    $('[data-suspendre-demandeur]', racine)?.addEventListener('click', () => restreindre('suspendu'));
+    $('[data-lever-restriction]', racine)?.addEventListener('click', async event => {
+      try {
+        await api(`/api/admin/demandeurs/restrictions/${encodeURIComponent(event.currentTarget.dataset.leverRestriction)}`, { method: 'DELETE' });
+        await rechargerDemandes(); fermer(); openLeadEditor(lead.id);
+        toast('Mesure levée : ses demandes sont de nouveau acceptées');
+      } catch (error) { toast(error.message); }
+    });
+    $('[data-supprimer-demandeur]', racine)?.addEventListener('click', async () => {
+      // Liste à jour : une demande arrivée depuis l'ouverture du studio compte aussi.
+      try { state.leads = (await api('/api/admin/leads')).leads || state.leads; } catch { /* compte sur la liste connue */ }
+      const lies =state.leads.filter(autre => autre.id === lead.id || memeDemandeurStudio(autre, lead)).length;
+      if (!confirm(`Supprimer définitivement ${lead.name || 'ce demandeur'} et ses coordonnées ?\n\n${lies} demande${lies > 1 ? 's' : ''} (même téléphone ou même e-mail) ${lies > 1 ? 'seront effacées' : 'sera effacée'}. Cette action ne peut pas être annulée.${lead.restriction ? '\n\nLe blocage en cours est conservé.' : ''}`)) return;
+      try {
+        const resultat = await api('/api/admin/demandeurs/supprimer', { method: 'POST', body: JSON.stringify({ leadId: lead.id }) });
+        fermer(); await rechargerDemandes();
+        toast(`Demandeur supprimé : ${resultat.supprimees} demande(s) effacée(s)`);
+      } catch (error) { toast(error.message); }
+    });
+    $('[data-supprimer-demande]', racine)?.addEventListener('click', async () => {
+      if (!confirm(`Supprimer définitivement cette demande de ${lead.name || 'ce visiteur'} ?\n\nCette action ne peut pas être annulée. Pour la garder sans l’avoir sous les yeux, archivez-la plutôt.`)) return;
+      try {
+        await api(`/api/admin/leads/${encodeURIComponent(lead.id)}`, { method: 'DELETE' });
+        fermer(); await rechargerDemandes();
+        toast('Demande supprimée');
+      } catch (error) { toast(error.message); }
+    });
+    $('[data-archiver-demande]', racine)?.addEventListener('click', async () => {
+      const status = lead.status === 'archive' ? 'nouveau' : 'archive';
+      try {
+        await api(`/api/admin/leads/${encodeURIComponent(lead.id)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+        fermer(); await rechargerDemandes();
+        toast(status === 'archive' ? 'Demande archivée' : 'Demande désarchivée (statut « Nouvelle »)');
+      } catch (error) { toast(error.message); }
+    });
+  }
+
+  /** Même téléphone ou même e-mail (règle de db/demandeurs.js, pour le compte affiché). */
+  function memeDemandeurStudio(a, b) {
+    const tel = valeur => { let c = String(valeur || '').replace(/\D/g, ''); if (c.startsWith('00')) c = c.slice(2); if (c.startsWith('225') && c.length === 13) c = c.slice(3); return c.length >= 8 ? c : ''; };
+    const mail = valeur => String(valeur || '').trim().toLowerCase();
+    return Boolean((tel(a.phone) && tel(a.phone) === tel(b.phone)) || (mail(a.email).includes('@') && mail(a.email) === mail(b.email)));
   }
 
   // ===== Messages WhatsApp promotionnels ===================================
@@ -1003,13 +1184,18 @@
       : (Array.isArray(data.images) && data.images.length ? data.images : [data.image])).filter(Boolean);
     const heading = isVilla ? 'Villa' : isTerrain ? 'Terrain' : 'Activité';
     const fields = isVilla ? villaFields(data) : isTerrain ? terrainFields(data) : activityFields(data);
-    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div><div class="editor-fields">${fields}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div>${id && list.some(item => item.id === id) ? barreGestionAnnonce(source) : ''}<div class="editor-fields">${fields}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
     const backdrop = $('.editor-backdrop');
     const close = () => { document.removeEventListener('keydown', onKeydown); backdrop.remove(); };
     const onKeydown = event => { if (event.key === 'Escape') close(); };
     $$('[data-close-editor]', backdrop).forEach(button => button.addEventListener('click', close));
     backdrop.addEventListener('click', event => { if (event.target === backdrop) close(); });
     document.addEventListener('keydown', onKeydown);
+    $$('[data-etat-annonce]', backdrop).forEach(bouton => bouton.addEventListener('click', () => {
+      changerEtatAnnonce(type, id, bouton.dataset.etatAnnonce);
+      close();
+    }));
+    $('[data-supprimer-annonce]', backdrop)?.addEventListener('click', () => { if (supprimerAnnonce(type, id)) close(); });
     const renderGallery = () => {
       $('[data-media-list]', backdrop).innerHTML = gallery.length ? gallery.map((url, index) => `<article class="media-card"><img src="${esc(url)}" alt="Aperçu ${index + 1}"><div><span>${index === 0 ? 'Image principale' : `Galerie ${index}`}</span><div>${index > 0 ? `<button type="button" data-media-main="${index}">Principale</button>` : ''}<button type="button" data-media-remove="${index}">Retirer</button></div></div></article>`).join('') : '<div class="media-empty">Ajoutez au moins une image pour présenter ce contenu.</div>';
     };
@@ -1149,26 +1335,27 @@
   }
 
   /**
-   * Case « Publier aussi sur Facebook ».
-   * Le sens site → Facebook n'est JAMAIS automatique : rien ne part vers la
-   * Page sans cette case explicitement cochée. Garde anti-boucle : une fiche
-   * importée depuis Facebook ne peut pas y être renvoyée.
+   * Case « Publier sur Facebook » (décisions du 17/09/2026) : cochée, l'annonce
+   * est sur la Page ; décochée, elle n'y est pas. Le changement part au clic sur
+   * « Publier les changements », après confirmation. Garde anti-boucle : une
+   * fiche importée depuis Facebook ne peut pas y être renvoyée.
    */
   function shareToFacebookField(item, kind) {
-    const fromFacebook = item.source === 'facebook' || Boolean(item.facebookOriginId);
-    const connected = Boolean(state.facebook?.connected);
-    // Déjà sur la Page (journal des publications, voir fichesPubliees dans
-    // server.js) : case cochée et verrouillée, pour ne pas publier deux fois
-    // la même annonce. Supprimer la publication sur Facebook la libère.
-    const publiee = kind ? state.facebook?.fichesPubliees?.[`${kind}:${item.id}`] : null;
-    if (publiee) {
-      const date = publiee.publieeLe ? ` le ${formatDate(publiee.publieeLe)}` : '';
-      const voir = publiee.lien ? ` · <a href="${esc(publiee.lien)}" target="_blank" rel="noopener">voir</a>` : '';
-      return `<label class="share-fb publiee" title="Pour la republier, supprimez d’abord la publication sur Facebook."><input type="checkbox" checked tabindex="-1" aria-disabled="true"> Publier aussi sur Facebook <small>(déjà publiée${esc(date)}${voir})</small></label>`;
+    if (item.source === 'facebook' || item.facebookOriginId) {
+      return '<label class="share-fb blocked" title="Contenu importé depuis Facebook : republication bloquée pour éviter une boucle."><input type="checkbox" disabled> Publier sur Facebook <small>(contenu importé de Facebook)</small></label>';
     }
-    if (fromFacebook) return `<label class="share-fb blocked" title="Contenu importé depuis Facebook : republication bloquée pour éviter une boucle."><input type="checkbox" disabled> Publier aussi sur Facebook <small>(bloqué : contenu importé de Facebook)</small></label>`;
-    if (!connected) return `<label class="share-fb blocked" title="Configurez la connexion Meta pour activer cette option."><input type="checkbox" disabled> Publier aussi sur Facebook <small>(connexion Meta requise)</small></label>`;
-    return `<label class="share-fb"><input type="checkbox" name="shareToFacebook" value="yes" ${item.shareToFacebook ? 'checked':''}> Publier aussi sur Facebook <small>(à la prochaine publication)</small></label>`;
+    const publiee = item.id ? state.facebook?.fichesPubliees?.[`${kind}:${item.id}`] : null;
+    const cochee = item.facebook === true || (item.facebook !== false && Boolean(publiee));
+    if (!state.facebook?.connected) {
+      return `<label class="share-fb blocked" title="Configurez la connexion Meta pour activer cette option."><input type="checkbox" disabled ${cochee ? 'checked' : ''}> Publier sur Facebook <small>(connexion Meta requise)</small></label>`;
+    }
+    const date = publiee?.publieeLe ? ` depuis le ${formatDate(publiee.publieeLe)}` : '';
+    const voir = publiee?.lien ? ` · <a href="${esc(publiee.lien)}" target="_blank" rel="noopener">voir</a>` : '';
+    const aide = publiee ? `en ligne${esc(date)}${voir} — décocher supprime la publication` : 'publiée à la prochaine publication des changements';
+    // `facebookPresent` : la case était modifiable. Décochée, elle n'est pas
+    // envoyée par le formulaire ; sans ce témoin on ne saurait pas la distinguer
+    // d'une case désactivée, dont la valeur doit rester inchangée.
+    return `<label class="share-fb${publiee ? ' en-ligne' : ''}"><input type="hidden" name="facebookPresent" value="1"><input type="checkbox" name="facebook" value="yes" ${cochee ? 'checked' : ''}> Publier sur Facebook <small>(${aide})</small></label>`;
   }
 
   function mediaFields() { return `<section class="media-manager"><div class="media-manager-head"><div><strong>Images</strong><small>La première image est utilisée comme visuel principal.</small></div><label class="upload-button">＋ Importer<input type="file" accept="image/jpeg,image/png,image/webp" multiple data-upload-media></label></div><div class="media-list" data-media-list></div><div class="media-url-row"><input type="text" data-media-url placeholder="Ou collez une URL / un chemin d’image"><button type="button" data-add-media-url>Ajouter</button></div><small class="upload-status" data-upload-status>JPG, PNG ou WebP · 8 Mo maximum par image · 12 images maximum</small></section>`; }
@@ -1412,7 +1599,7 @@
     const decimal = value => (value === '' || value === undefined || value === null || !Number.isFinite(Number(value)) ? null : Number(value));
     return {
       ...old,
-      shareToFacebook: v.shareToFacebook === 'yes',
+      facebook: v.facebookPresent ? v.facebook === 'yes' : (old.facebook ?? null),
       id: String(v.id).trim().toLowerCase(),
       reference: String(v.reference).trim(),
       title: String(v.title).trim(),
@@ -1439,22 +1626,19 @@
   }
 
   function lines(value) { return String(value || '').split('\n').map(item => item.trim()).filter(Boolean); }
-  function normalizeVilla(v, old, gallery) { const price = Number(v.pricePerNight || 0); return { ...old, shareToFacebook: v.shareToFacebook === 'yes', id:v.id.trim().toLowerCase(), name:v.name.trim(), category:v.category, categoryLabel: libelleRef(trouverRef('categories', v.category)) || v.category, environment: CADRES_VILLA.some(c => c.value === v.environment) ? v.environment : cadreDeVilla({ ...old, ...v }), status:v.status, visible:v.visible==='yes', featured:v.featured==='yes', badgeId: v.badgeId || '', badge: libelleRef(trouverRef('badges', v.badgeId)), localisationId: v.localisationId || '', localisationPrecision: v.localisationId ? String(v.localisationPrecision || '').trim() : '', location: adresseAffichee(v.localisationId, v.localisationPrecision, old.location), equipements: Array.isArray(v.equipements) ? v.equipements : [], pricePerNight:price, priceEuro:Math.round(price/655.957), weekendPackage:Number(v.weekendPackage || 0), capacity:Number(v.capacity), bedrooms:Number(v.bedrooms), bathrooms:Number(v.bathrooms), beds:v.beds, tagline:v.tagline, description:v.description, images:gallery.slice(0,12), features:lines(v.features), highlights:lines(v.highlights), rating:old.rating || 5, reviewsCount:old.reviewsCount || 0 }; }
-  function normalizeActivity(v, old, gallery) { return { ...old, shareToFacebook: v.shareToFacebook === 'yes', id:v.id.trim().toLowerCase(), title:v.title.trim(), badgeId: v.badgeId || '', badge: libelleRef(trouverRef('badges', v.badgeId)), duration:v.duration, pricePrefix: String(v.pricePrefix || '').trim(), priceSuffix: String(v.priceSuffix || '').trim(), priceAmount: Number(v.priceAmount) || 0, priceUnit: ['forfait','jour','personne'].includes(v.priceUnit) ? v.priceUnit : 'forfait', groupPriceAmount: Number(v.groupPriceAmount) || 0, groupSize: Number(v.groupSize) || 0, subtitle:v.subtitle, description:v.description, visible:v.visible==='yes', featured:v.featured==='yes', image:gallery[0] || '', images:gallery.slice(0,12) }; }
+  function normalizeVilla(v, old, gallery) { const price = Number(v.pricePerNight || 0); return { ...old, facebook: v.facebookPresent ? v.facebook === 'yes' : (old.facebook ?? null), id:v.id.trim().toLowerCase(), name:v.name.trim(), category:v.category, categoryLabel: libelleRef(trouverRef('categories', v.category)) || v.category, environment: CADRES_VILLA.some(c => c.value === v.environment) ? v.environment : cadreDeVilla({ ...old, ...v }), status:v.status, visible:v.visible==='yes', featured:v.featured==='yes', badgeId: v.badgeId || '', badge: libelleRef(trouverRef('badges', v.badgeId)), localisationId: v.localisationId || '', localisationPrecision: v.localisationId ? String(v.localisationPrecision || '').trim() : '', location: adresseAffichee(v.localisationId, v.localisationPrecision, old.location), equipements: Array.isArray(v.equipements) ? v.equipements : [], pricePerNight:price, priceEuro:Math.round(price/655.957), weekendPackage:Number(v.weekendPackage || 0), capacity:Number(v.capacity), bedrooms:Number(v.bedrooms), bathrooms:Number(v.bathrooms), beds:v.beds, tagline:v.tagline, description:v.description, images:gallery.slice(0,12), features:lines(v.features), highlights:lines(v.highlights), rating:old.rating || 5, reviewsCount:old.reviewsCount || 0 }; }
+  function normalizeActivity(v, old, gallery) { return { ...old, facebook: v.facebookPresent ? v.facebook === 'yes' : (old.facebook ?? null), id:v.id.trim().toLowerCase(), title:v.title.trim(), badgeId: v.badgeId || '', badge: libelleRef(trouverRef('badges', v.badgeId)), duration:v.duration, pricePrefix: String(v.pricePrefix || '').trim(), priceSuffix: String(v.priceSuffix || '').trim(), priceAmount: Number(v.priceAmount) || 0, priceUnit: ['forfait','jour','personne'].includes(v.priceUnit) ? v.priceUnit : 'forfait', groupPriceAmount: Number(v.groupPriceAmount) || 0, groupSize: Number(v.groupSize) || 0, subtitle:v.subtitle, description:v.description, visible:v.visible==='yes', featured:v.featured==='yes', image:gallery[0] || '', images:gallery.slice(0,12) }; }
   function fileAsDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error(`Lecture impossible : ${file.name}`)); reader.readAsDataURL(file); }); }
   async function uploadMedia(file) { return api('/api/admin/media', { method:'POST', body:JSON.stringify({ filename:file.name, mimeType:file.type, data:await fileAsDataUrl(file) }) }); }
 
   function renderSettings() {
     const s = state.content.settings;
-    $('#settingsForm').innerHTML = `<span class="eyebrow">IDENTITÉ DU SITE</span><h2>Textes et coordonnées</h2><div class="form-grid"><label class="wide">Titre du hero<input name="heroTitle" maxlength="180" value="${esc(s.heroTitle)}"></label><label class="wide">Sous-titre du hero<textarea name="heroSubtitle" maxlength="500" rows="3">${esc(s.heroSubtitle)}</textarea></label><label>Téléphone<input name="phone" value="${esc(s.phone || CONTACT_CONFIG.phone)}"></label><label>Page Facebook<input type="url" name="facebookPage" value="${esc(s.facebookPage || CONTACT_CONFIG.facebookPage)}"></label><label>Horaires<input name="officeHours" value="${esc(s.officeHours || '7j/7 · 7h–22h')}"></label><label>Devise<input name="currency" maxlength="20" value="${esc(s.currency || 'FCFA')}"></label></div><label class="wide champ-bascule"><input type="checkbox" name="facebookAutoPublish" id="reglageFacebookAuto" ${s.facebookAutoPublish ? "checked" : ""}><span><strong>Publier automatiquement les nouvelles fiches sur la Page Facebook</strong><em>Seules les fiches ajoutées après activation partent, cinq au maximum par publication. Les fiches déjà en ligne ne seront pas republiées.</em></span></label><p>Ces réglages sont appliqués au prochain clic sur « Publier les changements ».</p>`;
+    $('#settingsForm').innerHTML = `<span class="eyebrow">IDENTITÉ DU SITE</span><h2>Textes et coordonnées</h2><div class="form-grid"><label class="wide">Titre du hero<input name="heroTitle" maxlength="180" value="${esc(s.heroTitle)}"></label><label class="wide">Sous-titre du hero<textarea name="heroSubtitle" maxlength="500" rows="3">${esc(s.heroSubtitle)}</textarea></label><label>Téléphone<input name="phone" value="${esc(s.phone || CONTACT_CONFIG.phone)}"></label><label>Page Facebook<input type="url" name="facebookPage" value="${esc(s.facebookPage || CONTACT_CONFIG.facebookPage)}"></label><label>Horaires<input name="officeHours" value="${esc(s.officeHours || '7j/7 · 7h–22h')}"></label><label>Devise<input name="currency" maxlength="20" value="${esc(s.currency || 'FCFA')}"></label></div><p>Ces réglages sont appliqués au prochain clic sur « Publier les changements ».</p>`;
   }
   function captureSettings() {
     state.content.settings = { ...state.content.settings, ...Object.fromEntries(new FormData($('#settingsForm'))) };
-    // FormData omet purement et simplement une case décochée : sans lecture
-    // directe, désactiver le relais automatique ne serait jamais enregistré,
-    // la valeur vraie précédente survivant à la fusion ci-dessus.
-    const bascule = $('#reglageFacebookAuto');
-    if (bascule) state.content.settings.facebookAutoPublish = bascule.checked;
+    // Relais automatique retiré le 17/09/2026 : la case de chaque annonce décide.
+    delete state.content.settings.facebookAutoPublish;
     dirty();
   }
 
@@ -1892,50 +2076,35 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
       const validation = await api('/api/admin/content/validate',{method:'POST',body:JSON.stringify(state.content)});
       button.textContent = 'Publication…';
 
-      // Fiches explicitement cochées « Publier aussi sur Facebook ».
-      const share = [
-        ...state.content.villas.filter(item => item.shareToFacebook).map(item => ({ kind:'villa', id:item.id, label:item.name })),
-        ...state.content.terrains.filter(item => item.shareToFacebook).map(item => ({ kind:'terrain', id:item.id, label:`${item.reference} — ${item.title}` })),
-        ...state.content.activities.filter(item => item.shareToFacebook).map(item => ({ kind:'activity', id:item.id, label:item.title }))
-      ];
-      if (share.length && !confirm(`Publier aussi ${share.length} fiche(s) sur la Page Facebook officielle ?\n\n· ${share.map(entry => entry.label).join('\n· ')}`)) {
-        button.disabled = false; button.textContent = 'Publier les changements'; return;
+      // Ce que la publication va faire sur la Page : confirmé avant l'envoi.
+      const plan = validation.facebook;
+      if (plan && (plan.publier.length || plan.photos.length || plan.retirer.length)) {
+        const raisons = { 'case-decochee': 'case décochée', suspendue: 'annonce suspendue', archivee: 'annonce archivée', supprimee: 'annonce supprimée' };
+        const blocs = [
+          plan.publier.length ? `Publier sur Facebook :\n· ${plan.publier.join('\n· ')}` : '',
+          plan.photos.length ? `Republier (photos modifiées : les likes et commentaires Facebook de la publication seront perdus) :\n· ${plan.photos.join('\n· ')}` : '',
+          plan.retirer.length ? `Supprimer de Facebook :\n· ${plan.retirer.map(entree => `${entree.nom} (${raisons[entree.raison] || entree.raison})`).join('\n· ')}` : ''
+        ].filter(Boolean);
+        if (!confirm(`Cette publication va modifier la Page Facebook :\n\n${blocs.join('\n\n')}\n\nContinuer ?`)) {
+          button.disabled = false; button.textContent = 'Publier les changements'; return;
+        }
       }
-      const body = { ...state.content, facebookShare: share.length ? { enabled:true, items:share.map(({ kind, id }) => ({ kind, id })) } : undefined };
-      const published = await api('/api/admin/content',{method:'POST',body:JSON.stringify(body)});
-
-      // Le drapeau est à usage unique : on le retire après envoi pour ne pas
-      // republier la même fiche à chaque publication suivante.
-      ['villas','terrains','activities'].forEach(key => state.content[key].forEach(item => { delete item.shareToFacebook; }));
-      const fbAuto = published.facebookAuto;
-      if (fbAuto?.enabled) {
-        if (fbAuto.amorce) toast(`Relais automatique armé : ${fbAuto.amorce} fiche(s) existante(s) enregistrée(s) sans republication.`);
-        else if (fbAuto.published) toast(`${fbAuto.published} nouvelle(s) fiche(s) publiée(s) automatiquement sur Facebook`);
-        if (fbAuto.pending) toast(`${fbAuto.pending} fiche(s) partiront à la prochaine publication (plafond de 5).`);
-        (fbAuto.errors || []).forEach(message => { console.warn('Facebook auto :', message); toast(`Facebook auto : ${message}`); });
-      }
-      const fbResult = published.facebookShare;
-      if (fbResult?.requested) {
-        if (fbResult.published) toast(`${fbResult.published} fiche(s) publiée(s) sur Facebook`);
-        (fbResult.errors || []).forEach(message => console.warn('Facebook :', message));
-        if (fbResult.blocked?.length) toast(`${fbResult.blocked.length} fiche(s) non republiée(s) : contenu importé de Facebook`);
-        if (fbResult.dejaPubliees?.length) toast(`${fbResult.dejaPubliees.length} fiche(s) déjà publiée(s) sur Facebook : non renvoyée(s)`);
-        if (!fbResult.published && fbResult.errors?.length) toast(`Facebook : ${fbResult.errors[0]}`);
-      }
-      // Les fiches qui viennent de partir verrouillent aussitôt leur case,
-      // sans attendre le rechargement de l'état Facebook.
-      const parties = [...(fbResult?.results || []), ...(fbAuto?.results || [])].filter(entree => entree.facebookId);
-      if (parties.length && state.facebook) {
-        state.facebook.fichesPubliees = { ...(state.facebook.fichesPubliees || {}) };
-        parties.forEach(entree => {
-          const cle = `${entree.kind}:${entree.id}`;
-          if (!state.facebook.fichesPubliees[cle]) state.facebook.fichesPubliees[cle] = { facebookId: entree.facebookId, publieeLe: new Date().toISOString(), lien: '' };
-        });
-      }
-      if (fbResult?.requested || parties.length) {
+      const published = await api('/api/admin/content',{method:'POST',body:JSON.stringify({ ...state.content, baseUpdatedAt: state.baseUpdatedAt })});
+      state.baseUpdatedAt = published.updatedAt || state.baseUpdatedAt;
+      const fb = published.facebook || {};
+      const faits = [
+        fb.publiees?.length ? `${fb.publiees.length} publiée(s)` : '',
+        fb.republiees?.length ? `${fb.republiees.length} republiée(s)` : '',
+        fb.textes?.length ? `${fb.textes.length} texte(s) mis à jour` : '',
+        fb.retirees?.length ? `${fb.retirees.length} supprimée(s)` : '',
+        fb.enAttente?.length ? `${fb.enAttente.length} à la prochaine publication (5 envois au plus à la fois)` : ''
+      ].filter(Boolean);
+      (fb.erreurs || []).forEach(message => console.warn('Facebook :', message));
+      const messageFacebook = [faits.length ? `Facebook : ${faits.join(', ')}.` : '', fb.erreurs?.length ? `Facebook, échec : ${fb.erreurs[0]}` : ''].filter(Boolean).join(' ');
+      // État réel de la Page (publications en ligne, liens) pour les cases.
+      if (faits.length && can('facebook:read')) {
+        try { renderFacebook(await api('/api/admin/facebook/posts')); } catch { /* l'état se rechargera à l'actualisation */ }
         renderVillas(); renderTerrains(); renderActivities();
-        // Puis l'état réel (lien de la publication) une fois la synchronisation passée.
-        setTimeout(() => api('/api/admin/facebook/posts').then(data => { state.facebook = data; }).catch(() => {}), 8000);
       }
       state.dirty=false;
       // On affiche le stockage RÉELLEMENT utilisé. « Publié » sans préciser que
@@ -1950,8 +2119,8 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
       if (can('audit:read')) state.audit = (await api('/api/admin/audit').catch(() => ({}))).entries || state.audit;
       if (published.warnings?.length) published.warnings.forEach(warning => console.info('Publication :', warning));
       renderDashboard(); renderOperations();
-      if (!enBase) toast('Publié en fichiers uniquement : la base de données n’a PAS été mise à jour. Prévenez l’hébergeur.');
-      else toast(validation.warnings?.length ? `Publié en base · ${validation.warnings.length} point(s) à surveiller` : 'Publié et enregistré en base de données');
+      if (!enBase) toast(['Publié en fichiers uniquement : la base de données n’a PAS été mise à jour. Prévenez l’hébergeur.', messageFacebook].filter(Boolean).join(' '));
+      else toast([validation.warnings?.length ? `Publié en base · ${validation.warnings.length} point(s) à surveiller.` : 'Publié et enregistré en base de données.', messageFacebook].filter(Boolean).join(' '));
     } catch(error) { toast(error.message); }
     finally { button.disabled = !state.contenuCharge; button.textContent = 'Publier les changements'; }
   }
