@@ -390,8 +390,10 @@
   function pastillesAnnonce(kind, item) {
     const etat = etatAnnonce(item);
     const facebook = state.facebook?.fichesPubliees?.[`${kind}:${item.id}`];
+    const avis = item.avis || {};
     return (etat !== 'active' ? `<span class="visibility-note etat-${etat}">${ETATS_ANNONCE[etat].toUpperCase()}</span>` : '')
-      + (facebook ? '<span class="fb-pastille" title="En ligne sur la Page Facebook">f</span>' : '');
+      + (facebook ? '<span class="fb-pastille" title="En ligne sur la Page Facebook">f</span>' : '')
+      + (avis.likes || avis.nombre ? `<span class="avis-pastille" title="Avis des visiteurs">♥ ${Number(avis.likes) || 0}${avis.nombre ? ` · ★ ${String(avis.note).replace('.', ',')} (${avis.nombre})` : ''}</span>` : '');
   }
 
   function supprimerAnnonce(kind, id) {
@@ -428,6 +430,39 @@
       archivee: 'Annonce archivée : absente du site et de Facebook. Restaurez-la pour la remettre en ligne.'
     }[etat];
     return `<div class="gestion-annonce"><span class="etat-annonce etat-${etat}">${ETATS_ANNONCE[etat]}</span><div class="gestion-annonce-boutons">${boutons.map(([cible, libelle]) => `<button type="button" data-etat-annonce="${cible}">${libelle}</button>`).join('')}<button type="button" class="danger" data-supprimer-annonce>Supprimer</button></div><small>${aide} Les modifications non enregistrées de la fiche ne sont pas conservées.</small></div>`;
+  }
+
+  /**
+   * Avis des visiteurs d'une annonce (17/09/2026) : « J'aime », note moyenne et
+   * commentaires, publiés aussitôt sur le site. Masquer ou supprimer un
+   * commentaire agit immédiatement, sans attendre « Publier les changements ».
+   */
+  async function rendreAvisStudio(hote, kind, id) {
+    let donnees;
+    try { donnees = await api(`/api/admin/avis?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(id)}`); }
+    catch (error) { hote.innerHTML = `<h3>Avis des visiteurs</h3><p class="avis-studio-vide">${esc(error.message)}</p>`; return; }
+    const item = state.content[COLLECTIONS[kind]].find(entree => entree.id === id);
+    if (item) item.avis = { likes: donnees.likes, note: donnees.note, nombre: donnees.nombre };
+    const etoiles = note => `<span class="avis-studio-etoiles" aria-label="${note} sur 5">${'★'.repeat(note)}<span>${'★'.repeat(5 - note)}</span></span>`;
+    const synthese = `♥ ${donnees.likes} J’aime · ${donnees.nombre ? `★ ${String(donnees.note).replace('.', ',')} / 5 sur ${donnees.nombre} avis visible${donnees.nombre > 1 ? 's' : ''}` : 'aucun avis visible'}`;
+    hote.innerHTML = `<h3>Avis des visiteurs</h3><p class="avis-studio-synthese">${esc(synthese)}</p>${donnees.commentaires.length ? `<ol class="avis-studio-liste">${donnees.commentaires.map(c => `<li class="${c.statut === 'masque' ? 'est-masque' : ''}"><div class="avis-studio-tete"><strong>${esc(c.nom)}</strong>${etoiles(Number(c.note) || 0)}<time>${formatDate(c.creeLe)}</time>${c.statut === 'masque' ? '<span class="avis-studio-statut">Masqué du site</span>' : ''}</div><p>${esc(c.commentaire).replace(/\n/g, '<br>')}</p><div class="avis-studio-actions"><button type="button" data-avis-statut="${esc(c.id)}" data-cible="${c.statut === 'masque' ? 'visible' : 'masque'}">${c.statut === 'masque' ? 'Réafficher' : 'Masquer'}</button><button type="button" class="danger" data-avis-supprimer="${esc(c.id)}">Supprimer</button></div></li>`).join('')}</ol>` : '<p class="avis-studio-vide">Aucun commentaire pour le moment.</p>'}`;
+    $$('[data-avis-statut]', hote).forEach(bouton => bouton.addEventListener('click', async () => {
+      bouton.disabled = true;
+      try {
+        await api(`/api/admin/avis/commentaires/${encodeURIComponent(bouton.dataset.avisStatut)}`, { method: 'PATCH', body: JSON.stringify({ statut: bouton.dataset.cible }) });
+        toast(bouton.dataset.cible === 'masque' ? 'Commentaire masqué du site' : 'Commentaire de nouveau visible');
+        await rendreAvisStudio(hote, kind, id); renderListe(kind);
+      } catch (error) { toast(error.message); bouton.disabled = false; }
+    }));
+    $$('[data-avis-supprimer]', hote).forEach(bouton => bouton.addEventListener('click', async () => {
+      if (!confirm('Supprimer définitivement ce commentaire ? Il disparaît aussitôt du site.')) return;
+      bouton.disabled = true;
+      try {
+        await api(`/api/admin/avis/commentaires/${encodeURIComponent(bouton.dataset.avisSupprimer)}`, { method: 'DELETE' });
+        toast('Commentaire supprimé');
+        await rendreAvisStudio(hote, kind, id); renderListe(kind);
+      } catch (error) { toast(error.message); bouton.disabled = false; }
+    }));
   }
 
   /**
@@ -1184,7 +1219,7 @@
       : (Array.isArray(data.images) && data.images.length ? data.images : [data.image])).filter(Boolean);
     const heading = isVilla ? 'Villa' : isTerrain ? 'Terrain' : 'Activité';
     const fields = isVilla ? villaFields(data) : isTerrain ? terrainFields(data) : activityFields(data);
-    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div>${id && list.some(item => item.id === id) ? barreGestionAnnonce(source) : ''}<div class="editor-fields">${fields}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div>${id && list.some(item => item.id === id) ? barreGestionAnnonce(source) : ''}<div class="editor-fields">${fields}${id && list.some(item => item.id === id) ? '<section class="avis-studio" data-avis-studio aria-live="polite"><h3>Avis des visiteurs</h3><p class="avis-studio-vide">Chargement…</p></section>' : ''}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
     const backdrop = $('.editor-backdrop');
     const close = () => { document.removeEventListener('keydown', onKeydown); backdrop.remove(); };
     const onKeydown = event => { if (event.key === 'Escape') close(); };
@@ -1196,6 +1231,8 @@
       close();
     }));
     $('[data-supprimer-annonce]', backdrop)?.addEventListener('click', () => { if (supprimerAnnonce(type, id)) close(); });
+    const hoteAvis = $('[data-avis-studio]', backdrop);
+    if (hoteAvis) rendreAvisStudio(hoteAvis, type, id);
     const renderGallery = () => {
       $('[data-media-list]', backdrop).innerHTML = gallery.length ? gallery.map((url, index) => `<article class="media-card"><img src="${esc(url)}" alt="Aperçu ${index + 1}"><div><span>${index === 0 ? 'Image principale' : `Galerie ${index}`}</span><div>${index > 0 ? `<button type="button" data-media-main="${index}">Principale</button>` : ''}<button type="button" data-media-remove="${index}">Retirer</button></div></div></article>`).join('') : '<div class="media-empty">Ajoutez au moins une image pour présenter ce contenu.</div>';
     };

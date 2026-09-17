@@ -1004,3 +1004,23 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
   .lead-editor-actions button { flex:1 1 40%; }
   .lead-editor-actions [data-archiver-demande] { margin-right:0; }
 }
+
+/* =====================================================================
+   AVIS DES VISITEURS dans la fiche d'une annonce (17/09/2026).
+   ===================================================================== */
+.avis-pastille { display:flex; width:max-content; margin-top:.3rem; color:#9a3a4b; font-size:.64rem; font-weight:800; }
+.avis-studio { margin:1.6rem 0 .5rem; padding-top:1.2rem; border-top:1px solid var(--line); }
+.avis-studio h3 { margin:0 0 .4rem; font:700 1.1rem/1.2 'Playfair Display',serif; }
+.avis-studio-synthese { margin:0 0 .8rem; color:var(--muted); font-size:.8rem; font-weight:700; }
+.avis-studio-vide { color:var(--muted); font-size:.8rem; }
+.avis-studio-liste { list-style:none; margin:0; padding:0; display:grid; gap:.6rem; }
+.avis-studio-liste li { padding:.8rem .9rem; border:1px solid var(--line); border-radius:14px; background:#f8f9fc; }
+.avis-studio-liste li.est-masque { background:#fff; border-style:dashed; opacity:.8; }
+.avis-studio-tete { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; font-size:.8rem; }
+.avis-studio-tete time { color:var(--muted); font-size:.7rem; }
+.avis-studio-etoiles { color:var(--gold); letter-spacing:.04em; }
+.avis-studio-etoiles span { color:rgba(21,24,55,.18); }
+.avis-studio-statut { padding:.1rem .45rem; border-radius:99px; background:rgba(21,24,55,.08); color:var(--muted); font-size:.6rem; font-weight:800; text-transform:uppercase; }
+.avis-studio-liste p { margin:.4rem 0 .6rem; font-size:.82rem; line-height:1.5; overflow-wrap:anywhere; }
+.avis-studio-actions { display:flex; flex-wrap:wrap; gap:.4rem; }
+.avis-studio-actions button { border:1px solid var(--line); background:white; color:var(--ink); border-radius:999px; padding:.4rem .75rem; font-size:.7rem; font-weight:700; }

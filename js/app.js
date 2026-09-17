@@ -1177,6 +1177,8 @@ function openTerrainModal(terrainId) {
   modal.classList.add("active");
   modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  // Avis des visiteurs (js/avis.js) : section ajoutée à la fiche ouverte.
+  window.dispatchEvent(new CustomEvent("dl:annonce-ouverte", { detail: { kind: "terrain", id: terrain.id, conteneur: modal.querySelector(".modal-details") } }));
   window.setTimeout(() => document.getElementById("terrainModalCloseBtn")?.focus(), 30);
 }
 
@@ -1549,6 +1551,8 @@ function openVillaModal(villaId) {
   modal.classList.add("active");
   modal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  // Avis des visiteurs (js/avis.js) : section ajoutée à la fiche ouverte.
+  window.dispatchEvent(new CustomEvent("dl:annonce-ouverte", { detail: { kind: "villa", id: villa.id, conteneur: modal.querySelector(".modal-details") } }));
   window.setTimeout(() => document.getElementById("modalCloseBtn")?.focus(), 30);
 }
 

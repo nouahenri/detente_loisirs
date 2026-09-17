@@ -1,0 +1,69 @@
+/* =========================================================================
+   AVIS DES VISITEURS (js/avis.js, 17/09/2026) — résumé des cartes, section
+   des fiches, fenêtre des activités. Classes propres (préfixe « avis- ») :
+   aucune règle existante du site n'est redéfinie.
+   ========================================================================= */
+
+/* Résumé sur les cartes */
+.avis-resume { display:flex; flex-wrap:wrap; align-items:center; gap:.35rem .75rem; margin:.35rem 0 .5rem; font-size:.78rem; color:var(--color-gray-slate, #4b5568); }
+.avis-resume svg { vertical-align:-2px; color:#d94a64; }
+.avis-resume-likes, .avis-resume-note { display:inline-flex; align-items:center; gap:.3rem; font-weight:600; }
+.avis-resume-note { color:#9a7400; }
+.avis-resume-note small { color:var(--color-gray-slate, #4b5568); font-weight:500; }
+.avis-resume-bouton { margin-left:auto; border:1px solid rgba(21,24,55,.16); background:#fff; color:var(--color-forest, #151837); border-radius:999px; padding:.3rem .8rem; font:600 .75rem/1.2 inherit; cursor:pointer; }
+.avis-resume-bouton:hover { border-color:var(--color-gold, #e8b904); }
+
+/* Section des avis dans une fiche */
+.avis-annonce { margin-top:1.8rem; padding-top:1.4rem; border-top:1px solid rgba(21,24,55,.1); }
+.avis-entete { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem; }
+.avis-entete .modal-section-title { margin:0; }
+.avis-jaime { display:inline-flex; align-items:center; gap:.45rem; border:1px solid rgba(21,24,55,.16); background:#fff; color:var(--color-forest, #151837); border-radius:999px; padding:.5rem .95rem; font:600 .85rem/1 inherit; cursor:pointer; transition:background .2s, color .2s, border-color .2s; }
+.avis-jaime svg { color:#d94a64; }
+.avis-jaime strong { font-weight:800; }
+.avis-jaime.est-aime { background:#fdecef; border-color:#f3b8c3; }
+.avis-jaime:focus-visible, .avis-resume-bouton:focus-visible, .avis-voir-tout:focus-visible, .avis-publier:focus-visible { outline:3px solid var(--color-gold, #e8b904); outline-offset:2px; }
+.avis-synthese { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin:.9rem 0 .2rem; color:var(--color-gray-slate, #4b5568); font-size:.9rem; }
+.avis-synthese strong { color:var(--color-forest, #151837); font-size:1.05rem; }
+.avis-vide, .avis-chargement { margin:.8rem 0; color:var(--color-gray-slate, #4b5568); font-size:.9rem; }
+.avis-etoiles { color:#e8b904; letter-spacing:.05em; white-space:nowrap; }
+.avis-etoiles span { color:rgba(21,24,55,.18); }
+.avis-liste { list-style:none; margin:.8rem 0 0; padding:0; display:grid; gap:.65rem; }
+.avis-commentaire { padding:.8rem .95rem; border-radius:14px; background:var(--color-forest-tint, #ebedf7); }
+.avis-commentaire-tete { display:flex; flex-wrap:wrap; align-items:baseline; gap:.2rem .6rem; font-size:.85rem; }
+.avis-commentaire-tete time { margin-left:auto; color:var(--color-gray-slate, #4b5568); font-size:.75rem; }
+.avis-commentaire p { margin:.4rem 0 0; font-size:.9rem; line-height:1.55; color:var(--color-gray-dark, #2d3139); overflow-wrap:anywhere; }
+.avis-voir-tout { margin-top:.6rem; border:0; background:none; color:var(--color-forest, #151837); font:700 .85rem/1.2 inherit; text-decoration:underline; cursor:pointer; padding:.2rem 0; }
+
+/* Formulaire */
+.avis-form { margin-top:1.2rem; padding:1rem; border:1px solid rgba(21,24,55,.1); border-radius:16px; background:#fff; display:grid; gap:.7rem; }
+.avis-form h4 { margin:0; font-size:1rem; color:var(--color-forest, #151837); }
+.avis-form label { display:grid; gap:.35rem; font-size:.8rem; font-weight:600; color:var(--color-forest, #151837); }
+.avis-form input, .avis-form textarea { width:100%; box-sizing:border-box; border:1px solid rgba(21,24,55,.16); border-radius:12px; padding:.7rem .85rem; font:inherit; font-size:16px; color:var(--color-forest, #151837); background:#fff; }
+.avis-form input:focus, .avis-form textarea:focus { outline:none; border-color:var(--color-gold, #e8b904); box-shadow:0 0 0 3px rgba(232,185,4,.18); }
+.avis-choix-note { margin:0; padding:0; border:0; min-width:0; }
+.avis-choix-note legend { margin-bottom:.25rem; padding:0; font-size:.8rem; font-weight:600; color:var(--color-forest, #151837); }
+/* Étoiles de 5 à 1 en ordre inversé : survoler une étoile colore aussi les précédentes. */
+.avis-etoiles-saisie { display:flex; flex-direction:row-reverse; justify-content:flex-end; gap:.15rem; }
+.avis-choix-note input { position:absolute; opacity:0; width:1px; height:1px; }
+.avis-choix-note label { display:block; font-size:1.9rem; line-height:1; color:rgba(21,24,55,.2); cursor:pointer; padding:.1rem .12rem; }
+.avis-choix-note input:checked ~ label, .avis-choix-note label:hover, .avis-choix-note label:hover ~ label { color:#e8b904; }
+.avis-choix-note input:focus-visible + label { outline:3px solid var(--color-gold, #e8b904); outline-offset:1px; border-radius:6px; }
+.avis-piege { position:absolute !important; left:-9999px; width:1px; height:1px; overflow:hidden; }
+.avis-message { margin:0; min-height:1.2em; font-size:.85rem; }
+.avis-message.erreur { color:#a0232f; }
+.avis-message.succes { color:#16743a; font-weight:600; }
+.avis-publier { justify-self:start; border:0; background:var(--color-forest, #151837); color:#fff; border-radius:999px; padding:.75rem 1.3rem; font:700 .9rem/1 inherit; cursor:pointer; }
+.avis-publier:disabled { opacity:.6; cursor:wait; }
+
+/* Fenêtre des activités */
+.avis-fenetre { position:fixed; inset:0; z-index:3000; display:grid; place-items:center; padding:1rem; background:rgba(14,16,38,.62); }
+.avis-fenetre-contenu { position:relative; width:min(560px,100%); max-height:calc(100vh - 2rem); overflow:auto; padding:1.4rem 1.3rem 1.3rem; border-radius:22px; background:#f8f9fc; box-shadow:0 24px 70px rgba(14,16,38,.35); }
+.avis-fenetre-titre { margin:0 2.5rem 0 0; font-weight:700; color:var(--color-forest, #151837); }
+.avis-fenetre-fermer { position:absolute; top:.8rem; right:.8rem; width:38px; height:38px; border-radius:50%; border:1px solid rgba(21,24,55,.14); background:#fff; font-size:1.3rem; line-height:1; cursor:pointer; }
+.avis-fenetre .avis-annonce { margin-top:.6rem; padding-top:.8rem; }
+
+@media (max-width: 600px) {
+  .avis-fenetre { align-items:end; padding:0; }
+  .avis-fenetre-contenu { width:100%; max-height:92vh; border-radius:22px 22px 0 0; }
+  .avis-publier { justify-self:stretch; }
+}

@@ -20,6 +20,7 @@ const WA = require('./db/whatsapp-promo');
 const NOTIF = require('./db/notifications-app');
 const SYNC = require('./db/synchro-facebook');
 const DEMANDEURS = require('./db/demandeurs');
+const AVIS = require('./db/avis');
 
 const PORT = Number(process.env.PORT || 3456);
 const ROOT = __dirname;
@@ -221,6 +222,7 @@ function dbEnabled() { return Boolean(loadRepository()) && databaseReady; }
 auth.configure({ isDbReady: dbEnabled });
 newsletter.configure({ isDbReady: dbEnabled });
 DEMANDEURS.configure({ isDbReady: dbEnabled });
+AVIS.configure({ isDbReady: dbEnabled });
 mailer.configure({ isDbReady: dbEnabled });
 
 /** Exécute une opération MySQL sans jamais faire tomber la requête HTTP. */
@@ -934,6 +936,30 @@ function contenuPublic(contenu) {
   return { ...contenu, villas: actives(contenu.villas), terrains: actives(contenu.terrains), activities: actives(contenu.activities) };
 }
 
+/**
+ * Ajoute à chaque annonce le résumé de ses avis visiteurs : { likes, note,
+ * nombre }. Un stockage des avis indisponible n'empêche jamais le contenu
+ * d'être servi.
+ */
+async function avecAvis(contenu) {
+  let resumes;
+  try { resumes = AVIS.resumes(await AVIS.tout()); }
+  catch (error) { console.error(`Avis visiteurs : ${error.message}`); return contenu; }
+  const vide = { likes: 0, note: null, nombre: 0 };
+  const ajouter = (kind, liste) => (Array.isArray(liste)
+    ? liste.map(item => ({ ...item, avis: resumes.get(`${kind}:${item.id}`) || vide }))
+    : liste);
+  return { ...contenu, villas: ajouter('villa', contenu.villas), terrains: ajouter('terrain', contenu.terrains), activities: ajouter('activity', contenu.activities) };
+}
+
+/** Annonce en ligne (active et visible) : seule une telle annonce reçoit des avis. */
+async function annonceEnLigne(kind, id) {
+  const contenu = await lireContenuBrut();
+  const liste = contenu[{ villa: 'villas', terrain: 'terrains', activity: 'activities' }[kind]];
+  const item = Array.isArray(liste) ? liste.find(entree => entree?.id === id) : null;
+  return Boolean(item && item.visible !== false && SYNC.etatAnnonce(item) === 'active');
+}
+
 /** Vrai quand un contenu n'a ni villa, ni terrain, ni activité. */
 function catalogueVide(contenu) {
   return ['villas', 'terrains', 'activities'].every(cle => !(Array.isArray(contenu?.[cle]) && contenu[cle].length));
@@ -1161,6 +1187,9 @@ async function resolveActor(req) {
 const ADMIN_ROUTE_PERMISSIONS = [
   ['GET', /^\/api\/admin\/dashboard$/, 'dashboard:view'],
   ['GET', /^\/api\/admin\/content$/, 'content:read'],
+  ['GET', /^\/api\/admin\/avis$/, 'content:read'],
+  ['PATCH', /^\/api\/admin\/avis\/commentaires\/[^/]+$/, 'content:write'],
+  ['DELETE', /^\/api\/admin\/avis\/commentaires\/[^/]+$/, 'content:write'],
   ['POST', /^\/api\/admin\/content$/, 'content:write'],
   ['POST', /^\/api\/admin\/content\/validate$/, 'content:write'],
   ['GET', /^\/api\/admin\/referentiels$/, 'content:write'],
@@ -2601,7 +2630,53 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/content') {
     // `terrains` fait partie du contrat d'API : la clé existe toujours,
     // même si le stockage est antérieur à la rubrique.
-    return json(res, 200, contenuPublic(await store.readContent()));
+    return json(res, 200, await avecAvis(contenuPublic(await store.readContent())));
+  }
+
+  // --- Avis des visiteurs sur les annonces (17/09/2026) --------------------
+  if (req.method === 'GET' && url.pathname === '/api/avis') {
+    const annonce = AVIS.annonceDemandee({ kind: url.searchParams.get('kind'), id: url.searchParams.get('id') });
+    if (annonce.erreur) return json(res, 400, { ok: false, error: annonce.erreur });
+    try {
+      const { jaime, commentaires } = await AVIS.avisAnnonce(annonce.kind, annonce.id);
+      const visiteur = AVIS.empreinteVisiteur(url.searchParams.get('visiteur'));
+      return json(res, 200, {
+        ok: true, ...AVIS.resume(jaime, commentaires),
+        jaime: Boolean(visiteur) && jaime.some(j => j.visiteur === visiteur),
+        commentaires: commentaires.filter(c => c.statut !== 'masque').slice(0, 100).map(AVIS.commentairePublic)
+      });
+    } catch (error) { return json(res, 503, { ok: false, error: 'Avis momentanément indisponibles.' }); }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/avis/jaime') {
+    const limite = rateLimit(req, 'avis-jaime', 60);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de clics : réessayez dans quelques minutes.' });
+    try {
+      const payload = await parseBody(req, 5_000);
+      const annonce = AVIS.annonceDemandee(payload);
+      const visiteur = AVIS.empreinteVisiteur(payload.visiteur);
+      if (annonce.erreur || !visiteur) return json(res, 400, { ok: false, error: annonce.erreur || 'Visiteur non identifié.' });
+      if (!(await annonceEnLigne(annonce.kind, annonce.id))) return json(res, 404, { ok: false, error: 'Annonce introuvable.' });
+      const jaimeMaintenant = await AVIS.basculerJaime(annonce.kind, annonce.id, visiteur);
+      const { jaime, commentaires } = await AVIS.avisAnnonce(annonce.kind, annonce.id);
+      return json(res, 200, { ok: true, jaime: jaimeMaintenant, ...AVIS.resume(jaime, commentaires) });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 200) }); }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/avis/commentaires') {
+    const limite = rateLimit(req, 'avis-commentaires', 6);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de commentaires envoyés : réessayez dans quelques minutes.' });
+    try {
+      const payload = await parseBody(req, 20_000);
+      const { commentaire, erreur, robot } = AVIS.validerCommentaire(payload);
+      if (robot) { audit('avis.robot', { ip: clientIp(req) }); return json(res, 400, { ok: false, error: erreur }); }
+      if (erreur) return json(res, 422, { ok: false, error: erreur });
+      if (!(await annonceEnLigne(commentaire.kind, commentaire.annonceId))) return json(res, 404, { ok: false, error: 'Annonce introuvable.' });
+      await AVIS.ajouterCommentaire(commentaire);
+      audit('avis.commentaire', { id: commentaire.id, kind: commentaire.kind, annonce: commentaire.annonceId, note: commentaire.note });
+      const { jaime, commentaires } = await AVIS.avisAnnonce(commentaire.kind, commentaire.annonceId);
+      return json(res, 201, { ok: true, commentaire: AVIS.commentairePublic(commentaire), ...AVIS.resume(jaime, commentaires) });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 200) }); }
   }
 
   if (req.method === 'POST' && url.pathname === '/api/leads') {
@@ -2737,7 +2812,32 @@ async function handleApi(req, res, url) {
 
   // Contenu complet pour le studio, annonces suspendues et archivées comprises.
   if (req.method === 'GET' && url.pathname === '/api/admin/content') {
-    return json(res, 200, await store.readContent());
+    return json(res, 200, await avecAvis(await store.readContent()));
+  }
+
+  // Avis d'une annonce pour sa fiche au studio : commentaires masqués compris.
+  if (req.method === 'GET' && url.pathname === '/api/admin/avis') {
+    const annonce = AVIS.annonceDemandee({ kind: url.searchParams.get('kind'), id: url.searchParams.get('id') });
+    if (annonce.erreur) return json(res, 400, { ok: false, error: annonce.erreur });
+    const { jaime, commentaires } = await AVIS.avisAnnonce(annonce.kind, annonce.id);
+    return json(res, 200, { ok: true, ...AVIS.resume(jaime, commentaires),
+      commentaires: commentaires.map(c => ({ ...AVIS.commentairePublic(c), statut: c.statut })) });
+  }
+
+  const routeCommentaire = url.pathname.match(/^\/api\/admin\/avis\/commentaires\/([^/]+)$/);
+  if (routeCommentaire && (req.method === 'PATCH' || req.method === 'DELETE')) {
+    try {
+      const id = decodeURIComponent(routeCommentaire[1]);
+      if (req.method === 'DELETE') {
+        if (!(await AVIS.supprimerCommentaire(id))) return json(res, 404, { ok: false, error: 'Commentaire introuvable.' });
+        audit('avis.commentaire_supprime', { id }, actorLabel(actor));
+        return json(res, 200, { ok: true });
+      }
+      const payload = await parseBody(req, 2_000);
+      if (!(await AVIS.modererCommentaire(id, text(payload.statut, 10)))) return json(res, 404, { ok: false, error: 'Commentaire introuvable.' });
+      audit('avis.commentaire_modere', { id, statut: payload.statut }, actorLabel(actor));
+      return json(res, 200, { ok: true });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 200) }); }
   }
 
   if (req.method === 'GET' && url.pathname === '/api/admin/dashboard') {
