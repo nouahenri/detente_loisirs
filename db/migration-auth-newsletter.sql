@@ -170,12 +170,39 @@ CREATE TABLE IF NOT EXISTS `mail_queue` (
   KEY `idx_mail_queue_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------------------------------------------------------------------
+-- MOT DE PASSE OUBLIÉ ET RÔLES ADMINISTRABLES (17/09/2026)
+-- Définitions identiques à db/migration-gestion-compta.sql.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `password_resets` (
+  `token_hash` CHAR(64)  NOT NULL,
+  `user_id`    CHAR(36)  NOT NULL,
+  `expires_at` DATETIME  NOT NULL,
+  `created_at` DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`token_hash`),
+  KEY `idx_password_resets_user` (`user_id`),
+  KEY `idx_password_resets_expires` (`expires_at`),
+  CONSTRAINT `fk_password_resets_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `roles` (
+  `code`        VARCHAR(20)  NOT NULL,
+  `libelle`     VARCHAR(60)  NOT NULL,
+  `description` VARCHAR(240) NOT NULL DEFAULT '',
+  `permissions` JSON         NULL,
+  `ordre`       INT          NOT NULL DEFAULT 99,
+  `supprime`    TINYINT(1)   NOT NULL DEFAULT 0,
+  `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`code`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =====================================================================
 --  Vérification rapide après import (à copier dans l'onglet « SQL ») :
 --
 --  SELECT COUNT(*) AS utilisateurs FROM users;
 --  SELECT COUNT(*) AS abonnes FROM newsletter_subscribers;
---  SHOW TABLES;   -- doit désormais lister 18 tables
+--  SHOW TABLES;   -- doit lister notamment users, sessions, password_resets et roles
 --
 --  Le premier compte se crée EN LIGNE DE COMMANDE, jamais en SQL :
 --    node scripts/creer-utilisateur.js --username henri --role proprietaire

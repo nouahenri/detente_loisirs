@@ -416,3 +416,124 @@ CREATE TABLE IF NOT EXISTS `app_locks` (
   PRIMARY KEY (`lock_name`),
   KEY `idx_locks_expires_at` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- GESTION DES DEMANDEURS, AVIS DES VISITEURS ET COMPTABILITÉ (17/09/2026)
+-- Définitions identiques à db/migration-gestion-compta.sql.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `demandeurs_restrictions` (
+  `id`         CHAR(36)     NOT NULL,
+  `type`       VARCHAR(20)  NOT NULL COMMENT 'bloque ou suspendu',
+  `telephone`  VARCHAR(40)  NOT NULL DEFAULT '' COMMENT 'chiffres seuls, sans indicatif 225',
+  `email`      VARCHAR(180) NOT NULL DEFAULT '',
+  `nom`        VARCHAR(120) NOT NULL DEFAULT '',
+  `motif`      VARCHAR(500) NOT NULL DEFAULT '',
+  `lead_id`    VARCHAR(36)  NOT NULL DEFAULT '',
+  `jusqu_au`   DATETIME     NULL DEFAULT NULL COMMENT 'fin de suspension ; NULL pour un blocage',
+  `cree_par`   VARCHAR(120) NOT NULL DEFAULT '',
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_restrictions_telephone` (`telephone`),
+  KEY `idx_restrictions_email` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `avis_jaime` (
+  `kind`       VARCHAR(20)  NOT NULL,
+  `annonce_id` VARCHAR(80)  NOT NULL,
+  `visiteur`   CHAR(64)     NOT NULL,
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`kind`, `annonce_id`, `visiteur`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `avis_commentaires` (
+  `id`          CHAR(36)      NOT NULL,
+  `kind`        VARCHAR(20)   NOT NULL,
+  `annonce_id`  VARCHAR(80)   NOT NULL,
+  `nom`         VARCHAR(60)   NOT NULL,
+  `note`        TINYINT UNSIGNED NOT NULL,
+  `commentaire` VARCHAR(1000) NOT NULL DEFAULT '',
+  `statut`      VARCHAR(20)   NOT NULL DEFAULT 'visible' COMMENT 'visible ou masque',
+  `visiteur`    VARCHAR(64)   NOT NULL DEFAULT '',
+  `created_at`  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_avis_commentaires_annonce` (`kind`, `annonce_id`),
+  KEY `idx_avis_commentaires_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `compta_ecritures` (
+  `id`            CHAR(36)        NOT NULL,
+  `date_ecriture` DATE            NOT NULL,
+  `sens`          VARCHAR(10)     NOT NULL COMMENT 'entree ou sortie',
+  `categorie`     VARCHAR(40)     NOT NULL,
+  `montant`       BIGINT UNSIGNED NOT NULL,
+  `libelle`       VARCHAR(240)    NOT NULL,
+  `tiers`         VARCHAR(160)    NOT NULL DEFAULT '',
+  `mode_paiement` VARCHAR(40)     NOT NULL DEFAULT '',
+  `statut`        VARCHAR(40)     NOT NULL DEFAULT 'regle',
+  `reference`     VARCHAR(80)     NOT NULL DEFAULT '',
+  `bien_kind`     VARCHAR(20)     NOT NULL DEFAULT '',
+  `bien_id`       VARCHAR(80)     NOT NULL DEFAULT '',
+  `lead_id`       VARCHAR(36)     NULL DEFAULT NULL,
+  `employe_id`    VARCHAR(36)     NULL DEFAULT NULL,
+  `charge_id`     VARCHAR(36)     NULL DEFAULT NULL,
+  `periode`       VARCHAR(7)      NULL DEFAULT NULL COMMENT 'AAAA-MM pour la paie et les charges',
+  `justificatif`  VARCHAR(120)    NOT NULL DEFAULT '',
+  `notes`         VARCHAR(2000)   NOT NULL DEFAULT '',
+  `cree_par`      VARCHAR(120)    NOT NULL DEFAULT '' COMMENT 'utilisateur qui a saisi l''écriture',
+  `modifie_par`   VARCHAR(120)    NOT NULL DEFAULT '' COMMENT 'dernier utilisateur qui l''a modifiée',
+  `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_compta_ecritures_date` (`date_ecriture`),
+  KEY `idx_compta_ecritures_categorie` (`categorie`),
+  KEY `idx_compta_ecritures_lead` (`lead_id`),
+  KEY `idx_compta_ecritures_paie` (`employe_id`, `periode`),
+  KEY `idx_compta_ecritures_charge` (`charge_id`, `periode`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `compta_employes` (
+  `id`              CHAR(36)        NOT NULL,
+  `nom`             VARCHAR(120)    NOT NULL,
+  `poste`           VARCHAR(120)    NOT NULL DEFAULT '',
+  `telephone`       VARCHAR(40)     NOT NULL DEFAULT '',
+  `salaire_mensuel` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `date_embauche`   DATE            NULL DEFAULT NULL,
+  `actif`           TINYINT(1)      NOT NULL DEFAULT 1,
+  `notes`           VARCHAR(2000)   NOT NULL DEFAULT '',
+  `created_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `compta_charges` (
+  `id`            CHAR(36)         NOT NULL,
+  `libelle`       VARCHAR(240)     NOT NULL,
+  `categorie`     VARCHAR(40)      NOT NULL,
+  `montant`       BIGINT UNSIGNED  NOT NULL,
+  `jour`          TINYINT UNSIGNED NOT NULL DEFAULT 5,
+  `tiers`         VARCHAR(160)     NOT NULL DEFAULT '',
+  `mode_paiement` VARCHAR(40)      NOT NULL DEFAULT '',
+  `bien_kind`     VARCHAR(20)      NOT NULL DEFAULT '',
+  `bien_id`       VARCHAR(80)      NOT NULL DEFAULT '',
+  `debut`         VARCHAR(7)       NOT NULL COMMENT 'AAAA-MM',
+  `fin`           VARCHAR(7)       NULL DEFAULT NULL,
+  `actif`         TINYINT(1)       NOT NULL DEFAULT 1,
+  `notes`         VARCHAR(2000)    NOT NULL DEFAULT '',
+  `created_at`    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `compta_parametres` (
+  `type`       VARCHAR(20)  NOT NULL COMMENT 'categories, modes ou statuts',
+  `id`         VARCHAR(40)  NOT NULL,
+  `libelle`    VARCHAR(80)  NOT NULL DEFAULT '',
+  `sens`       VARCHAR(10)  NOT NULL DEFAULT '' COMMENT 'catégories : entree ou sortie',
+  `effet`      VARCHAR(10)  NOT NULL DEFAULT '' COMMENT 'statuts : regle, attente ou exclu',
+  `ordre`      INT          NOT NULL DEFAULT 0,
+  `actif`      TINYINT(1)   NOT NULL DEFAULT 1,
+  `supprime`   TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'valeur initiale retirée au studio',
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`type`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
