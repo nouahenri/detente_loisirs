@@ -38,6 +38,18 @@
       event.preventDefault();
       login({ username: $('#loginUsername').value, password: $('#loginPassword').value });
     });
+    brancherMotDePasseOublie();
+    $('#comptaSousMenu')?.addEventListener('click', event => {
+      const bouton = event.target.closest('[data-compta-aller]');
+      if (!bouton) return;
+      compta.onglet = bouton.dataset.comptaAller;
+      fermerMenuMobile();
+      const vueOuverte = $('.admin-view[data-panel="compta"]')?.classList.contains('active');
+      if (vueOuverte && compta.donnees) {
+        renderCompta();
+        $('#comptaVue [data-compta-onglets]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else showView('compta');
+    });
     $('#keyForm').addEventListener('submit', event => {
       event.preventDefault();
       login({ key: $('#adminKey').value });
@@ -109,8 +121,71 @@
     return payload;
   }
 
+  /**
+   * Mot de passe oublié (17/09/2026). Le lien reçu par e-mail ouvre le studio
+   * sur #reinitialiser=<jeton> ; le jeton est aussitôt retiré de l'adresse
+   * (historique, partage d'écran) et gardé en mémoire le temps du formulaire.
+   */
+  let jetonReinitialisation = '';
+  function afficherEcranConnexion(ecran) {
+    $('#loginForm').hidden = ecran !== 'connexion';
+    $('#motDePasseOublieBtn').hidden = ecran !== 'connexion';
+    $('#loginOubli').hidden = ecran !== 'oubli';
+    $('#loginReinitialisation').hidden = ecran !== 'reinitialisation';
+    $('#loginError').textContent = '';
+    const champ = { connexion: '#loginUsername', oubli: '#oubliIdentifiant', reinitialisation: '#reinitMotDePasse' }[ecran];
+    $(champ)?.focus();
+  }
+
+  function brancherMotDePasseOublie() {
+    const correspondance = /^#reinitialiser=([A-Za-z0-9_%-]{20,200})$/.exec(location.hash);
+    if (correspondance) {
+      jetonReinitialisation = decodeURIComponent(correspondance[1]);
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+    $('#motDePasseOublieBtn').addEventListener('click', () => afficherEcranConnexion('oubli'));
+    $$('[data-retour-connexion]').forEach(bouton => bouton.addEventListener('click', () => afficherEcranConnexion('connexion')));
+    $('#oubliForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      const bouton = $('#oubliSubmit');
+      bouton.disabled = true;
+      try {
+        const reponse = await fetch('/api/auth/mot-de-passe-oublie', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'studio' }, body: JSON.stringify({ identifiant: $('#oubliIdentifiant').value }) });
+        const resultat = await reponse.json().catch(() => ({}));
+        $('#oubliMessage').textContent = resultat.message || resultat.error || 'Envoi impossible pour le moment.';
+      } catch { $('#oubliMessage').textContent = 'Le serveur ne répond pas.'; }
+      finally { bouton.disabled = false; }
+    });
+    $('#reinitialisationForm').addEventListener('submit', async event => {
+      event.preventDefault();
+      // Gardé avant l'attente : après un await, event.currentTarget vaut null.
+      const formulaire = event.currentTarget;
+      const message = $('#reinitMessage');
+      if ($('#reinitMotDePasse').value !== $('#reinitConfirmation').value) { message.textContent = 'Les deux mots de passe ne correspondent pas.'; return; }
+      const bouton = $('#reinitSubmit');
+      bouton.disabled = true;
+      try {
+        const reponse = await fetch('/api/auth/reinitialiser', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'studio' }, body: JSON.stringify({ token: jetonReinitialisation, newPassword: $('#reinitMotDePasse').value }) });
+        const resultat = await reponse.json().catch(() => ({}));
+        if (!reponse.ok) throw new Error(resultat.error || 'Enregistrement impossible.');
+        jetonReinitialisation = '';
+        formulaire.reset();
+        message.textContent = '';
+        afficherEcranConnexion('connexion');
+        $('#loginError').textContent = resultat.message;
+      } catch (error) { message.textContent = error.message; }
+      finally { bouton.disabled = false; }
+    });
+  }
+
   /** Au chargement : le serveur dit qui nous sommes (ou que personne n'est connecté). */
   async function restoreSession() {
+    if (jetonReinitialisation) {
+      hideBootScreen();
+      $('#loginScreen').hidden = false; $('#adminShell').hidden = true;
+      afficherEcranConnexion('reinitialisation');
+      return;
+    }
     try {
       const session = await fetch('/api/auth/session', { credentials:'same-origin', cache:'no-store' }).then(r => r.json());
       $('#loginFallback').hidden = !session.setupRequired;
@@ -321,6 +396,8 @@
     $$('.admin-view').forEach(panel => panel.classList.toggle('active', panel.dataset.panel === name));
     $$('#adminNav [data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === name));
     $('#viewKicker').textContent = titles[0]; $('#viewTitle').textContent = titles[1];
+    const sousMenuCompta = $('#comptaSousMenu');
+    if (sousMenuCompta) sousMenuCompta.hidden = name !== 'compta';
     // Les contacts viennent des demandes : on relit à chaque ouverture.
     if (name === 'messages' && can('leads:read')) chargerMessages();
     if (name === 'compta' && can('compta:manage')) chargerCompta();
@@ -862,7 +939,7 @@
   // export CSV. Chaque enregistrement part aussitôt en base : la comptabilité
   // ne passe pas par « Publier les changements », qui ne concerne que le site.
   // =========================================================================
-  const compta = { donnees: null, onglet: 'journal', periode: 'mois', debut: '', fin: '', sens: 'all', categorie: '', recherche: '' };
+  const compta = { donnees: null, onglet: 'journal', ongletParametres: 'entrees', periode: 'mois', debut: '', fin: '', sens: 'all', categorie: '', recherche: '' };
   const aujourdhui = () => new Date().toISOString().slice(0, 10);
   const signeMontant = e => `${e.sens === 'entree' ? '+' : '−'} ${money(e.montant)}`;
   const libelleCategorieCompta = id => compta.donnees?.categories?.find(c => c.id === id)?.libelle || id;
@@ -921,7 +998,7 @@
         <article class="kpi-card"><small>Reste à encaisser</small><strong>${money(r.resteAEncaisser)}</strong><em>${aEncaisser.length} vente${aEncaisser.length > 1 ? 's' : ''} confirmée${aEncaisser.length > 1 ? 's' : ''} non soldée${aEncaisser.length > 1 ? 's' : ''}</em></article>
         <article class="kpi-card"><small>Dépenses à payer</small><strong>${money(r.aPayer)}</strong><em>Dépenses en attente de règlement</em></article>
       </div>
-      <div class="filter-pills compta-onglets" role="tablist">${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-compta-onglet="${id}" class="${compta.onglet === id ? 'active' : ''}" aria-selected="${compta.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</div>
+      <nav class="compta-onglets" role="tablist" aria-label="Sections de la comptabilité" data-compta-onglets>${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-compta-onglet="${id}" class="${compta.onglet === id ? 'active' : ''}" aria-selected="${compta.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</nav>
       <div class="compta-contenu" data-compta-contenu></div>`;
 
     $('[data-compta-periode]', hote).addEventListener('change', event => {
@@ -935,6 +1012,14 @@
     }));
     $$('[data-compta-nouvelle]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirEcriture(null, { sens: bouton.dataset.comptaNouvelle })));
     $$('[data-compta-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { compta.onglet = bouton.dataset.comptaOnglet; renderCompta(); }));
+    // Sous-menu latéral : même section en surbrillance que l'onglet.
+    $$('#comptaSousMenu [data-compta-aller]').forEach(bouton => {
+      const actif = bouton.dataset.comptaAller === compta.onglet;
+      bouton.classList.toggle('active', actif);
+      if (actif) bouton.setAttribute('aria-current', 'page'); else bouton.removeAttribute('aria-current');
+    });
+    // Onglet actif visible sur un écran étroit (barre défilante).
+    $('[data-compta-onglets] .active', hote)?.scrollIntoView({ block: 'nearest', inline: 'center' });
     const contenu = $('[data-compta-contenu]', hote);
     ({ journal: renderJournal, ventes: renderVentes, salaires: renderSalaires, charges: renderCharges, rapport: renderRapport, parametres: renderParametres })[compta.onglet](contenu);
   }
@@ -1151,11 +1236,18 @@
           </div>`;
         }).join('') : '<div class="empty">Aucun élément.</div>'}</div>
       </section>`;
-    hote.innerHTML = `<p class="compta-aide">Les listes proposées dans les écritures et les charges. Un élément déjà utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer, il reste lisible sur les écritures existantes.</p>
-      ${bloc('categories', 'Catégories des entrées', 'Recettes : locations, ventes, commissions…', d.categories.filter(c => c.sens === 'entree'), () => 'Entrée')}
-      ${bloc('categories', 'Catégories des sorties', 'Dépenses : salaires, charges, entretien…', d.categories.filter(c => c.sens === 'sortie'), () => 'Sortie')}
-      ${bloc('modes', 'Modes de paiement', 'Espèces, Mobile Money, virement…', d.modes, () => '')}
-      ${bloc('statuts', 'Statuts', 'L’effet d’un statut décide de ce qui compte dans le solde et dans les montants à payer ou à recevoir.', d.statuts, p => EFFETS_STATUT[p.effet]?.[0] || p.effet)}`;
+    // Une liste à la fois, choisie par des onglets (demande du 17/09/2026).
+    const sections = {
+      entrees: ['Catégories des entrées', () => bloc('categories', 'Catégories des entrées', 'Recettes : locations, ventes, commissions…', d.categories.filter(c => c.sens === 'entree'), () => 'Entrée'), d.categories.filter(c => c.sens === 'entree').length],
+      sorties: ['Catégories des sorties', () => bloc('categories', 'Catégories des sorties', 'Dépenses : salaires, charges, entretien…', d.categories.filter(c => c.sens === 'sortie'), () => 'Sortie'), d.categories.filter(c => c.sens === 'sortie').length],
+      modes: ['Modes de paiement', () => bloc('modes', 'Modes de paiement', 'Espèces, Mobile Money, virement…', d.modes, () => ''), d.modes.length],
+      statuts: ['Statuts', () => bloc('statuts', 'Statuts', 'L’effet d’un statut décide de ce qui compte dans le solde et dans les montants à payer ou à recevoir.', d.statuts, p => EFFETS_STATUT[p.effet]?.[0] || p.effet), d.statuts.length]
+    };
+    if (!sections[compta.ongletParametres]) compta.ongletParametres = 'entrees';
+    hote.innerHTML = `<div class="compta-sous-onglets" role="tablist" aria-label="Paramètres de la comptabilité">${Object.entries(sections).map(([id, [libelle, , nombre]]) => `<button type="button" role="tab" data-parametres-onglet="${id}" class="${compta.ongletParametres === id ? 'active' : ''}" aria-selected="${compta.ongletParametres === id}">${libelle} <span>${nombre}</span></button>`).join('')}</div>
+      <p class="compta-aide">Les listes proposées dans les écritures et les charges. Un élément déjà utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer, il reste lisible sur les écritures existantes.</p>
+      ${sections[compta.ongletParametres][1]()}`;
+    $$('[data-parametres-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { compta.ongletParametres = bouton.dataset.parametresOnglet; renderParametres(hote); }));
     $$('[data-parametre-nouveau]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirParametre(bouton.dataset.parametreNouveau, null, { sens: bouton.dataset.sens })));
     $$('[data-parametre]', hote).forEach(ligne => {
       const [type, ...reste] = ligne.dataset.parametre.split(':');
@@ -2811,8 +2903,10 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
 
   function openPasswordEditor() {
     document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop password-editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">SÉCURITÉ</span><h2>Changer mon mot de passe</h2></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">
-      <label>Mot de passe actuel<input name="currentPassword" type="password" autocomplete="current-password" required></label>
+      <label>Mot de passe actuel <small>(facultatif)</small><input name="currentPassword" type="password" autocomplete="current-password"></label>
+      <p class="field-note">Vous l’avez oublié ? Laissez ce champ vide : un e-mail d’alerte sera envoyé à l’adresse de votre compte pour signaler le changement.</p>
       <label>Nouveau mot de passe<input name="newPassword" type="password" autocomplete="new-password" minlength="10" required placeholder="10 caractères minimum, lettres et chiffres"></label>
+      <label>Confirmez le nouveau mot de passe<input name="confirmation" type="password" autocomplete="new-password" minlength="10" required></label>
       <p class="field-note">Après validation, toutes vos sessions sont fermées : vous devrez vous reconnecter.</p>
     </div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Modifier</button></div></form></div>`);
     const backdrop = $('.password-editor-backdrop');
@@ -2822,7 +2916,8 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
     document.addEventListener('keydown', onKeydown);
     $('.editor-drawer', backdrop).addEventListener('submit', async event => {
       event.preventDefault();
-      const values = Object.fromEntries(new FormData(event.currentTarget));
+      const { confirmation, ...values } = Object.fromEntries(new FormData(event.currentTarget));
+      if (values.newPassword !== confirmation) { toast('Les deux nouveaux mots de passe ne correspondent pas'); return; }
       try {
         await api('/api/auth/mot-de-passe', { method:'POST', body:JSON.stringify(values) });
         close();

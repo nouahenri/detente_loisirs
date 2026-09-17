@@ -48,6 +48,30 @@
         <button type="submit" id="loginSubmit">Ouvrir le studio</button>
       </form>
       <p class="login-error" id="loginError" role="alert"></p>
+      <button type="button" class="login-lien" id="motDePasseOublieBtn">Mot de passe oublié ?</button>
+
+      <!-- Mot de passe oublié (17/09/2026) : lien envoyé par e-mail, puis
+           choix du nouveau mot de passe depuis ce lien (#reinitialiser=…). -->
+      <section class="login-oubli" id="loginOubli" hidden>
+        <strong>Mot de passe oublié</strong>
+        <p>Indiquez votre nom d’utilisateur ou l’adresse e-mail de votre compte : vous recevrez un lien pour choisir un nouveau mot de passe.</p>
+        <form id="oubliForm">
+          <label>Nom d’utilisateur ou e-mail<input type="text" id="oubliIdentifiant" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+          <button type="submit" id="oubliSubmit">Recevoir le lien</button>
+        </form>
+        <p class="login-info" id="oubliMessage" role="status"></p>
+        <button type="button" class="login-lien" data-retour-connexion>← Retour à la connexion</button>
+      </section>
+      <section class="login-oubli" id="loginReinitialisation" hidden>
+        <strong>Choisissez un nouveau mot de passe</strong>
+        <form id="reinitialisationForm">
+          <label>Nouveau mot de passe<input type="password" id="reinitMotDePasse" autocomplete="new-password" minlength="10" required placeholder="10 caractères minimum, lettres et chiffres"></label>
+          <label>Confirmez le mot de passe<input type="password" id="reinitConfirmation" autocomplete="new-password" minlength="10" required></label>
+          <button type="submit" id="reinitSubmit">Enregistrer le mot de passe</button>
+        </form>
+        <p class="login-info" id="reinitMessage" role="status"></p>
+        <button type="button" class="login-lien" data-retour-connexion>← Retour à la connexion</button>
+      </section>
 
       <!-- Bloc affiché UNIQUEMENT tant qu'aucun compte n'existe encore : il
            disparaît de lui-même dès la création du premier utilisateur. -->
@@ -80,6 +104,15 @@
         <button data-view="referentiels" data-permission="content:write"><span>☷</span> Référentiels</button>
         <button data-view="leads" data-permission="leads:read"><span>◎</span> Demandes</button>
         <button data-view="compta" data-permission="compta:manage"><span>₣</span> Comptabilité</button>
+        <!-- Sous-menu de la comptabilité (17/09/2026), ouvert quand la vue est affichée. -->
+        <div class="nav-sous-menu" id="comptaSousMenu" data-permission="compta:manage" hidden>
+          <button type="button" data-compta-aller="journal">Journal</button>
+          <button type="button" data-compta-aller="ventes">Ventes à encaisser</button>
+          <button type="button" data-compta-aller="salaires">Salaires</button>
+          <button type="button" data-compta-aller="charges">Charges récurrentes</button>
+          <button type="button" data-compta-aller="rapport">Rapport</button>
+          <button type="button" data-compta-aller="parametres">Paramètres</button>
+        </div>
         <button data-view="messages" data-permission="leads:read"><span>✆</span> Messages</button>
         <button data-view="newsletter" data-permission="newsletter:read"><span>✉</span> Newsletter</button>
         <button data-view="facebook" data-permission="facebook:read"><span>f</span> Publications</button>

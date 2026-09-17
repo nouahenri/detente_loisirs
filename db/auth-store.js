@@ -437,6 +437,85 @@ async function setPassword(id, password) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// MOT DE PASSE OUBLIÉ (demande du 17/09/2026)
+// Lien envoyé par e-mail, valable une heure, utilisable une seule fois. Comme
+// pour les sessions, seule l'empreinte SHA-256 du jeton est enregistrée.
+// ---------------------------------------------------------------------------
+const RESET_TTL_MS = 60 * 60 * 1000;
+const RESETS_FILE = 'password-resets.json';
+
+function readResetsFile() {
+  const list = jsonStore.read(RESETS_FILE, []);
+  return Array.isArray(list) ? list : [];
+}
+
+const tableAbsente = error => error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146;
+
+/** Compte désigné par son nom d'utilisateur ou son adresse e-mail. */
+async function getUserByLogin(identifiant) {
+  const brut = text(identifiant, 180).toLowerCase();
+  if (!brut) return null;
+  if (!brut.includes('@')) return getUserByUsername(brut);
+  const trouve = (await listUsers()).find(user => String(user.email || '').toLowerCase() === brut);
+  return trouve ? getUserById(trouve.id) : null;
+}
+
+/**
+ * Prépare une réinitialisation. Renvoie { user, token, expiresAt }, ou null
+ * si aucun compte ACTIF avec une adresse e-mail ne correspond — l'appelant
+ * répond alors exactement comme en cas de succès (pas d'énumération).
+ */
+async function createPasswordReset(identifiant) {
+  const user = await getUserByLogin(identifiant);
+  if (!user || user.active === false || !user.email) return null;
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashToken(token);
+  const createdAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + RESET_TTL_MS).toISOString();
+  let enBase = false;
+  if (useDb()) {
+    try {
+      await sql('DELETE FROM password_resets WHERE user_id = ?', [user.id]);
+      await sql('INSERT INTO password_resets (token_hash, user_id, expires_at, created_at) VALUES (?,?,?,?)',
+        [tokenHash, user.id, toMysqlDate(expiresAt), toMysqlDate(createdAt)]);
+      enBase = true;
+    } catch (error) { if (!tableAbsente(error)) throw error; }
+  }
+  if (!enBase) {
+    // Une seule demande en cours par compte : la précédente est annulée.
+    const autres = readResetsFile().filter(entry => entry.userId !== user.id && new Date(entry.expiresAt).getTime() > Date.now());
+    jsonStore.write(RESETS_FILE, [...autres, { tokenHash, userId: user.id, expiresAt, createdAt }]);
+  }
+  return { user: publicUser(user), token, expiresAt };
+}
+
+/** Utilise un lien de réinitialisation. Lève une erreur lisible s'il est invalide. */
+async function consumePasswordReset(token, newPassword) {
+  const weak = passwordProblem(newPassword);
+  if (weak) throw new Error(weak);
+  const tokenHash = hashToken(text(token, 200));
+  let userId = null;
+  let enBase = false;
+  if (useDb()) {
+    try {
+      const [rows] = await sql('SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > UTC_TIMESTAMP() LIMIT 1', [tokenHash]);
+      userId = rows[0]?.user_id || null;
+      enBase = true;
+    } catch (error) { if (!tableAbsente(error)) throw error; }
+  }
+  if (!enBase) {
+    const entry = readResetsFile().find(item => item.tokenHash === tokenHash && new Date(item.expiresAt).getTime() > Date.now());
+    userId = entry?.userId || null;
+  }
+  const user = userId ? await getUserById(userId) : null;
+  if (!user || user.active === false) throw new Error('Lien invalide ou expiré : demandez-en un nouveau.');
+  await setPassword(user.id, newPassword);
+  if (enBase) await sql('DELETE FROM password_resets WHERE user_id = ?', [user.id]);
+  else jsonStore.write(RESETS_FILE, readResetsFile().filter(item => item.userId !== user.id));
+  return publicUser(user);
+}
+
 async function deleteUser(id) {
   const user = await getUserById(id);
   if (!user) return null;
@@ -693,6 +772,7 @@ module.exports = {
   hashPassword, verifyPassword,
   countUsers, listUsers, getUserById, getUserByUsername,
   createUser, updateUser, setPassword, deleteUser, countActiveOwners,
+  RESET_TTL_MS, getUserByLogin, createPasswordReset, consumePasswordReset,
   createSession, resolveSession, deleteSession, deleteUserSessions, purgeExpiredSessions,
   authenticate
 };

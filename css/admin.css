@@ -1040,9 +1040,6 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .compta-kpis { grid-template-columns:repeat(5, minmax(0,1fr)); }
 .compta-kpis .kpi-card strong { font-size:1.45rem; }
 .compta-solde.negatif strong { color:#8a1c1c; }
-.compta-onglets { flex-wrap:wrap; margin:.4rem 0 1rem; }
-.compta-onglets button span { display:inline-grid; place-items:center; min-width:1.35rem; height:1.35rem; margin-left:.3rem; padding:0 .3rem; border-radius:99px; background:rgba(21,24,55,.08); font-size:.62rem; }
-.compta-onglets button.active span { background:rgba(255,255,255,.2); }
 .compta-filtres { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; margin-bottom:.8rem; }
 .compta-filtres select { width:auto; padding:.55rem .75rem; font-size:.78rem; }
 .compta-filtres .admin-search { margin-left:auto; }
@@ -1148,3 +1145,39 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .compta-fiche .compta-effets input { width:auto; margin-top:.2rem; }
 .compta-fiche .compta-effets span { display:grid; gap:.15rem; }
 .compta-fiche .compta-effets small { color:var(--muted); font-weight:500; }
+
+/* Mot de passe oublié (17/09/2026) */
+.login-lien { display:inline-block; margin:.2rem 0 1rem; padding:.3rem 0; border:0; background:none; color:var(--ink); font-size:.8rem; font-weight:700; text-decoration:underline; text-underline-offset:3px; width:auto; }
+/* Plus précis que .login-card button (bouton plein) : un simple lien. */
+.login-card .login-lien { width:auto; margin:.2rem 0 1rem; padding:.3rem 0; border-radius:0; background:none; color:var(--ink); font-weight:700; }
+.login-oubli { display:grid; gap:.4rem; margin-top:.5rem; }
+.login-oubli p { margin:0; }
+.login-info { color:var(--ink) !important; font-size:.82rem; line-height:1.5; min-height:1.2em; }
+
+/* Paramètres : onglets de navigation entre les listes */
+.compta-parametres .compta-section-tete { margin-top:.6rem; }
+
+/* =====================================================================
+   Navigation de la comptabilité (17/09/2026) : onglets soulignés dans la
+   page (premier niveau), sous-onglets plus discrets (Paramètres), et
+   sous-menu dans la colonne latérale.
+   ===================================================================== */
+.compta-onglets, .compta-sous-onglets { display:flex; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; border-bottom:1px solid var(--line); }
+/* Défilement au doigt ou au clavier sur écran étroit, sans barre visible. */
+.compta-onglets::-webkit-scrollbar, .compta-sous-onglets::-webkit-scrollbar { display:none; }
+.compta-onglets { gap:0 1.6rem; margin:.6rem 0 1.2rem; }
+.compta-sous-onglets { gap:0 1.2rem; margin:0 0 .8rem; }
+.compta-onglets button, .compta-sous-onglets button { flex:0 0 auto; display:inline-flex; align-items:center; gap:.4rem; border:0; border-bottom:3px solid transparent; border-radius:0; background:none; color:var(--muted); white-space:nowrap; }
+.compta-onglets button { padding:.85rem .1rem .7rem; font-size:.86rem; font-weight:800; }
+.compta-sous-onglets button { padding:.6rem .05rem .5rem; font-size:.76rem; font-weight:700; }
+.compta-onglets button:hover, .compta-sous-onglets button:hover { color:var(--ink); }
+.compta-onglets button.active, .compta-sous-onglets button.active { color:var(--ink); border-bottom-color:var(--gold); }
+.compta-onglets button:focus-visible, .compta-sous-onglets button:focus-visible { outline:3px solid rgba(232,185,4,.45); outline-offset:-3px; }
+.compta-onglets button span, .compta-sous-onglets button span { display:inline-grid; place-items:center; min-width:1.35rem; height:1.35rem; padding:0 .3rem; border-radius:99px; background:rgba(21,24,55,.08); font-size:.62rem; }
+.compta-onglets button.active span, .compta-sous-onglets button.active span { background:#fef8e2; }
+
+.admin-sidebar nav .nav-sous-menu { display:grid; gap:.1rem; margin:-.2rem 0 .3rem 1.45rem; padding-left:.7rem; border-left:1px solid rgba(255,255,255,.14); }
+.admin-sidebar nav .nav-sous-menu[hidden] { display:none; }
+.admin-sidebar nav .nav-sous-menu button { padding:.5rem .7rem; border-radius:10px; font-size:.8rem; font-weight:600; color:rgba(255,255,255,.58); }
+.admin-sidebar nav .nav-sous-menu button:hover { color:#fff; background:rgba(255,255,255,.08); }
+.admin-sidebar nav .nav-sous-menu button.active { color:#fff; background:rgba(255,255,255,.1); box-shadow:inset 3px 0 0 var(--gold); }

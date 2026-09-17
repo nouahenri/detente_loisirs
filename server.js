@@ -3819,17 +3819,67 @@ async function handleAuthApi(req, res, url) {
     }
     try {
       const payload = await parseBody(req, 20_000);
-      const check = await auth.authenticate(actor.username, payload.currentPassword);
-      if (!check.ok) return json(res, 401, { ok: false, error: 'Mot de passe actuel incorrect.' });
+      // Demande du 17/09/2026 : l'ancien mot de passe est facultatif (oublié).
+      // En contrepartie, un e-mail d'alerte part à l'adresse du compte.
+      const sansActuel = !String(payload.currentPassword || '');
+      if (!sansActuel) {
+        const check = await auth.authenticate(actor.username, payload.currentPassword);
+        if (!check.ok) return json(res, 401, { ok: false, error: 'Mot de passe actuel incorrect.' });
+      }
       await auth.setPassword(actor.id, payload.newPassword);
-      audit('auth.password_changed', { username: actor.username }, actor.username);
+      audit('auth.password_changed', { username: actor.username, sansMotDePasseActuel: sansActuel }, actor.username);
+      alerterChangementMotDePasse(actor, { withoutCurrent: sansActuel }).catch(() => {});
       // setPassword ferme toutes les sessions : le cookie courant est effacé.
       return json(res, 200, { ok: true, message: 'Mot de passe modifié. Reconnectez-vous.' },
         { 'Set-Cookie': clearedSessionCookie(req) });
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
 
+  // ---- Mot de passe oublié : lien par e-mail (17/09/2026) ----
+  if (req.method === 'POST' && url.pathname === '/api/auth/mot-de-passe-oublie') {
+    const limite = rateLimit(req, 'mot-de-passe-oublie', 5);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de demandes : réessayez dans quelques minutes.' });
+    // Même réponse que le compte existe ou non : personne ne peut s'en servir
+    // pour deviner les noms d'utilisateur ou les adresses du studio.
+    const reponse = { ok: true, message: 'Si un compte actif correspond et possède une adresse e-mail, un lien pour choisir un nouveau mot de passe vient d’y être envoyé. Il est valable 1 heure.' };
+    try {
+      const payload = await parseBody(req, 2_000);
+      const demande = await auth.createPasswordReset(payload.identifiant);
+      if (!demande) {
+        audit('auth.reset_sans_compte', { ip: clientIp(req) });
+        return json(res, 200, reponse);
+      }
+      const lien = `${publicBaseUrl(req)}/admin.html#reinitialiser=${encodeURIComponent(demande.token)}`;
+      const message = templates.passwordReset({ username: demande.user.username, resetUrl: lien, expiresMinutes: Math.round(auth.RESET_TTL_MS / 60000) });
+      const envoi = await mailer.deliver({ kind: 'reinitialisation-mot-de-passe', to: demande.user.email, subject: message.subject, html: message.html, text: message.text });
+      audit(envoi.sent ? 'auth.reset_envoye' : 'auth.reset_en_file', { username: demande.user.username, ip: clientIp(req), ...(envoi.sent ? {} : { error: envoi.error }) });
+    } catch (error) {
+      audit('auth.reset_echec', { error: text(error.message, 300) });
+    }
+    return json(res, 200, reponse);
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/auth/reinitialiser') {
+    const limite = rateLimit(req, 'reinitialiser', 10);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de tentatives : réessayez dans quelques minutes.' });
+    try {
+      const payload = await parseBody(req, 5_000);
+      const user = await auth.consumePasswordReset(payload.token, payload.newPassword);
+      audit('auth.password_reset', { username: user.username, ip: clientIp(req) }, user.username);
+      alerterChangementMotDePasse(user, { byReset: true }).catch(() => {});
+      return json(res, 200, { ok: true, message: 'Mot de passe modifié : connectez-vous avec le nouveau.' });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
   return json(res, 404, { ok: false, error: 'Route d’authentification inconnue' });
+}
+
+/** E-mail de sécurité après un changement de mot de passe (si le compte a une adresse). */
+async function alerterChangementMotDePasse(user, options = {}) {
+  if (!user?.email) return;
+  const message = templates.passwordChanged({ username: user.username, when: new Date(), ...options });
+  const envoi = await mailer.deliver({ kind: 'alerte-mot-de-passe', to: user.email, subject: message.subject, html: message.html, text: message.text });
+  if (!envoi.sent) audit('auth.alerte_mot_de_passe_en_file', { username: user.username, error: envoi.error });
 }
 
 // ===========================================================================

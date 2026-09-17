@@ -349,6 +349,56 @@ ${SIGNATURE_TEXT}`
 }
 
 // ---------------------------------------------------------------------------
+// 4 bis. Mot de passe du studio (17/09/2026)
+// ---------------------------------------------------------------------------
+function passwordReset({ username = '', resetUrl, expiresMinutes = 60 }) {
+  const p = contenu => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:${BRAND.ink};">${contenu}</p>`;
+  const intro = `Une demande de nouveau mot de passe a été faite pour le compte « ${username} » du studio henri-philippe.com.`;
+  const consigne = `Pour choisir un nouveau mot de passe, ouvrez le lien ci-dessous. Il est valable ${expiresMinutes} minutes et ne sert qu’une fois.`;
+  const securite = 'Si vous n’êtes pas à l’origine de cette demande, ignorez ce message : votre mot de passe actuel reste inchangé.';
+  return {
+    subject: 'Choisir un nouveau mot de passe — studio henri-philippe.com',
+    html: layout({
+      preheader: 'Lien pour choisir un nouveau mot de passe du studio.',
+      heading: 'Nouveau mot de passe',
+      bodyHtml: [p('Bonjour,'), p(escapeHtml(intro)), p(escapeHtml(consigne))].join(''),
+      cta: { label: 'Choisir un nouveau mot de passe', url: resetUrl },
+      footerLines: [securite]
+    }),
+    text: `Bonjour,
+
+${intro}
+
+${consigne}
+
+${resetUrl}
+
+${securite}
+
+${SIGNATURE_TEXT}`
+  };
+}
+
+function passwordChanged({ username = '', when = new Date(), withoutCurrent = false, byReset = false }) {
+  const moment = new Date(when).toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' });
+  const comment = byReset ? 'à l’aide d’un lien envoyé par e-mail' : withoutCurrent ? 'depuis une session ouverte, sans saisir l’ancien mot de passe' : 'depuis le studio';
+  const phrase = `Le mot de passe du compte « ${username} » a été modifié le ${moment} ${comment}. Toutes les sessions ouvertes ont été fermées.`;
+  const alerte = 'Si vous n’êtes pas à l’origine de ce changement, prévenez immédiatement le propriétaire du studio pour faire bloquer le compte.';
+  const p = contenu => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:${BRAND.ink};">${contenu}</p>`;
+  return {
+    subject: 'Votre mot de passe du studio a été modifié',
+    html: layout({ preheader: 'Mot de passe du studio modifié.', heading: 'Mot de passe modifié', bodyHtml: [p('Bonjour,'), p(escapeHtml(phrase)), p(escapeHtml(alerte))].join(''), footerLines: ['Message de sécurité automatique.'] }),
+    text: `Bonjour,
+
+${phrase}
+
+${alerte}
+
+${SIGNATURE_TEXT}`
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 5. Message de test SMTP
 // ---------------------------------------------------------------------------
 function smtpTest({ requestedBy = '' }) {
@@ -371,6 +421,7 @@ ${SIGNATURE_TEXT}`
 }
 
 module.exports = {
+  passwordReset, passwordChanged,
   BRAND, escapeHtml, textToHtml, htmlToText, layout,
   newsletterConfirmation, newsletterWelcome, newsletterCampaign, leadNotification, leadConfirmation, smtpTest
 };
