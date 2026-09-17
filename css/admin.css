@@ -1239,10 +1239,18 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 /* Grille : colonne des permissions figée, colonnes de rôles resserrées */
 .roles-table-cadre { max-height:70vh; overflow:auto; }
 .roles-table th, .roles-table td { padding:.4rem .5rem; }
-.roles-table tbody th, .roles-table thead th:first-child { position:sticky; left:0; z-index:1; min-width:150px; max-width:220px; background:white; }
+/* Colonne des permissions de largeur fixe : les colonnes de rôles s'alignent juste après elle
+   (défilement aimanté), aucun nom de rôle n'est à moitié caché derrière. */
+.roles-table-cadre { scroll-snap-type:x mandatory; scroll-padding-left:170px; }
+.roles-table thead th:not(:first-child) { scroll-snap-align:start; }
+.roles-table tbody th, .roles-table thead th:first-child { position:sticky; left:0; z-index:1; width:170px; min-width:170px; max-width:170px; background:white; box-shadow:1px 0 0 var(--line), 8px 0 10px -8px rgba(21,24,55,.22); }
 .roles-table thead th { z-index:2; }
 .roles-table thead th:first-child { z-index:3; background:#f8f9fc; }
-.roles-table .roles-groupe th { position:static; max-width:none; background:#fbfbfd; }
+.roles-table .roles-groupe th { position:static; width:auto; min-width:0; max-width:none; background:#fbfbfd; box-shadow:none; }
 .roles-table .roles-groupe th span { position:sticky; left:.5rem; display:inline-block; }
 .roles-table thead button { min-width:84px; padding:.25rem .3rem; }
 .roles-table thead button strong { font-size:.74rem; }
+@media (max-width:760px) {
+  .roles-table-cadre { scroll-padding-left:128px; }
+  .roles-table tbody th, .roles-table thead th:first-child { width:128px; min-width:128px; max-width:128px; font-size:.72rem; }
+}

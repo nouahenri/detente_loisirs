@@ -114,3 +114,10 @@ test('studio : liste compacte par défaut, grille comparative à la demande, rec
   // La saisie ne redessine que le corps : le champ de recherche garde le focus.
   assert.match(admin, /data-roles-recherche\]', hote\)\?\.addEventListener\('input', event => \{ rechercheRoles = event\.target\.value; renderCorpsRoles\(\); \}\)/);
 });
+
+test('grille : colonne des permissions de largeur fixe et défilement aimanté, aucun rôle à moitié caché', () => {
+  const css = fs.readFileSync(path.join(racine, 'css', 'admin.css'), 'utf8');
+  assert.match(css, /\.roles-table-cadre \{ scroll-snap-type:x mandatory; scroll-padding-left:170px; \}/);
+  assert.match(css, /width:170px; min-width:170px; max-width:170px;/);
+  assert.match(css, /\.roles-table-cadre \{ scroll-padding-left:128px; \}\s*\.roles-table tbody th, \.roles-table thead th:first-child \{ width:128px; min-width:128px; max-width:128px;/);
+});
