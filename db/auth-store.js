@@ -85,7 +85,9 @@ const ROLE_PERMISSIONS = {
     'leads:read', 'leads:write', 'leads:export',
     'newsletter:read', 'newsletter:write',
     'facebook:read', 'facebook:write',
-    'backup:manage', 'audit:read', 'users:manage'
+    'backup:manage', 'audit:read', 'users:manage',
+    // Comptabilité (17/09/2026) : salaires et finances, propriétaire seulement.
+    'compta:manage'
   ],
   editeur: [
     'dashboard:view',

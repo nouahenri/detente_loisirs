@@ -1024,3 +1024,111 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .avis-studio-liste p { margin:.4rem 0 .6rem; font-size:.82rem; line-height:1.5; overflow-wrap:anywhere; }
 .avis-studio-actions { display:flex; flex-wrap:wrap; gap:.4rem; }
 .avis-studio-actions button { border:1px solid var(--line); background:white; color:var(--ink); border-radius:999px; padding:.4rem .75rem; font-size:.7rem; font-weight:700; }
+
+/* =====================================================================
+   COMPTABILITÉ (17/09/2026). Couleurs du graphique : emplacements 1 et 2
+   de la palette catégorielle validée (bleu = entrées, orange = sorties),
+   texte toujours dans les encres du studio.
+   ===================================================================== */
+.compta-vue { --serie-entree:#2a78d6; --serie-sortie:#eb6834; }
+.compta-outils { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.7rem 1rem; margin-bottom:.4rem; }
+.compta-outils label { display:grid; gap:.3rem; font-size:.7rem; font-weight:800; color:var(--muted); }
+.compta-outils select, .compta-outils input { padding:.6rem .75rem; width:auto; min-width:0; }
+.compta-boutons { display:flex; flex-wrap:wrap; gap:.5rem; margin-left:auto; align-items:center; }
+.compta-boutons .primary { padding:.7rem 1rem; font-size:.75rem; }
+.compta-boutons .content-action { text-decoration:none; display:inline-flex; align-items:center; }
+.compta-kpis { grid-template-columns:repeat(5, minmax(0,1fr)); }
+.compta-kpis .kpi-card strong { font-size:1.45rem; }
+.compta-solde.negatif strong { color:#8a1c1c; }
+.compta-onglets { flex-wrap:wrap; margin:.4rem 0 1rem; }
+.compta-onglets button span { display:inline-grid; place-items:center; min-width:1.35rem; height:1.35rem; margin-left:.3rem; padding:0 .3rem; border-radius:99px; background:rgba(21,24,55,.08); font-size:.62rem; }
+.compta-onglets button.active span { background:rgba(255,255,255,.2); }
+.compta-filtres { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; margin-bottom:.8rem; }
+.compta-filtres select { width:auto; padding:.55rem .75rem; font-size:.78rem; }
+.compta-filtres .admin-search { margin-left:auto; }
+.compta-aide { color:var(--muted); font-size:.78rem; line-height:1.5; margin:.2rem 0 .8rem; }
+
+.compta-ligne { display:grid; grid-template-columns:88px minmax(0,1fr) auto auto; align-items:center; gap:.4rem 1rem; padding:.8rem 1rem; border-bottom:1px solid var(--line); cursor:pointer; }
+.compta-ligne:last-child { border-bottom:0; }
+.compta-ligne:hover, .compta-ligne:focus-visible { background:#f8f9fc; outline:none; }
+.compta-ligne time { color:var(--muted); font-size:.72rem; font-weight:700; }
+.compta-ligne-texte { display:grid; gap:.15rem; min-width:0; }
+.compta-ligne-texte strong { font-size:.85rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.compta-ligne-texte small { color:var(--muted); font-size:.7rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.compta-montant { font-size:.9rem; white-space:nowrap; text-align:right; }
+.compta-montant.entree { color:#16743a; }
+.compta-montant.sortie { color:var(--ink); }
+.compta-statut { display:inline-flex; width:max-content; padding:.15rem .5rem; border-radius:99px; background:rgba(21,24,55,.08); color:var(--muted); font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; }
+.compta-statut.regle { background:rgba(22,116,58,.1); color:#16743a; }
+.compta-statut.a-regler { background:rgba(204,162,3,.16); color:#7a5b00; }
+.compta-avatar { display:grid; place-items:center; width:36px; height:36px; border-radius:50%; background:#fef8e2; font-weight:800; color:var(--ink); }
+
+.compta-vente { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.8rem 1rem; padding:1rem; border-bottom:1px solid var(--line); }
+.compta-vente:last-child { border-bottom:0; }
+.compta-vente-texte { display:grid; gap:.3rem; min-width:min(100%, 280px); flex:1 1 320px; }
+.compta-vente-texte small { color:var(--muted); font-size:.72rem; }
+.compta-vente-texte small strong { color:var(--ink); }
+.compta-barre { height:8px; border-radius:99px; background:rgba(21,24,55,.08); overflow:hidden; max-width:420px; }
+.compta-barre span { display:block; height:100%; border-radius:99px; background:#16743a; }
+.compta-vente-actions { display:flex; flex-wrap:wrap; gap:.45rem; }
+.compta-vente-actions button:not(.primary) { border:1px solid var(--line); background:white; border-radius:999px; padding:.6rem .9rem; font-size:.72rem; font-weight:700; }
+.compta-vente-actions .primary { padding:.6rem .9rem; font-size:.72rem; }
+.compta-section-tete { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:.6rem 1rem; margin:1.4rem 0 .6rem; }
+.compta-section-tete h3 { margin:0; font:700 1.25rem/1.2 'Playfair Display',serif; }
+.compta-section-tete > button { border:1px solid var(--line); background:white; border-radius:999px; padding:.6rem .95rem; font-size:.75rem; font-weight:800; }
+.compta-generer { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.5rem; }
+.compta-generer label { display:grid; gap:.25rem; font-size:.68rem; font-weight:800; color:var(--muted); }
+.compta-generer input { width:auto; padding:.55rem .7rem; }
+.compta-generer .primary { padding:.65rem 1rem; font-size:.72rem; }
+
+.compta-graphique { background:white; border:1px solid var(--line); border-radius:20px; padding:1rem 1rem .6rem; margin-bottom:1rem; }
+.compta-legende { display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; font-size:.74rem; font-weight:700; color:var(--ink); margin-bottom:.4rem; }
+.compta-legende i, .compta-infobulle i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:.4rem; vertical-align:-1px; }
+.compta-legende i.entree, .compta-infobulle i.entree { background:var(--serie-entree); }
+.compta-legende i.sortie, .compta-infobulle i.sortie { background:var(--serie-sortie); }
+.compta-graphique-zone { position:relative; overflow-x:auto; }
+.compta-graphique-zone svg { display:block; max-width:none; }
+.compta-graphique-zone .grille line { stroke:rgba(21,24,55,.08); stroke-width:1; }
+.compta-graphique-zone text { fill:var(--muted); font-size:10px; font-family:'DM Sans',sans-serif; }
+.compta-graphique-zone .barre.entree { fill:var(--serie-entree); }
+.compta-graphique-zone .barre.sortie { fill:var(--serie-sortie); }
+.compta-graphique-zone .barre { transition:opacity .15s; }
+.compta-graphique-zone .barre.attenue { opacity:.35; }
+.compta-graphique-zone .zone-survol { fill:transparent; cursor:crosshair; }
+.compta-infobulle { position:absolute; z-index:2; display:grid; gap:.2rem; min-width:170px; padding:.6rem .75rem; border-radius:12px; background:var(--ink); color:#fff; font-size:.72rem; pointer-events:none; box-shadow:var(--shadow); }
+.compta-infobulle strong { font-size:.78rem; }
+
+.compta-rapport-grille { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:1rem; }
+.compta-rapport-grille section { background:white; border:1px solid var(--line); border-radius:20px; padding:1rem; min-width:0; }
+.compta-rapport-grille h3 { margin:.2rem 0 .7rem; font:700 1.15rem/1.2 'Playfair Display',serif; }
+.compta-table { width:100%; border-collapse:collapse; font-size:.76rem; margin-bottom:1rem; }
+.compta-table th { text-align:left; color:var(--muted); font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; padding:.45rem .4rem; border-bottom:1px solid var(--line); }
+.compta-table td { padding:.5rem .4rem; border-bottom:1px solid var(--line); }
+.compta-table td:not(:first-child), .compta-table th:not(:first-child) { text-align:right; white-space:nowrap; }
+.compta-table tfoot td { font-weight:800; border-bottom:0; }
+.compta-table .negatif { color:#8a1c1c; }
+
+.compta-fiche .compta-sens { display:flex; flex-wrap:wrap; gap:.5rem 1.2rem; margin:1rem 0 0; padding:0; border:0; }
+.compta-fiche .compta-sens legend { width:100%; margin-bottom:.4rem; font-size:.78rem; font-weight:700; }
+.compta-fiche .compta-sens label { display:flex; align-items:center; gap:.4rem; margin:0; font-size:.82rem; }
+.compta-fiche .compta-sens input { width:auto; }
+.compta-piece { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; margin:1rem 0; padding:.8rem 1rem; border:1px dashed var(--line); border-radius:14px; font-size:.78rem; }
+.compta-piece .upload-button { margin:0; }
+.compta-piece button { border:1px solid var(--line); background:white; border-radius:999px; padding:.4rem .75rem; font-size:.7rem; font-weight:700; }
+.compta-piece a { color:var(--ink); font-weight:700; }
+.lead-paiements-synthese { margin:.2rem 0 .6rem; font-size:.8rem; color:var(--muted); }
+.lead-paiements-synthese strong { color:var(--ink); }
+.lead-paiements { margin:0 0 .7rem; padding-left:1.1rem; font-size:.78rem; }
+
+@media (max-width: 1050px) {
+  .compta-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .compta-rapport-grille { grid-template-columns:1fr; }
+}
+@media (max-width: 760px) {
+  .compta-boutons { margin-left:0; width:100%; }
+  .compta-filtres .admin-search { margin-left:0; }
+  .compta-ligne { grid-template-columns:minmax(0,1fr) auto; }
+  .compta-ligne time { grid-column:1 / -1; }
+  .compta-vente-actions { width:100%; }
+  .compta-vente-actions button { flex:1 1 auto; }
+}

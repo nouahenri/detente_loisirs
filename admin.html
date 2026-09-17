@@ -79,6 +79,7 @@
         <button data-view="activities" data-permission="content:write"><span>⌁</span> Activités</button>
         <button data-view="referentiels" data-permission="content:write"><span>☷</span> Référentiels</button>
         <button data-view="leads" data-permission="leads:read"><span>◎</span> Demandes</button>
+        <button data-view="compta" data-permission="compta:manage"><span>₣</span> Comptabilité</button>
         <button data-view="messages" data-permission="leads:read"><span>✆</span> Messages</button>
         <button data-view="newsletter" data-permission="newsletter:read"><span>✉</span> Newsletter</button>
         <button data-view="facebook" data-permission="facebook:read"><span>f</span> Publications</button>
@@ -154,6 +155,13 @@
       <section class="admin-view" data-panel="leads">
         <div class="section-tools lead-tools"><p>Suivez chaque demande jusqu’à sa confirmation.</p><label class="admin-search"><span>Rechercher</span><input id="leadSearch" type="search" placeholder="Nom, téléphone, villa…"></label><div class="filter-pills" id="leadFilters"><button class="active" data-status="all">Toutes</button><button data-status="nouveau">Nouvelles</button><button data-status="contacte">Contactées</button><button data-status="confirme">Confirmées</button><button data-status="archive">Archivées</button></div></div>
         <div class="content-table" id="leadsTable"></div>
+      </section>
+
+      <!-- Comptabilité (17/09/2026) : journal des entrées et sorties, ventes à
+           encaisser, salaires, charges récurrentes, rapport. Rendu par
+           js/admin.js → renderCompta(). Propriétaire seulement. -->
+      <section class="admin-view" data-panel="compta">
+        <div class="compta-vue" id="comptaVue"><div class="empty">Chargement de la comptabilité…</div></div>
       </section>
 
       <!-- Messages WhatsApp promotionnels (13/09/2026) : envoi par liens wa.me,

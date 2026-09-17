@@ -21,6 +21,7 @@ const NOTIF = require('./db/notifications-app');
 const SYNC = require('./db/synchro-facebook');
 const DEMANDEURS = require('./db/demandeurs');
 const AVIS = require('./db/avis');
+const COMPTA = require('./db/comptabilite');
 
 const PORT = Number(process.env.PORT || 3456);
 const ROOT = __dirname;
@@ -51,6 +52,9 @@ const WA_FILE = path.join(STORE_DIR, 'whatsapp-promo.json');
 const APP_APPAREILS_FILE = path.join(STORE_DIR, 'app-appareils.json');
 const APP_NOTIF_FILE = path.join(STORE_DIR, 'app-notifications.json');
 const BACKUP_DIR = path.join(STORE_DIR, 'backups');
+// Pièces justificatives de la comptabilité : dans data/, jamais servi
+// publiquement (FORBIDDEN_PREFIXES) ; lues seulement par le studio.
+const JUSTIFICATIFS_DIR = path.join(STORE_DIR, 'compta-justificatifs');
 const UPLOAD_DIR = path.join(ROOT, 'assets', 'uploads');
 const ADMIN_SECRET = process.env.ADMIN_SECRET || 'assinie-demo';
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v25.0';
@@ -223,6 +227,7 @@ auth.configure({ isDbReady: dbEnabled });
 newsletter.configure({ isDbReady: dbEnabled });
 DEMANDEURS.configure({ isDbReady: dbEnabled });
 AVIS.configure({ isDbReady: dbEnabled });
+COMPTA.configure({ isDbReady: dbEnabled });
 mailer.configure({ isDbReady: dbEnabled });
 
 /** Exécute une opération MySQL sans jamais faire tomber la requête HTTP. */
@@ -1210,6 +1215,12 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['DELETE', /^\/api\/admin\/whatsapp\/campagnes\/[^/]+$/, 'leads:write'],
   ['POST', /^\/api\/admin\/whatsapp\/stop$/, 'leads:write'],
   ['GET', /^\/api\/admin\/export$/, 'leads:export'],
+  ['GET', /^\/api\/admin\/compta$/, 'compta:manage'],
+  ['GET', /^\/api\/admin\/compta\/export$/, 'compta:manage'],
+  ['POST', /^\/api\/admin\/compta\/(ecritures|employes|charges|paie|charges-du-mois|justificatifs)$/, 'compta:manage'],
+  ['PATCH', /^\/api\/admin\/compta\/(ecritures|employes|charges)\/[^/]+$/, 'compta:manage'],
+  ['DELETE', /^\/api\/admin\/compta\/(ecritures|employes|charges)\/[^/]+$/, 'compta:manage'],
+  ['GET', /^\/api\/admin\/compta\/justificatifs\/[^/]+$/, 'compta:manage'],
   ['POST', /^\/api\/admin\/backups$/, 'backup:manage'],
   ['GET', /^\/api\/admin\/backups$/, 'backup:manage'],
   ['GET', /^\/api\/admin\/audit$/, 'audit:read'],
@@ -3119,6 +3130,140 @@ async function handleApi(req, res, url) {
         return json(res, 200, await etatPourStudio(wa));
       }
     } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
+  // =========================================================================
+  // COMPTABILITÉ (17/09/2026) — propriétaire seulement (compta:manage)
+  // =========================================================================
+  if (url.pathname === '/api/admin/compta' || url.pathname.startsWith('/api/admin/compta/')) {
+    try {
+      const acteur = actorLabel(actor);
+      const periodeDemandee = () => {
+        const debut = url.searchParams.get('debut') || '';
+        const fin = url.searchParams.get('fin') || '';
+        if (!COMPTA.dateValide(debut) || !COMPTA.dateValide(fin) || fin < debut) throw new Error('Période invalide.');
+        return { debut, fin };
+      };
+      const nomBien = (kind, id, contenu) => {
+        const liste = contenu[{ villa: 'villas', terrain: 'terrains', activity: 'activities' }[kind]] || [];
+        const bien = liste.find(item => item.id === id);
+        return bien ? (bien.name || bien.title || id) : id;
+      };
+
+      if (req.method === 'GET' && url.pathname === '/api/admin/compta') {
+        const { debut, fin } = periodeDemandee();
+        const [donnees, leads] = await Promise.all([COMPTA.tout(), store.readLeads()]);
+        const listeVentes = COMPTA.ventes(leads, donnees.ecritures);
+        return json(res, 200, {
+          ok: true, debut, fin, categories: COMPTA.CATEGORIES, modes: COMPTA.MODES,
+          ecritures: donnees.ecritures.filter(e => e.date >= debut && e.date <= fin),
+          employes: donnees.employes, charges: donnees.charges, ventes: listeVentes,
+          rapport: COMPTA.rapport(donnees.ecritures, { debut, fin }, listeVentes)
+        });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/admin/compta/export') {
+        const { debut, fin } = periodeDemandee();
+        const [donnees, contenu] = await Promise.all([COMPTA.tout(), lireContenuBrut()]);
+        const lignes = donnees.ecritures.filter(e => e.date >= debut && e.date <= fin);
+        audit('compta.export', { debut, fin, lignes: lignes.length }, acteur);
+        res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="comptabilite-${debut}-${fin}.csv"`, 'Cache-Control': 'no-store' });
+        return res.end(COMPTA.csv(lignes, { nomBien: (kind, id) => nomBien(kind, id, contenu) }));
+      }
+
+      const route = url.pathname.match(/^\/api\/admin\/compta\/(ecritures|employes|charges)(?:\/([^/]+))?$/);
+      if (route) {
+        const [, collection, idBrut] = route;
+        const id = idBrut ? decodeURIComponent(idBrut) : '';
+        const donnees = await COMPTA.tout();
+        const liste = donnees[collection];
+        const existant = id ? liste.find(entree => entree.id === id) : null;
+        if (id && !existant) return json(res, 404, { ok: false, error: 'Élément introuvable.' });
+
+        if (req.method === 'DELETE' && id) {
+          if (collection === 'ecritures') await COMPTA.supprimerEcriture(id);
+          if (collection === 'employes') {
+            if (donnees.ecritures.some(e => e.employeId === id)) return json(res, 409, { ok: false, error: 'Des salaires sont déjà enregistrés pour cet employé : désactivez-le plutôt que de le supprimer.' });
+            await COMPTA.supprimerEmploye(id);
+          }
+          if (collection === 'charges') await COMPTA.supprimerCharge(id);
+          audit(`compta.${collection}_supprime`, { id }, acteur);
+          return json(res, 200, { ok: true });
+        }
+
+        if ((req.method === 'POST' && !id) || (req.method === 'PATCH' && id)) {
+          const payload = await parseBody(req, 50_000);
+          const source = existant ? { ...existant, ...payload } : payload;
+          if (collection === 'ecritures') {
+            const { ecriture, erreurs } = COMPTA.validerEcriture(source, { existante: existant, acteur });
+            if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+            if (ecriture.justificatif && !fs.existsSync(path.join(JUSTIFICATIFS_DIR, ecriture.justificatif))) return json(res, 422, { ok: false, error: 'Pièce justificative introuvable : déposez-la de nouveau.' });
+            await COMPTA.enregistrerEcritures([ecriture]);
+            audit(existant ? 'compta.ecriture_modifiee' : 'compta.ecriture_creee', { id: ecriture.id, sens: ecriture.sens, montant: ecriture.montant, categorie: ecriture.categorie, leadId: ecriture.leadId || undefined }, acteur);
+            return json(res, existant ? 200 : 201, { ok: true, ecriture });
+          }
+          if (collection === 'employes') {
+            const { employe, erreurs } = COMPTA.validerEmploye(source, { existant });
+            if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+            await COMPTA.enregistrerEmploye(employe);
+            audit(existant ? 'compta.employe_modifie' : 'compta.employe_cree', { id: employe.id }, acteur);
+            return json(res, existant ? 200 : 201, { ok: true, employe });
+          }
+          const { charge, erreurs } = COMPTA.validerCharge(source, { existante: existant });
+          if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+          await COMPTA.enregistrerCharge(charge);
+          audit(existant ? 'compta.charge_modifiee' : 'compta.charge_creee', { id: charge.id }, acteur);
+          return json(res, existant ? 200 : 201, { ok: true, charge });
+        }
+      }
+
+      if (req.method === 'POST' && (url.pathname === '/api/admin/compta/paie' || url.pathname === '/api/admin/compta/charges-du-mois')) {
+        const payload = await parseBody(req, 2_000);
+        if (!COMPTA.periodeValide(payload.periode)) return json(res, 422, { ok: false, error: 'Mois invalide (AAAA-MM).' });
+        const donnees = await COMPTA.tout();
+        const paie = url.pathname.endsWith('/paie');
+        const nouvelles = paie
+          ? COMPTA.paieDuMois(donnees.employes, payload.periode, donnees.ecritures, { acteur })
+          : COMPTA.chargesDuMois(donnees.charges, payload.periode, donnees.ecritures, { acteur });
+        await COMPTA.enregistrerEcritures(nouvelles);
+        audit(paie ? 'compta.paie_generee' : 'compta.charges_generees', { periode: payload.periode, ecritures: nouvelles.length }, acteur);
+        return json(res, 200, { ok: true, creees: nouvelles.length, total: nouvelles.reduce((t, e) => t + e.montant, 0) });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/admin/compta/justificatifs') {
+        const payload = await parseBody(req, 12_000_000);
+        const formats = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf' };
+        const extension = formats[text(payload.mimeType, 40)];
+        if (!extension) return json(res, 422, { ok: false, error: 'Format refusé : photo (JPG, PNG, WebP) ou PDF.' });
+        const octets = Buffer.from(text(payload.data, 12_000_000).replace(/^data:[^;]+;base64,/, ''), 'base64');
+        if (!octets.length || octets.length > 8_000_000) return json(res, 422, { ok: false, error: 'La pièce doit peser moins de 8 Mo.' });
+        const signatures = {
+          '.jpg': octets[0] === 0xff && octets[1] === 0xd8,
+          '.png': octets.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
+          '.webp': octets.subarray(0, 4).toString() === 'RIFF' && octets.subarray(8, 12).toString() === 'WEBP',
+          '.pdf': octets.subarray(0, 5).toString() === '%PDF-'
+        };
+        if (!signatures[extension]) return json(res, 422, { ok: false, error: 'Le contenu du fichier ne correspond pas à son format.' });
+        fs.mkdirSync(JUSTIFICATIFS_DIR, { recursive: true });
+        const fichier = `${crypto.randomUUID()}${extension}`;
+        fs.writeFileSync(path.join(JUSTIFICATIFS_DIR, fichier), octets, { flag: 'wx' });
+        audit('compta.justificatif_depose', { fichier, octets: octets.length }, acteur);
+        return json(res, 201, { ok: true, fichier, nom: text(payload.filename, 180) });
+      }
+
+      const piece = url.pathname.match(/^\/api\/admin\/compta\/justificatifs\/([a-f0-9-]{36}\.(jpg|png|webp|pdf))$/);
+      if (req.method === 'GET' && piece) {
+        const chemin = path.join(JUSTIFICATIFS_DIR, piece[1]);
+        if (!fs.existsSync(chemin)) return json(res, 404, { ok: false, error: 'Pièce introuvable.' });
+        const types = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', pdf: 'application/pdf' };
+        res.writeHead(200, { 'Content-Type': types[piece[2]], 'Content-Disposition': `inline; filename="justificatif-${piece[1]}"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
+        return fs.createReadStream(chemin).pipe(res);
+      }
+      return json(res, 404, { ok: false, error: 'Route de comptabilité inconnue.' });
+    } catch (error) {
+      const indisponible = /ECONN|PROTOCOL|ETIMEDOUT|ER_/.test(String(error.code || error.message || ''));
+      return json(res, indisponible ? 503 : 400, { ok: false, error: indisponible ? 'Base de données injoignable : rien n’a été enregistré. Réessayez.' : text(error.message, 300) });
+    }
   }
 
   if (req.method === 'GET' && url.pathname === '/api/admin/export') {

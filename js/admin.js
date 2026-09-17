@@ -257,7 +257,7 @@
     dashboard:['PILOTAGE','Vue d’ensemble'], villas:['HÉBERGEMENTS','Villas'],
     terrains:['VENTE DE TERRAIN','Terrains'], activities:['EXPÉRIENCES','Activités & loisirs'],
     referentiels:['LISTES DE CHOIX','Référentiels'],
-    leads:['RELATION CLIENT','Demandes'], messages:['RELATION CLIENT','Messages WhatsApp'], newsletter:['RELATION CLIENT','Newsletter'],
+    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['RELATION CLIENT','Messages WhatsApp'], newsletter:['RELATION CLIENT','Newsletter'],
     facebook:['SOCIAL STUDIO','Publications'], users:['SÉCURITÉ','Utilisateurs'],
     settings:['SITE PUBLIC','Réglages']
   };
@@ -323,6 +323,7 @@
     $('#viewKicker').textContent = titles[0]; $('#viewTitle').textContent = titles[1];
     // Les contacts viennent des demandes : on relit à chaque ouverture.
     if (name === 'messages' && can('leads:read')) chargerMessages();
+    if (name === 'compta' && can('compta:manage')) chargerCompta();
     window.scrollTo({ top:0, behavior:'smooth' });
   }
 
@@ -827,6 +828,7 @@
       </dl>${messageLibre ? `<h3>Message</h3><p class="lead-message">${esc(messageLibre).replace(/\n/g, '<br>')}</p>` : ''}</section>
       <section class="lead-bloc"><h3>Suivi</h3><div class="form-grid"><label>Statut<select name="status">${LEAD_STATUTS.map(([value, label]) => `<option value="${value}" ${lead.status === value ? 'selected':''}>${label}</option>`).join('')}</select></label><label>Montant confirmé (FCFA)<input name="amount" type="number" min="0" step="1000" value="${Number(lead.amount || 0)}"></label></div><label>Notes internes<textarea name="adminNotes" rows="5" placeholder="Relance, préférences, informations utiles…">${esc(lead.adminNotes || '')}</textarea></label>
       <p class="lead-meta">Dernière mise à jour : ${esc(horodatage(lead.updatedAt || lead.createdAt))} · Réf. ${esc(String(lead.id || '').slice(0, 8))}</p></section>
+      ${can('compta:manage') ? '<section class="lead-bloc lead-paiements-bloc" data-paiements-demande><h3>Paiements</h3><p class="lead-paiements-synthese">Chargement…</p></section>' : ''}
     </div><div class="editor-actions lead-editor-actions">${can('leads:write') ? `<button type="button" data-archiver-demande>${lead.status === 'archive' ? 'Désarchiver' : 'Archiver'}</button><button type="button" class="danger" data-supprimer-demande>Supprimer la demande</button>` : ''}<button type="button" data-close-editor>Fermer</button><button class="primary" type="submit">Enregistrer le suivi</button></div></form></div>`);
     const backdrop = $('.lead-editor-backdrop');
     const close = () => { document.removeEventListener('keydown', onKeydown); backdrop.remove(); };
@@ -846,9 +848,461 @@
       } catch (error) { toast(error.message); }
     });
     brancherGestionDemande(backdrop, lead, close);
+    const hotePaiements = $('[data-paiements-demande]', backdrop);
+    if (hotePaiements) paiementsDemande(hotePaiements, lead);
     // Focus sur « Fermer » : la fiche s'ouvre en haut, sur le client, et
     // Échap ou Entrée la referment sans rien modifier.
     $('.editor-head [data-close-editor]', backdrop)?.focus();
+  }
+
+  // =========================================================================
+  // COMPTABILITÉ (17/09/2026) — propriétaire seulement (compta:manage)
+  // Journal des entrées et sorties, ventes à encaisser tirées des demandes
+  // confirmées (paiements saisis), salaires, charges récurrentes, rapport et
+  // export CSV. Chaque enregistrement part aussitôt en base : la comptabilité
+  // ne passe pas par « Publier les changements », qui ne concerne que le site.
+  // =========================================================================
+  const compta = { donnees: null, onglet: 'journal', periode: 'mois', debut: '', fin: '', sens: 'all', categorie: '', recherche: '' };
+  const aujourdhui = () => new Date().toISOString().slice(0, 10);
+  const signeMontant = e => `${e.sens === 'entree' ? '+' : '−'} ${money(e.montant)}`;
+  const libelleCategorieCompta = id => compta.donnees?.categories?.find(c => c.id === id)?.libelle || id;
+  const libelleModeCompta = id => compta.donnees?.modes?.find(m => m.id === id)?.libelle || '';
+  const dateCourte = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${valeur}T12:00:00Z`)); } catch { return valeur; } };
+  const moisLisible = mois => { try { return new Intl.DateTimeFormat('fr-FR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${mois}-15T12:00:00Z`)); } catch { return mois; } };
+
+  function bornesPeriode(choix) {
+    const d = new Date();
+    const annee = d.getUTCFullYear();
+    const mois = d.getUTCMonth();
+    const iso = date => date.toISOString().slice(0, 10);
+    if (choix === 'mois') return [iso(new Date(Date.UTC(annee, mois, 1))), iso(new Date(Date.UTC(annee, mois + 1, 0)))];
+    if (choix === 'mois-precedent') return [iso(new Date(Date.UTC(annee, mois - 1, 1))), iso(new Date(Date.UTC(annee, mois, 0)))];
+    if (choix === 'annee') return [`${annee}-01-01`, `${annee}-12-31`];
+    if (choix === 'annee-precedente') return [`${annee - 1}-01-01`, `${annee - 1}-12-31`];
+    return [compta.debut, compta.fin];
+  }
+
+  async function chargerCompta() {
+    const hote = $('#comptaVue');
+    if (!hote || !can('compta:manage')) return;
+    if (compta.periode !== 'perso' || !compta.debut || !compta.fin) [compta.debut, compta.fin] = bornesPeriode(compta.periode === 'perso' ? 'mois' : compta.periode);
+    hote.setAttribute('aria-busy', 'true');
+    try {
+      compta.donnees = await api(`/api/admin/compta?debut=${encodeURIComponent(compta.debut)}&fin=${encodeURIComponent(compta.fin)}`);
+      renderCompta();
+    } catch (error) {
+      hote.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+    } finally { hote.removeAttribute('aria-busy'); }
+  }
+
+  function renderCompta() {
+    const hote = $('#comptaVue');
+    const d = compta.donnees;
+    if (!hote || !d) return;
+    const r = d.rapport;
+    const aEncaisser = d.ventes.filter(v => v.reste > 0);
+    const periodes = [['mois', 'Ce mois'], ['mois-precedent', 'Mois précédent'], ['annee', 'Cette année'], ['annee-precedente', 'Année précédente'], ['perso', 'Personnalisée']];
+    const onglets = [['journal', 'Journal', d.ecritures.length], ['ventes', 'Ventes à encaisser', aEncaisser.length], ['salaires', 'Salaires', d.employes.filter(e => e.actif).length], ['charges', 'Charges récurrentes', d.charges.filter(c => c.actif).length], ['rapport', 'Rapport', null]];
+    hote.innerHTML = `
+      <div class="compta-outils">
+        <label>Période<select data-compta-periode>${periodes.map(([valeur, libelle]) => `<option value="${valeur}" ${compta.periode === valeur ? 'selected' : ''}>${libelle}</option>`).join('')}</select></label>
+        <label>Du<input type="date" data-compta-debut value="${esc(compta.debut)}"></label>
+        <label>Au<input type="date" data-compta-fin value="${esc(compta.fin)}"></label>
+        <div class="compta-boutons">
+          <button type="button" class="primary" data-compta-nouvelle="entree">＋ Entrée</button>
+          <button type="button" class="primary" data-compta-nouvelle="sortie">＋ Dépense</button>
+          <a class="content-action" href="/api/admin/compta/export?debut=${encodeURIComponent(compta.debut)}&fin=${encodeURIComponent(compta.fin)}" download>Exporter (CSV)</a>
+        </div>
+      </div>
+      <div class="kpi-grid compta-kpis">
+        <article class="kpi-card"><small>Entrées encaissées</small><strong>${money(r.entrees)}</strong><em>Du ${esc(dateCourte(r.debut))} au ${esc(dateCourte(r.fin))}</em></article>
+        <article class="kpi-card"><small>Sorties payées</small><strong>${money(r.sorties)}</strong><em>Dépenses, salaires, charges réglés</em></article>
+        <article class="kpi-card compta-solde ${r.solde < 0 ? 'negatif' : ''}"><small>Solde de la période</small><strong>${r.solde < 0 ? '−' : ''}${money(Math.abs(r.solde))}</strong><em>Entrées − sorties réglées</em></article>
+        <article class="kpi-card"><small>Reste à encaisser</small><strong>${money(r.resteAEncaisser)}</strong><em>${aEncaisser.length} vente${aEncaisser.length > 1 ? 's' : ''} confirmée${aEncaisser.length > 1 ? 's' : ''} non soldée${aEncaisser.length > 1 ? 's' : ''}</em></article>
+        <article class="kpi-card"><small>Dépenses à payer</small><strong>${money(r.aPayer)}</strong><em>Écritures « à régler » de la période</em></article>
+      </div>
+      <div class="filter-pills compta-onglets" role="tablist">${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-compta-onglet="${id}" class="${compta.onglet === id ? 'active' : ''}" aria-selected="${compta.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</div>
+      <div class="compta-contenu" data-compta-contenu></div>`;
+
+    $('[data-compta-periode]', hote).addEventListener('change', event => {
+      compta.periode = event.target.value;
+      if (compta.periode !== 'perso') chargerCompta();
+    });
+    ['debut', 'fin'].forEach(borne => $(`[data-compta-${borne}]`, hote).addEventListener('change', event => {
+      compta[borne] = event.target.value;
+      compta.periode = 'perso';
+      if (compta.debut && compta.fin && compta.debut <= compta.fin) chargerCompta();
+    }));
+    $$('[data-compta-nouvelle]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirEcriture(null, { sens: bouton.dataset.comptaNouvelle })));
+    $$('[data-compta-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { compta.onglet = bouton.dataset.comptaOnglet; renderCompta(); }));
+    const contenu = $('[data-compta-contenu]', hote);
+    ({ journal: renderJournal, ventes: renderVentes, salaires: renderSalaires, charges: renderCharges, rapport: renderRapport })[compta.onglet](contenu);
+  }
+
+  function ligneEcriture(e) {
+    const details = [libelleCategorieCompta(e.categorie), e.tiers, libelleModeCompta(e.mode), e.justificatif ? 'pièce jointe' : ''].filter(Boolean).join(' · ');
+    return `<div class="compta-ligne" role="button" tabindex="0" data-compta-ecriture="${esc(e.id)}">
+      <time datetime="${esc(e.date)}">${esc(dateCourte(e.date))}</time>
+      <div class="compta-ligne-texte"><strong>${esc(e.libelle)}</strong><small>${esc(details)}</small></div>
+      ${e.statut === 'a_regler' ? '<span class="compta-statut a-regler">À régler</span>' : '<span class="compta-statut regle">Réglé</span>'}
+      <strong class="compta-montant ${e.sens}">${esc(signeMontant(e))}</strong>
+    </div>`;
+  }
+
+  function brancherLignesEcritures(hote) {
+    $$('[data-compta-ecriture]', hote).forEach(ligne => {
+      const ouvrir = () => ouvrirEcriture(compta.donnees.ecritures.find(e => e.id === ligne.dataset.comptaEcriture));
+      ligne.addEventListener('click', ouvrir);
+      ligne.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ouvrir(); } });
+    });
+  }
+
+  function renderJournal(hote) {
+    const d = compta.donnees;
+    hote.innerHTML = `<div class="compta-filtres">
+        <div class="filter-pills">${[['all', 'Tout'], ['entree', 'Entrées'], ['sortie', 'Sorties']].map(([v, l]) => `<button type="button" data-compta-sens="${v}" class="${compta.sens === v ? 'active' : ''}">${l}</button>`).join('')}</div>
+        <select data-compta-categorie aria-label="Catégorie"><option value="">Toutes les catégories</option>${d.categories.map(c => `<option value="${c.id}" ${compta.categorie === c.id ? 'selected' : ''}>${c.sens === 'entree' ? 'Recette' : 'Dépense'} · ${esc(c.libelle)}</option>`).join('')}</select>
+        <label class="admin-search"><span>Rechercher</span><input type="search" data-compta-recherche value="${esc(compta.recherche)}" placeholder="Libellé, tiers, référence…"></label>
+      </div><div class="content-table compta-journal" data-compta-journal></div>`;
+    const lister = () => {
+      const requete = compta.recherche.trim().toLocaleLowerCase('fr');
+      const lignes = d.ecritures.filter(e => (compta.sens === 'all' || e.sens === compta.sens) && (!compta.categorie || e.categorie === compta.categorie)
+        && (!requete || [e.libelle, e.tiers, e.reference, e.notes].some(v => String(v || '').toLocaleLowerCase('fr').includes(requete))));
+      const table = $('[data-compta-journal]', hote);
+      table.innerHTML = lignes.length ? lignes.map(ligneEcriture).join('') : `<div class="empty">${d.ecritures.length ? 'Aucune écriture ne correspond à ces filtres.' : 'Aucune écriture sur cette période. Ajoutez une entrée ou une dépense.'}</div>`;
+      brancherLignesEcritures(table);
+    };
+    $$('[data-compta-sens]', hote).forEach(bouton => bouton.addEventListener('click', () => {
+      compta.sens = bouton.dataset.comptaSens;
+      $$('[data-compta-sens]', hote).forEach(b => b.classList.toggle('active', b === bouton));
+      lister();
+    }));
+    $('[data-compta-categorie]', hote).addEventListener('change', event => { compta.categorie = event.target.value; lister(); });
+    $('[data-compta-recherche]', hote).addEventListener('input', event => { compta.recherche = event.target.value; lister(); });
+    lister();
+  }
+
+  const STATUTS_VENTE = { a_encaisser: 'À encaisser', partiel: 'Partiellement payée', solde: 'Soldée' };
+  const FORMULES_VENTE = { 'devis-whatsapp': 'Séjour', 'devis-activites': 'Activités', devis: 'Devis', terrain: 'Terrain', villa: 'Résidence', contact: 'Contact' };
+
+  function renderVentes(hote) {
+    const ventes = compta.donnees.ventes;
+    hote.innerHTML = `<p class="compta-aide">Chaque demande <strong>confirmée</strong> avec un montant devient une vente. Saisissez les paiements reçus (acompte, solde…) : le reste à encaisser se met à jour. Le montant de la vente se règle dans la fiche de la demande.</p>
+      <div class="content-table">${ventes.length ? ventes.map(v => {
+        const part = v.montant > 0 ? Math.min(100, Math.round((v.encaisse / v.montant) * 100)) : 100;
+        const contexte = [FORMULES_VENTE[v.type] || v.type, v.lieu, v.dates].filter(Boolean).join(' · ');
+        return `<div class="compta-vente">
+          <div class="compta-vente-texte"><strong>${esc(v.client)}</strong> <span class="compta-statut ${v.statut === 'solde' ? 'regle' : 'a-regler'}">${STATUTS_VENTE[v.statut]}</span>${v.statutDemande !== 'confirme' ? ' <span class="compta-statut">Demande non confirmée</span>' : ''}
+            <small>${esc(contexte)}</small>
+            <div class="compta-barre" role="img" aria-label="${part} % encaissé"><span style="width:${part}%"></span></div>
+            <small>Encaissé <strong>${money(v.encaisse)}</strong> sur ${money(v.montant)} · reste <strong>${money(v.reste)}</strong>${v.tropPercu ? ` · trop-perçu ${money(v.tropPercu)}` : ''}</small></div>
+          <div class="compta-vente-actions">${v.reste > 0 || !v.montant ? `<button type="button" class="primary" data-compta-paiement="${esc(v.leadId)}">Enregistrer un paiement</button>` : ''}<button type="button" data-compta-demande="${esc(v.leadId)}">Voir la demande</button></div>
+        </div>`;
+      }).join('') : '<div class="empty">Aucune vente : confirmez une demande (statut « Confirmée » et montant) pour la suivre ici.</div>'}</div>`;
+    $$('[data-compta-paiement]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirPaiement(bouton.dataset.comptaPaiement)));
+    $$('[data-compta-demande]', hote).forEach(bouton => bouton.addEventListener('click', () => {
+      if (state.leads.some(lead => lead.id === bouton.dataset.comptaDemande)) openLeadEditor(bouton.dataset.comptaDemande);
+      else toast('Demande introuvable (supprimée ?)');
+    }));
+  }
+
+  /** Paiement d'une demande : écriture d'entrée pré-remplie, reste à payer proposé. */
+  function ouvrirPaiement(leadId) {
+    const lead = state.leads.find(entree => entree.id === leadId);
+    const vente = compta.donnees?.ventes?.find(v => v.leadId === leadId);
+    const categorie = vente?.categorie || (lead?.type === 'terrain' || lead?.terrainRef ? 'terrain' : lead?.type === 'devis-activites' ? 'activites' : 'sejour');
+    const lieu = vente?.lieu || lead?.villa || '';
+    ouvrirEcriture(null, {
+      sens: 'entree', statut: 'regle', categorie, leadId, tiers: lead?.name || vente?.client || '',
+      montant: vente ? (vente.reste || '') : (lead?.amount || ''),
+      libelle: `Paiement ${lead?.name || vente?.client || 'client'}${lieu ? ` — ${lieu}` : ''}`
+    });
+  }
+
+  function renderSalaires(hote) {
+    const d = compta.donnees;
+    const salaires = d.ecritures.filter(e => e.employeId);
+    hote.innerHTML = `<div class="compta-section-tete"><h3>Employés</h3><button type="button" data-compta-employe>＋ Employé</button></div>
+      <div class="content-table">${d.employes.length ? d.employes.map(e => `<div class="compta-ligne" role="button" tabindex="0" data-compta-fiche-employe="${esc(e.id)}"><span class="compta-avatar" aria-hidden="true">${esc((e.nom || '?').slice(0, 1).toUpperCase())}</span><div class="compta-ligne-texte"><strong>${esc(e.nom)}</strong><small>${esc([e.poste, e.telephone, e.dateEmbauche ? `depuis le ${dateCourte(e.dateEmbauche)}` : ''].filter(Boolean).join(' · '))}</small></div>${e.actif ? '' : '<span class="compta-statut">Inactif</span>'}<strong class="compta-montant">${money(e.salaireMensuel)} / mois</strong></div>`).join('') : '<div class="empty">Aucun employé enregistré.</div>'}</div>
+      <div class="compta-section-tete"><h3>Paie du mois</h3><div class="compta-generer"><label>Mois<input type="month" data-compta-mois-paie value="${esc((compta.debut || aujourdhui()).slice(0, 7))}"></label><button type="button" class="primary" data-compta-generer-paie>Générer la paie</button></div></div>
+      <p class="compta-aide">Crée, pour chaque employé actif, son salaire du mois « à régler » (une seule fois par mois). Ouvrez ensuite chaque salaire pour le marquer réglé, avec la date et le mode de paiement.</p>
+      <div class="content-table">${salaires.length ? salaires.map(ligneEcriture).join('') : '<div class="empty">Aucun salaire sur la période affichée.</div>'}</div>`;
+    $('[data-compta-employe]', hote).addEventListener('click', () => ouvrirEmploye(null));
+    $$('[data-compta-fiche-employe]', hote).forEach(ligne => ligne.addEventListener('click', () => ouvrirEmploye(d.employes.find(e => e.id === ligne.dataset.comptaFicheEmploye))));
+    $('[data-compta-generer-paie]', hote).addEventListener('click', () => genererDuMois('paie', $('[data-compta-mois-paie]', hote).value));
+    brancherLignesEcritures(hote);
+  }
+
+  function renderCharges(hote) {
+    const d = compta.donnees;
+    const echeances = d.ecritures.filter(e => e.chargeId);
+    const periodeCharge = c => `le ${c.jour} de chaque mois, de ${c.debut}${c.fin ? ` à ${c.fin}` : ' sans fin'}`;
+    hote.innerHTML = `<div class="compta-section-tete"><h3>Charges récurrentes</h3><button type="button" data-compta-charge>＋ Charge</button></div>
+      <div class="content-table">${d.charges.length ? d.charges.map(c => `<div class="compta-ligne" role="button" tabindex="0" data-compta-fiche-charge="${esc(c.id)}"><span class="compta-avatar" aria-hidden="true">↻</span><div class="compta-ligne-texte"><strong>${esc(c.libelle)}</strong><small>${esc([libelleCategorieCompta(c.categorie), c.tiers, periodeCharge(c)].filter(Boolean).join(' · '))}</small></div>${c.actif ? '' : '<span class="compta-statut">Inactive</span>'}<strong class="compta-montant sortie">${money(c.montant)}</strong></div>`).join('') : '<div class="empty">Aucune charge récurrente (loyer, électricité, internet…).</div>'}</div>
+      <div class="compta-section-tete"><h3>Échéances du mois</h3><div class="compta-generer"><label>Mois<input type="month" data-compta-mois-charges value="${esc((compta.debut || aujourdhui()).slice(0, 7))}"></label><button type="button" class="primary" data-compta-generer-charges>Générer les échéances</button></div></div>
+      <p class="compta-aide">Crée les dépenses « à régler » du mois pour chaque charge active (une seule fois par charge et par mois).</p>
+      <div class="content-table">${echeances.length ? echeances.map(ligneEcriture).join('') : '<div class="empty">Aucune échéance sur la période affichée.</div>'}</div>`;
+    $('[data-compta-charge]', hote).addEventListener('click', () => ouvrirCharge(null));
+    $$('[data-compta-fiche-charge]', hote).forEach(ligne => ligne.addEventListener('click', () => ouvrirCharge(d.charges.find(c => c.id === ligne.dataset.comptaFicheCharge))));
+    $('[data-compta-generer-charges]', hote).addEventListener('click', () => genererDuMois('charges-du-mois', $('[data-compta-mois-charges]', hote).value));
+    brancherLignesEcritures(hote);
+  }
+
+  async function genererDuMois(route, periode) {
+    if (!/^\d{4}-\d{2}$/.test(periode || '')) { toast('Choisissez un mois'); return; }
+    try {
+      const resultat = await api(`/api/admin/compta/${route}`, { method: 'POST', body: JSON.stringify({ periode }) });
+      toast(resultat.creees ? `${resultat.creees} écriture(s) « à régler » créée(s) pour ${periode} (${money(resultat.total)})` : `Rien à créer pour ${periode} : déjà fait, ou aucun élément actif`);
+      await chargerCompta();
+    } catch (error) { toast(error.message); }
+  }
+
+  /** Graphique mensuel entrées / sorties : barres groupées, une seule échelle. */
+  function graphiqueMensuel(parMois) {
+    const mois = parMois.slice(-24);
+    const max = Math.max(1, ...mois.flatMap(m => [m.entrees, m.sorties]));
+    const pas = [1, 2, 2.5, 5, 10].map(f => f * 10 ** Math.floor(Math.log10(max / 4))).find(p => max / p <= 5) || max / 4;
+    const haut = Math.ceil(max / pas) * pas;
+    const largeurGroupe = 56, marge = 58, hauteur = 220, bas = 26, haut0 = 10;
+    const largeur = marge + mois.length * largeurGroupe + 8;
+    const y = v => haut0 + (hauteur - bas - haut0) * (1 - v / haut);
+    const barre = (x, valeur, classe, index, serie) => {
+      if (!valeur) return '';
+      const sommet = y(valeur), base = y(0), l = 20, rayon = Math.min(4, (base - sommet) / 2);
+      return `<path class="${classe}" data-point="${index}" data-serie="${serie}" d="M${x},${base} V${sommet + rayon} Q${x},${sommet} ${x + rayon},${sommet} H${x + l - rayon} Q${x + l},${sommet} ${x + l},${sommet + rayon} V${base} Z"></path>`;
+    };
+    const court = v => (v >= 1e6 ? `${(v / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M` : v >= 1e3 ? `${(v / 1e3).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} k` : String(v));
+    const graduations = Array.from({ length: Math.round(haut / pas) + 1 }, (_, i) => i * pas);
+    return `<div class="compta-graphique">
+      <div class="compta-legende"><span><i class="entree"></i>Entrées encaissées</span><span><i class="sortie"></i>Sorties payées</span></div>
+      <div class="compta-graphique-zone">
+        <svg viewBox="0 0 ${largeur} ${hauteur}" width="${largeur}" height="${hauteur}" role="img" aria-label="Entrées et sorties réglées par mois (détail dans le tableau ci-dessous)">
+          ${graduations.map(v => `<g class="grille"><line x1="${marge}" x2="${largeur - 4}" y1="${y(v)}" y2="${y(v)}"></line><text x="${marge - 8}" y="${y(v) + 4}" text-anchor="end">${court(v)}</text></g>`).join('')}
+          ${mois.map((m, i) => {
+            const x = marge + i * largeurGroupe + 7;
+            return `<g>${barre(x, m.entrees, 'barre entree', i, 'entrees')}${barre(x + 22, m.sorties, 'barre sortie', i, 'sorties')}<rect class="zone-survol" data-point="${i}" x="${x - 6}" y="${haut0}" width="${largeurGroupe}" height="${hauteur - bas - haut0}"></rect><text class="mois" x="${x + 21}" y="${hauteur - 8}" text-anchor="middle">${esc(moisLisible(m.mois))}</text></g>`;
+          }).join('')}
+        </svg>
+        <div class="compta-infobulle" hidden></div>
+      </div>
+    </div>`;
+  }
+
+  function renderRapport(hote) {
+    const r = compta.donnees.rapport;
+    const nomBien = (kind, id) => (state.content[COLLECTIONS[kind]] || []).find(item => item.id === id)?.[kind === 'villa' ? 'name' : 'title'] || id;
+    const tableCategories = sens => {
+      const lignes = r.parCategorie.filter(c => c.sens === sens);
+      const total = lignes.reduce((t, c) => t + c.montant, 0);
+      return lignes.length ? `<table class="compta-table"><thead><tr><th>${sens === 'entree' ? 'Recettes' : 'Dépenses'}</th><th>Écritures</th><th>Montant</th><th>Part</th></tr></thead><tbody>${lignes.map(c => `<tr><td>${esc(c.libelle)}</td><td>${c.nombre}</td><td>${money(c.montant)}</td><td>${total ? Math.round((c.montant / total) * 100) : 0} %</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td></td><td>${money(total)}</td><td></td></tr></tfoot></table>` : `<p class="compta-aide">Aucune ${sens === 'entree' ? 'recette' : 'dépense'} réglée sur la période.</p>`;
+    };
+    hote.innerHTML = `${r.parMois.length ? graphiqueMensuel(r.parMois) : ''}
+      <div class="compta-rapport-grille">
+        <section><h3>Par catégorie</h3>${tableCategories('entree')}${tableCategories('sortie')}</section>
+        <section><h3>Par mois</h3>${r.parMois.length ? `<table class="compta-table"><thead><tr><th>Mois</th><th>Entrées</th><th>Sorties</th><th>Solde</th></tr></thead><tbody>${r.parMois.map(m => `<tr><td>${esc(moisLisible(m.mois))}</td><td>${money(m.entrees)}</td><td>${money(m.sorties)}</td><td class="${m.entrees - m.sorties < 0 ? 'negatif' : ''}">${m.entrees - m.sorties < 0 ? '−' : ''}${money(Math.abs(m.entrees - m.sorties))}</td></tr>`).join('')}</tbody></table>` : ''}
+        <h3>Par bien</h3>${r.parBien.length ? `<table class="compta-table"><thead><tr><th>Bien</th><th>Entrées</th><th>Sorties</th><th>Résultat</th></tr></thead><tbody>${r.parBien.map(b => `<tr><td>${esc(nomBien(b.bienKind, b.bienId))}</td><td>${money(b.entrees)}</td><td>${money(b.sorties)}</td><td class="${b.entrees - b.sorties < 0 ? 'negatif' : ''}">${b.entrees - b.sorties < 0 ? '−' : ''}${money(Math.abs(b.entrees - b.sorties))}</td></tr>`).join('')}</tbody></table>` : '<p class="compta-aide">Rattachez les écritures à une villa, un terrain ou une activité pour suivre le résultat de chaque bien.</p>'}</section>
+      </div>`;
+    const zone = $('.compta-graphique-zone', hote);
+    if (!zone) return;
+    // Écran étroit : le graphique défile, on l'ouvre sur les mois les plus récents.
+    zone.scrollLeft = zone.scrollWidth;
+    const bulle = $('.compta-infobulle', zone);
+    const montrer = (index, event) => {
+      const m = r.parMois.slice(-24)[index];
+      if (!m) return;
+      bulle.innerHTML = `<strong>${esc(moisLisible(m.mois))}</strong><span><i class="entree"></i>Entrées ${money(m.entrees)}</span><span><i class="sortie"></i>Sorties ${money(m.sorties)}</span><span>Solde ${m.entrees - m.sorties < 0 ? '−' : ''}${money(Math.abs(m.entrees - m.sorties))}</span>`;
+      bulle.hidden = false;
+      const cadre = zone.getBoundingClientRect();
+      const gauche = Math.min(Math.max(8, event.clientX - cadre.left + zone.scrollLeft + 12), zone.scrollWidth - 190);
+      bulle.style.left = `${gauche}px`;
+      bulle.style.top = `${Math.max(4, event.clientY - cadre.top - 60)}px`;
+      $$('[data-point]', zone).forEach(el => el.classList.toggle('attenue', el.classList.contains('barre') && Number(el.dataset.point) !== index));
+    };
+    $$('.zone-survol', zone).forEach(rect => {
+      rect.addEventListener('mousemove', event => montrer(Number(rect.dataset.point), event));
+      rect.addEventListener('click', event => montrer(Number(rect.dataset.point), event));
+    });
+    zone.addEventListener('mouseleave', () => { bulle.hidden = true; $$('.attenue', zone).forEach(el => el.classList.remove('attenue')); });
+  }
+
+  // ---- Fiches de saisie -------------------------------------------------
+  function ouvrirTiroirCompta({ surtitre, titre, champs, supprimable, apresOuverture, enregistrer, supprimer }) {
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop compta-backdrop"><form class="editor-drawer compta-fiche" novalidate><div class="editor-head"><div><span class="eyebrow">${esc(surtitre)}</span><h2>${esc(titre)}</h2></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">${champs}</div><div class="editor-actions">${supprimable ? '<button type="button" class="danger" data-compta-supprimer>Supprimer</button>' : ''}<button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
+    const fond = $('.compta-backdrop');
+    const formulaire = $('form', fond);
+    const fermer = () => { document.removeEventListener('keydown', echap); fond.remove(); };
+    const echap = event => { if (event.key === 'Escape') fermer(); };
+    $$('[data-close-editor]', fond).forEach(bouton => bouton.addEventListener('click', fermer));
+    fond.addEventListener('click', event => { if (event.target === fond) fermer(); });
+    document.addEventListener('keydown', echap);
+    apresOuverture?.(formulaire);
+    formulaire.addEventListener('submit', async event => {
+      event.preventDefault();
+      const bouton = $('button[type="submit"]', formulaire);
+      bouton.disabled = true;
+      try { await enregistrer(formulaire); fermer(); await chargerCompta(); }
+      catch (error) { toast(error.message); bouton.disabled = false; }
+    });
+    $('[data-compta-supprimer]', fond)?.addEventListener('click', async () => {
+      try { if (await supprimer()) { fermer(); await chargerCompta(); } }
+      catch (error) { toast(error.message); }
+    });
+    $('input:not([type=hidden]):not([type=radio]), select', formulaire)?.focus();
+  }
+
+  const optionsModes = actuel => `<option value="">—</option>${(compta.donnees?.modes || []).map(m => `<option value="${m.id}" ${actuel === m.id ? 'selected' : ''}>${esc(m.libelle)}</option>`).join('')}`;
+  const optionsBiens = (kind, id) => `<option value="">Aucun</option>${Object.entries({ villa: ['villas', 'Villa'], terrain: ['terrains', 'Terrain'], activity: ['activities', 'Activité'] }).map(([k, [cle, libelle]]) => (state.content[cle] || []).map(item => `<option value="${k}:${esc(item.id)}" ${kind === k && id === item.id ? 'selected' : ''}>${libelle} · ${esc(item.name || item.title || item.id)}</option>`).join('')).join('')}`;
+
+  function ouvrirEcriture(ecriture, preremplissage = {}) {
+    const e = { date: aujourdhui(), statut: 'regle', sens: 'sortie', ...preremplissage, ...(ecriture || {}) };
+    const categoriesDe = sens => (compta.donnees?.categories || []).filter(c => c.sens === sens);
+    const leads = [...state.leads].sort((a, b) => (b.status === 'confirme') - (a.status === 'confirme') || String(b.createdAt).localeCompare(String(a.createdAt)));
+    const champs = `<fieldset class="compta-sens"><legend>Type d’écriture</legend><label><input type="radio" name="sens" value="entree" ${e.sens === 'entree' ? 'checked' : ''}> Entrée (recette)</label><label><input type="radio" name="sens" value="sortie" ${e.sens === 'sortie' ? 'checked' : ''}> Sortie (dépense)</label></fieldset>
+      <div class="form-grid">
+        <label>Date<input type="date" name="date" required value="${esc(e.date)}"></label>
+        <label>Montant (FCFA)<input type="number" name="montant" min="1" step="1" required inputmode="numeric" value="${esc(e.montant ?? '')}"></label>
+        <label>Catégorie<select name="categorie" required data-categories></select></label>
+        <label>Statut<select name="statut"><option value="regle" ${e.statut === 'regle' ? 'selected' : ''}>Réglé</option><option value="a_regler" ${e.statut === 'a_regler' ? 'selected' : ''}>À régler</option></select></label>
+        <label>Mode de paiement<select name="mode">${optionsModes(e.mode)}</select></label>
+        <label>Référence (facture, reçu)<input name="reference" maxlength="80" value="${esc(e.reference || '')}"></label>
+      </div>
+      <label>Libellé<input name="libelle" maxlength="240" required value="${esc(e.libelle || '')}" placeholder="ex. Réparation de la pompe de la piscine"></label>
+      <label>Tiers (client, fournisseur, employé)<input name="tiers" maxlength="160" value="${esc(e.tiers || '')}"></label>
+      <div class="form-grid">
+        <label>Bien concerné<select name="bien">${optionsBiens(e.bienKind, e.bienId)}</select></label>
+        <label data-champ-demande>Demande liée (paiement client)<select name="leadId"><option value="">Aucune</option>${leads.map(l => `<option value="${esc(l.id)}" ${e.leadId === l.id ? 'selected' : ''}>${esc(l.name || l.email || 'Client')}${l.status === 'confirme' ? ' · confirmée' : ''}${l.amount ? ` · ${money(l.amount)}` : ''}</option>`).join('')}${e.leadId && !leads.some(l => l.id === e.leadId) ? `<option value="${esc(e.leadId)}" selected>Demande supprimée</option>` : ''}</select></label>
+      </div>
+      <div class="compta-piece"><input type="hidden" name="justificatif" value="${esc(e.justificatif || '')}"><span data-piece-etat>${e.justificatif ? `<a href="/api/admin/compta/justificatifs/${esc(e.justificatif)}" target="_blank" rel="noopener">Voir la pièce justificative</a>` : 'Aucune pièce justificative'}</span><label class="upload-button">＋ Joindre (photo ou PDF)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-piece-fichier></label>${e.justificatif ? '<button type="button" data-piece-retirer>Retirer</button>' : ''}</div>
+      <label>Notes<textarea name="notes" rows="3" maxlength="2000">${esc(e.notes || '')}</textarea></label>
+      ${ecriture?.employeId ? '<p class="compta-aide">Salaire généré depuis la fiche de l’employé.</p>' : ecriture?.chargeId ? '<p class="compta-aide">Échéance générée depuis une charge récurrente.</p>' : ''}`;
+    ouvrirTiroirCompta({
+      surtitre: ecriture ? 'COMPTABILITÉ · MODIFICATION' : 'COMPTABILITÉ · NOUVELLE ÉCRITURE',
+      titre: ecriture ? ecriture.libelle : (e.sens === 'entree' ? 'Entrée d’argent' : 'Dépense'),
+      champs, supprimable: Boolean(ecriture),
+      apresOuverture: formulaire => {
+        const remplirCategories = () => {
+          const sens = formulaire.elements.sens.value;
+          const actuelle = formulaire.elements.categorie.value || e.categorie;
+          formulaire.elements.categorie.innerHTML = categoriesDe(sens).map(c => `<option value="${c.id}" ${actuelle === c.id ? 'selected' : ''}>${esc(c.libelle)}</option>`).join('');
+          $('[data-champ-demande]', formulaire).hidden = sens !== 'entree';
+          if (sens !== 'entree') formulaire.elements.leadId.value = '';
+        };
+        $$('[name="sens"]', formulaire).forEach(radio => radio.addEventListener('change', remplirCategories));
+        remplirCategories();
+        $('[data-piece-fichier]', formulaire).addEventListener('change', async event => {
+          const fichier = event.target.files[0];
+          if (!fichier) return;
+          const etat = $('[data-piece-etat]', formulaire);
+          if (fichier.size > 8_000_000) { toast('La pièce doit peser moins de 8 Mo'); return; }
+          etat.textContent = 'Envoi de la pièce…';
+          try {
+            const donnees = await new Promise((ok, ko) => { const lecteur = new FileReader(); lecteur.onload = () => ok(lecteur.result); lecteur.onerror = () => ko(new Error('Lecture du fichier impossible')); lecteur.readAsDataURL(fichier); });
+            const resultat = await api('/api/admin/compta/justificatifs', { method: 'POST', body: JSON.stringify({ filename: fichier.name, mimeType: fichier.type, data: donnees }) });
+            formulaire.elements.justificatif.value = resultat.fichier;
+            etat.innerHTML = `<a href="/api/admin/compta/justificatifs/${esc(resultat.fichier)}" target="_blank" rel="noopener">${esc(fichier.name)}</a> (jointe)`;
+          } catch (error) { etat.textContent = error.message; }
+          event.target.value = '';
+        });
+        $('[data-piece-retirer]', formulaire)?.addEventListener('click', event => {
+          formulaire.elements.justificatif.value = '';
+          $('[data-piece-etat]', formulaire).textContent = 'Pièce retirée (effectif à l’enregistrement)';
+          event.currentTarget.remove();
+        });
+      },
+      enregistrer: async formulaire => {
+        if (!formulaire.reportValidity()) throw new Error('Complétez les champs requis');
+        const valeurs = Object.fromEntries(new FormData(formulaire));
+        const [bienKind = '', bienId = ''] = String(valeurs.bien || '').split(':');
+        const corps = { ...valeurs, montant: Number(valeurs.montant), bienKind, bienId };
+        delete corps.bien;
+        await api(ecriture ? `/api/admin/compta/ecritures/${encodeURIComponent(ecriture.id)}` : '/api/admin/compta/ecritures', { method: ecriture ? 'PATCH' : 'POST', body: JSON.stringify(corps) });
+        toast(ecriture ? 'Écriture mise à jour' : 'Écriture enregistrée');
+      },
+      supprimer: async () => {
+        if (!confirm(`Supprimer définitivement l’écriture « ${ecriture.libelle} » (${signeMontant(ecriture)}) ?`)) return false;
+        await api(`/api/admin/compta/ecritures/${encodeURIComponent(ecriture.id)}`, { method: 'DELETE' });
+        toast('Écriture supprimée');
+        return true;
+      }
+    });
+  }
+
+  function ouvrirEmploye(employe) {
+    const e = employe || { actif: true };
+    ouvrirTiroirCompta({
+      surtitre: 'COMPTABILITÉ · SALAIRES', titre: employe ? employe.nom : 'Nouvel employé', supprimable: Boolean(employe),
+      champs: `<label>Nom et prénom<input name="nom" maxlength="120" required value="${esc(e.nom || '')}"></label>
+        <div class="form-grid">
+          <label>Poste<input name="poste" maxlength="120" value="${esc(e.poste || '')}" placeholder="ex. Gardien, gouvernante"></label>
+          <label>Téléphone<input name="telephone" maxlength="40" value="${esc(e.telephone || '')}"></label>
+          <label>Salaire mensuel (FCFA)<input type="number" name="salaireMensuel" min="0" step="1" required value="${esc(e.salaireMensuel ?? '')}"></label>
+          <label>Date d’embauche<input type="date" name="dateEmbauche" value="${esc(e.dateEmbauche || '')}"></label>
+        </div>
+        <div class="toggle-row"><label><input type="checkbox" name="actif" value="yes" ${e.actif !== false ? 'checked' : ''}> Actif (inclus dans la paie du mois)</label></div>
+        <label>Notes<textarea name="notes" rows="3" maxlength="2000">${esc(e.notes || '')}</textarea></label>`,
+      enregistrer: async formulaire => {
+        if (!formulaire.reportValidity()) throw new Error('Complétez les champs requis');
+        const valeurs = Object.fromEntries(new FormData(formulaire));
+        const corps = { ...valeurs, salaireMensuel: Number(valeurs.salaireMensuel), actif: formulaire.elements.actif.checked };
+        await api(employe ? `/api/admin/compta/employes/${encodeURIComponent(employe.id)}` : '/api/admin/compta/employes', { method: employe ? 'PATCH' : 'POST', body: JSON.stringify(corps) });
+        toast(employe ? 'Employé mis à jour' : 'Employé ajouté');
+      },
+      supprimer: async () => {
+        if (!confirm(`Supprimer ${employe.nom} ? S’il a déjà des salaires enregistrés, désactivez-le plutôt.`)) return false;
+        await api(`/api/admin/compta/employes/${encodeURIComponent(employe.id)}`, { method: 'DELETE' });
+        toast('Employé supprimé');
+        return true;
+      }
+    });
+  }
+
+  function ouvrirCharge(charge) {
+    const c = charge || { actif: true, jour: 5, debut: aujourdhui().slice(0, 7) };
+    const categories = (compta.donnees?.categories || []).filter(x => x.sens === 'sortie');
+    ouvrirTiroirCompta({
+      surtitre: 'COMPTABILITÉ · CHARGES RÉCURRENTES', titre: charge ? charge.libelle : 'Nouvelle charge récurrente', supprimable: Boolean(charge),
+      champs: `<label>Libellé<input name="libelle" maxlength="240" required value="${esc(c.libelle || '')}" placeholder="ex. Loyer du bureau, facture CIE"></label>
+        <div class="form-grid">
+          <label>Catégorie<select name="categorie" required>${categories.map(x => `<option value="${x.id}" ${c.categorie === x.id ? 'selected' : ''}>${esc(x.libelle)}</option>`).join('')}</select></label>
+          <label>Montant (FCFA)<input type="number" name="montant" min="1" step="1" required value="${esc(c.montant ?? '')}"></label>
+          <label>Jour d’échéance (1 à 28)<input type="number" name="jour" min="1" max="28" step="1" required value="${esc(c.jour ?? 5)}"></label>
+          <label>Mode de paiement<select name="mode">${optionsModes(c.mode)}</select></label>
+          <label>Premier mois<input type="month" name="debut" required value="${esc(c.debut || '')}"></label>
+          <label>Dernier mois (facultatif)<input type="month" name="fin" value="${esc(c.fin || '')}"></label>
+        </div>
+        <label>Tiers (fournisseur)<input name="tiers" maxlength="160" value="${esc(c.tiers || '')}"></label>
+        <label>Bien concerné<select name="bien">${optionsBiens(c.bienKind, c.bienId)}</select></label>
+        <div class="toggle-row"><label><input type="checkbox" name="actif" value="yes" ${c.actif !== false ? 'checked' : ''}> Active (échéances générées chaque mois)</label></div>
+        <label>Notes<textarea name="notes" rows="3" maxlength="2000">${esc(c.notes || '')}</textarea></label>`,
+      enregistrer: async formulaire => {
+        if (!formulaire.reportValidity()) throw new Error('Complétez les champs requis');
+        const valeurs = Object.fromEntries(new FormData(formulaire));
+        const [bienKind = '', bienId = ''] = String(valeurs.bien || '').split(':');
+        const corps = { ...valeurs, montant: Number(valeurs.montant), jour: Number(valeurs.jour), actif: formulaire.elements.actif.checked, bienKind, bienId };
+        delete corps.bien;
+        await api(charge ? `/api/admin/compta/charges/${encodeURIComponent(charge.id)}` : '/api/admin/compta/charges', { method: charge ? 'PATCH' : 'POST', body: JSON.stringify(corps) });
+        toast(charge ? 'Charge mise à jour' : 'Charge ajoutée');
+      },
+      supprimer: async () => {
+        if (!confirm(`Supprimer la charge « ${charge.libelle} » ? Les échéances déjà créées restent dans le journal.`)) return false;
+        await api(`/api/admin/compta/charges/${encodeURIComponent(charge.id)}`, { method: 'DELETE' });
+        toast('Charge supprimée');
+        return true;
+      }
+    });
+  }
+
+  /** Bloc « Paiements » de la fiche d'une demande (comptabilité). */
+  async function paiementsDemande(hote, lead) {
+    try {
+      if (!compta.donnees) {
+        [compta.debut, compta.fin] = bornesPeriode(compta.periode);
+        compta.donnees = await api(`/api/admin/compta?debut=${encodeURIComponent(compta.debut)}&fin=${encodeURIComponent(compta.fin)}`);
+      }
+      const vente = compta.donnees.ventes.find(v => v.leadId === lead.id);
+      hote.innerHTML = `<h3>Paiements</h3>${vente ? `<p class="lead-paiements-synthese">Encaissé <strong>${money(vente.encaisse)}</strong> sur ${money(vente.montant)} · reste <strong>${money(vente.reste)}</strong></p>${vente.paiements.length ? `<ul class="lead-paiements">${vente.paiements.map(p => `<li>${esc(dateCourte(p.date))} · ${money(p.montant)}${p.mode ? ` · ${esc(libelleModeCompta(p.mode))}` : ''}</li>`).join('')}</ul>` : ''}` : `<p class="lead-paiements-synthese">${lead.status === 'confirme' && lead.amount ? '' : 'Confirmez la demande avec un montant pour la suivre en comptabilité. '}Aucun paiement enregistré.</p>`}<button type="button" class="content-action" data-paiement-demande>Enregistrer un paiement</button>`;
+      $('[data-paiement-demande]', hote).addEventListener('click', () => ouvrirPaiement(lead.id));
+    } catch (error) { hote.innerHTML = `<h3>Paiements</h3><p class="lead-paiements-synthese">${esc(error.message)}</p>`; }
   }
 
   // ===== Gestion des demandes et des demandeurs (17/09/2026) =================
@@ -2197,7 +2651,7 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
     'settings:write':'Modifier les réglages du site', 'leads:read':'Consulter les demandes', 'leads:write':'Traiter les demandes',
     'leads:export':'Exporter les demandes', 'newsletter:read':'Consulter la newsletter', 'newsletter:write':'Envoyer des campagnes',
     'facebook:read':'Consulter les publications', 'facebook:write':'Publier sur Facebook', 'backup:manage':'Sauvegardes',
-    'audit:read':'Journal d’audit', 'users:manage':'Gérer les utilisateurs'
+    'audit:read':'Journal d’audit', 'users:manage':'Gérer les utilisateurs', 'compta:manage':'Comptabilité'
   };
 
   function openUserEditor(id) {
