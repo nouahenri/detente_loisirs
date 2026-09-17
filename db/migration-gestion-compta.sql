@@ -199,7 +199,8 @@ ALTER TABLE `activities`
   ADD COLUMN `etat`     VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT 'active, suspendue, archivee' AFTER `featured`,
   ADD COLUMN `facebook` TINYINT(1)  NULL DEFAULT NULL COMMENT 'case Publier sur Facebook (NULL : jamais enregistrée)' AFTER `etat`;
 
--- Contrôle : 9 nouvelles tables, et `etat` / `facebook` sur les 3 catalogues.
-SHOW TABLES;
-SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
- WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME IN ('etat', 'facebook') AND TABLE_NAME IN ('villas', 'terrains', 'activities');
+-- Contrôle, à lancer ENSUITE dans l'onglet SQL (pas dans ce fichier : une
+-- requête sur information_schema en fin d'import fait rejouer tout le
+-- fichier par phpMyAdmin dans information_schema, où il est refusé) :
+--   SHOW TABLES;                          -- 9 nouvelles tables
+--   SHOW COLUMNS FROM `villas` LIKE 'etat';
