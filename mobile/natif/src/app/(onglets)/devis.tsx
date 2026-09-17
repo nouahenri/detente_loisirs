@@ -6,7 +6,7 @@
  */
 import { useRouter } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, SlideInLeft, SlideInRight } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -32,13 +32,15 @@ const PARCOURS: Record<'sejour' | 'activites', Etape[]> = {
 
 export default function Devis() {
   const router = useRouter();
-  const { donnees, devis, majDevis, memoriserCoordonnees, ajouterDemande } = useMagasin();
+  const { donnees, devis, majDevis, memoriserCoordonnees, ajouterDemande, actualiser } = useMagasin();
   const { C, t, langue, notifications, assurerNotifications } = usePreferences();
   const s = feuille(C);
   const defil = useRef<ScrollView>(null);
   const [sens, setSens] = useState(1);
   const [erreur, setErreur] = useState<'nom' | 'tel' | 'activite' | null>(null);
   const [envoi, setEnvoi] = useState(false);
+  // Tirer vers le bas pour recharger villas, activités et tarifs (étapes 1 et 3).
+  const [tire, setTire] = useState(false);
 
   if (!donnees || !devis.pret) {
     return (
@@ -305,7 +307,14 @@ export default function Devis() {
       </EnTete>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
-        <ScrollView ref={defil} contentContainerStyle={s.contenu} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <ScrollView
+          ref={defil}
+          contentContainerStyle={s.contenu}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          refreshControl={etape === 1 || etape === 3
+            ? <RefreshControl refreshing={tire} tintColor={C.marque} colors={['#151837']} onRefresh={async () => { setTire(true); await actualiser(); setTire(false); }} />
+            : undefined}>
           <Animated.View key={cleEtape} entering={Platform.OS === 'web' ? FadeIn : (sens > 0 ? SlideInRight : SlideInLeft).duration(280)}>
             {contenu}
           </Animated.View>

@@ -5,9 +5,12 @@
  *   · variante « reglage » : ligne de réglage (profil).
  * Choix multiple (`multiple`) : la valeur est une liste « a,b » (« all » si
  * rien n'est coché), la feuille reste ouverte jusqu'à « Valider ».
+ * Liste longue (SEUIL_RECHERCHE options ou plus, demande du 17/09/2026) : un
+ * champ de recherche en tête de feuille filtre les options, sans tenir compte
+ * des accents ni des majuscules.
  */
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePreferences } from '@/donnees/preferences';
@@ -17,6 +20,17 @@ import { Icone, type NomIcone } from './ui';
 
 export type OptionChoix = [valeur: string, texte: string, icone?: NomIcone];
 
+/** À partir de ce nombre d'options, la feuille propose une recherche. */
+export const SEUIL_RECHERCHE = 6;
+
+const sansAccents = (texte: string) => texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/** Options dont le texte contient la recherche (accents et majuscules ignorés). */
+export function filtrerOptions(options: OptionChoix[], recherche: string): OptionChoix[] {
+  const cle = sansAccents(recherche);
+  return cle ? options.filter(([, texte]) => sansAccents(texte).includes(cle)) : options;
+}
+
 export function ChampChoix({ libelle, icone, valeur, options, onChange, variante = 'formulaire', aide, multiple, vide }: {
   libelle: string; icone: NomIcone; valeur: string; options: OptionChoix[]; onChange: (v: string) => void;
   variante?: 'formulaire' | 'reglage'; aide?: string; multiple?: boolean; vide?: string;
@@ -25,6 +39,10 @@ export function ChampChoix({ libelle, icone, valeur, options, onChange, variante
   const s = feuille(C);
   const insets = useSafeAreaInsets();
   const [ouvert, setOuvert] = useState(false);
+  const [recherche, setRecherche] = useState('');
+  const avecRecherche = options.length >= SEUIL_RECHERCHE;
+  const visibles = avecRecherche ? filtrerOptions(options, recherche) : options;
+  const fermer = () => { setOuvert(false); setRecherche(''); };
   const cochees = multiple && valeur && valeur !== 'all' ? valeur.split(',') : [];
   const choisie = multiple ? options.find(([v]) => v === cochees[0]) : options.find(([v]) => v === valeur) ?? options[0];
   const affiche = multiple
@@ -72,19 +90,44 @@ export function ChampChoix({ libelle, icone, valeur, options, onChange, variante
         </Pressable>
       )}
 
-      <Modal visible={ouvert} transparent animationType="slide" onRequestClose={() => setOuvert(false)} statusBarTranslucent>
-        <Pressable style={s.fond} onPress={() => setOuvert(false)} accessibilityLabel={t('fermer')} />
+      <Modal visible={ouvert} transparent animationType="slide" onRequestClose={fermer} statusBarTranslucent>
+        {/* Clavier ouvert pour la recherche : la feuille remonte au-dessus. */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
+        <Pressable style={s.fond} onPress={fermer} accessibilityLabel={t('fermer')} />
         <View style={[s.feuille, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={s.poignee} />
           <Text style={s.titre}>{libelle}</Text>
           {multiple && aide ? <Text style={s.aideFeuille}>{aide}</Text> : null}
-          <ScrollView style={{ maxHeight: 420 }}>
-            {options.map(([v, texte, iconeOption]) => {
+          {avecRecherche ? (
+            <View style={s.recherche}>
+              <Icone nom="search" taille={18} couleur={C.texte3} />
+              <TextInput
+                value={recherche}
+                onChangeText={setRecherche}
+                placeholder={t('choix.rechercher')}
+                placeholderTextColor={C.texte3}
+                style={s.rechercheChamp}
+                autoCorrect={false}
+                autoCapitalize="none"
+                returnKeyType="search"
+                clearButtonMode="while-editing"
+                accessibilityLabel={`${t('choix.rechercher')} ${libelle}`}
+              />
+              {recherche ? (
+                <Pressable onPress={() => setRecherche('')} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('fermer')}>
+                  <Icone nom="close-circle" taille={18} couleur={C.texte3} />
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
+            {avecRecherche && !visibles.length ? <Text style={s.aucun}>{t('choix.aucun')}</Text> : null}
+            {visibles.map(([v, texte, iconeOption]) => {
               const actif = multiple ? cochees.includes(v) : v === valeur;
               return (
                 <Pressable
                   key={v}
-                  onPress={() => { vibrerSelection(); if (multiple) basculer(v); else { onChange(v); setOuvert(false); } }}
+                  onPress={() => { vibrerSelection(); if (multiple) basculer(v); else { onChange(v); fermer(); } }}
                   style={({ pressed }) => [s.option, pressed && { backgroundColor: C.surface }]}
                   accessibilityRole={multiple ? 'checkbox' : 'radio'}
                   accessibilityState={{ checked: actif }}>
@@ -98,11 +141,12 @@ export function ChampChoix({ libelle, icone, valeur, options, onChange, variante
             })}
           </ScrollView>
           {multiple ? (
-            <Pressable onPress={() => { vibrerSelection(); setOuvert(false); }} style={({ pressed }) => [s.valider, pressed && { opacity: 0.85 }]} accessibilityRole="button">
+            <Pressable onPress={() => { vibrerSelection(); fermer(); }} style={({ pressed }) => [s.valider, pressed && { opacity: 0.85 }]} accessibilityRole="button">
               <Text style={s.validerTexte}>{t('valider')}</Text>
             </Pressable>
           ) : null}
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </>
   );
@@ -130,6 +174,9 @@ const feuille = creerStyles(C => ({
   optionTexte: { fontSize: 16, color: C.texte, flex: 1 },
   optionActive: { fontWeight: '800' },
   aideFeuille: { fontSize: 13, color: C.texte3, marginBottom: 4 },
+  recherche: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 6, paddingHorizontal: 12, height: 44, borderRadius: 12, borderWidth: 1, borderColor: C.bord, backgroundColor: C.surface },
+  rechercheChamp: { flex: 1, fontSize: 16, color: C.texte, paddingVertical: 0 },
+  aucun: { fontSize: 15, color: C.texte3, textAlign: 'center', paddingVertical: 22 },
   case: { width: 24, height: 24, borderRadius: 8, borderWidth: 2, borderColor: C.texte3, alignItems: 'center', justifyContent: 'center' },
   caseCochee: { backgroundColor: C.primaire, borderColor: C.primaire },
   valider: { height: 50, borderRadius: 999, marginTop: 14, backgroundColor: C.sombre ? C.or : '#151837', alignItems: 'center', justifyContent: 'center' },

@@ -77,6 +77,7 @@ const fr = {
   'fiche.lireSuite': 'Lire la suite', 'fiche.reduire': 'Réduire', 'fiche.retour': 'Retour', 'fiche.partager': 'Partager', 'fiche.appeler': 'Appeler',
   'fiche.parNuitEuro': 'par nuit · {x}', 'fiche.nouvellePublication': 'Nouvelle publication depuis Assinie', 'fiche.partageVilla': '{x} — Détente & Loisirs à Assinie', 'fiche.partageTerrain': '{x} — terrain à vendre à Assinie',
   'photo': 'photo {n} sur {total}', 'fermer': 'Fermer', 'valider': 'Valider',
+  'choix.rechercher': 'Rechercher…', 'choix.aucun': 'Aucun résultat',
 
   'devis.titre': 'Demande de devis', 'devis.sousTitre': 'Estimation immédiate, réponse sur WhatsApp',
   'devis.etape1': 'Votre projet', 'devis.etape2': 'Dates & voyageurs', 'devis.etape3': 'Activités', 'devis.etape4': 'Coordonnées',
@@ -196,6 +197,7 @@ const en: Record<CleTexte, string> = {
   'fiche.lireSuite': 'Read more', 'fiche.reduire': 'Show less', 'fiche.retour': 'Back', 'fiche.partager': 'Share', 'fiche.appeler': 'Call',
   'fiche.parNuitEuro': 'per night · {x}', 'fiche.nouvellePublication': 'New post from Assinie', 'fiche.partageVilla': '{x} — Détente & Loisirs in Assinie', 'fiche.partageTerrain': '{x} — plot for sale in Assinie',
   'photo': 'photo {n} of {total}', 'fermer': 'Close', 'valider': 'Done',
+  'choix.rechercher': 'Search…', 'choix.aucun': 'No results',
   'devis.titre': 'Quote request', 'devis.sousTitre': 'Instant estimate, reply on WhatsApp',
   'devis.etape1': 'Your plans', 'devis.etape2': 'Dates & guests', 'devis.etape3': 'Activities', 'devis.etape4': 'Contact details',
   'devis.etape': 'Step {n} of {total}',
@@ -308,6 +310,7 @@ const es: Record<CleTexte, string> = {
   'fiche.lireSuite': 'Leer más', 'fiche.reduire': 'Mostrar menos', 'fiche.retour': 'Volver', 'fiche.partager': 'Compartir', 'fiche.appeler': 'Llamar',
   'fiche.parNuitEuro': 'por noche · {x}', 'fiche.nouvellePublication': 'Nueva publicación desde Assinie', 'fiche.partageVilla': '{x} — Détente & Loisirs en Assinie', 'fiche.partageTerrain': '{x} — terreno en venta en Assinie',
   'photo': 'foto {n} de {total}', 'fermer': 'Cerrar', 'valider': 'Aceptar',
+  'choix.rechercher': 'Buscar…', 'choix.aucun': 'Sin resultados',
   'devis.titre': 'Solicitud de presupuesto', 'devis.sousTitre': 'Estimación inmediata, respuesta por WhatsApp',
   'devis.etape1': 'Su proyecto', 'devis.etape2': 'Fechas y viajeros', 'devis.etape3': 'Actividades', 'devis.etape4': 'Datos de contacto',
   'devis.etape': 'Paso {n} de {total}',
