@@ -1221,6 +1221,8 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['PATCH', /^\/api\/admin\/compta\/(ecritures|employes|charges)\/[^/]+$/, 'compta:manage'],
   ['DELETE', /^\/api\/admin\/compta\/(ecritures|employes|charges)\/[^/]+$/, 'compta:manage'],
   ['GET', /^\/api\/admin\/compta\/justificatifs\/[^/]+$/, 'compta:manage'],
+  ['POST', /^\/api\/admin\/compta\/parametres\/(categories|modes|statuts)$/, 'compta:manage'],
+  ['DELETE', /^\/api\/admin\/compta\/parametres\/(categories|modes|statuts)\/[^/]+$/, 'compta:manage'],
   ['POST', /^\/api\/admin\/backups$/, 'backup:manage'],
   ['GET', /^\/api\/admin\/backups$/, 'backup:manage'],
   ['GET', /^\/api\/admin\/audit$/, 'audit:read'],
@@ -3153,12 +3155,16 @@ async function handleApi(req, res, url) {
       if (req.method === 'GET' && url.pathname === '/api/admin/compta') {
         const { debut, fin } = periodeDemandee();
         const [donnees, leads] = await Promise.all([COMPTA.tout(), store.readLeads()]);
-        const listeVentes = COMPTA.ventes(leads, donnees.ecritures);
+        const listeVentes = COMPTA.ventes(leads, donnees.ecritures, donnees.parametres);
+        const p = donnees.parametres;
+        // Nombre d'utilisations de chaque paramètre : décide suppression ou désactivation.
+        const usages = Object.fromEntries(COMPTA.TYPES_PARAMETRES.map(type => [type,
+          Object.fromEntries(p[type].map(entree => [entree.id, COMPTA.usagesParametre(type, entree.id, donnees)]))]));
         return json(res, 200, {
-          ok: true, debut, fin, categories: COMPTA.CATEGORIES, modes: COMPTA.MODES,
+          ok: true, debut, fin, categories: p.categories, modes: p.modes, statuts: p.statuts, effets: COMPTA.EFFETS, usages,
           ecritures: donnees.ecritures.filter(e => e.date >= debut && e.date <= fin),
           employes: donnees.employes, charges: donnees.charges, ventes: listeVentes,
-          rapport: COMPTA.rapport(donnees.ecritures, { debut, fin }, listeVentes)
+          rapport: COMPTA.rapport(donnees.ecritures, { debut, fin }, listeVentes, p)
         });
       }
 
@@ -3168,7 +3174,7 @@ async function handleApi(req, res, url) {
         const lignes = donnees.ecritures.filter(e => e.date >= debut && e.date <= fin);
         audit('compta.export', { debut, fin, lignes: lignes.length }, acteur);
         res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="comptabilite-${debut}-${fin}.csv"`, 'Cache-Control': 'no-store' });
-        return res.end(COMPTA.csv(lignes, { nomBien: (kind, id) => nomBien(kind, id, contenu) }));
+        return res.end(COMPTA.csv(lignes, { nomBien: (kind, id) => nomBien(kind, id, contenu), parametres: donnees.parametres }));
       }
 
       const route = url.pathname.match(/^\/api\/admin\/compta\/(ecritures|employes|charges)(?:\/([^/]+))?$/);
@@ -3195,7 +3201,7 @@ async function handleApi(req, res, url) {
           const payload = await parseBody(req, 50_000);
           const source = existant ? { ...existant, ...payload } : payload;
           if (collection === 'ecritures') {
-            const { ecriture, erreurs } = COMPTA.validerEcriture(source, { existante: existant, acteur });
+            const { ecriture, erreurs } = COMPTA.validerEcriture(source, { existante: existant, acteur, parametres: donnees.parametres });
             if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
             if (ecriture.justificatif && !fs.existsSync(path.join(JUSTIFICATIFS_DIR, ecriture.justificatif))) return json(res, 422, { ok: false, error: 'Pièce justificative introuvable : déposez-la de nouveau.' });
             await COMPTA.enregistrerEcritures([ecriture]);
@@ -3209,7 +3215,7 @@ async function handleApi(req, res, url) {
             audit(existant ? 'compta.employe_modifie' : 'compta.employe_cree', { id: employe.id }, acteur);
             return json(res, existant ? 200 : 201, { ok: true, employe });
           }
-          const { charge, erreurs } = COMPTA.validerCharge(source, { existante: existant });
+          const { charge, erreurs } = COMPTA.validerCharge(source, { existante: existant, parametres: donnees.parametres });
           if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
           await COMPTA.enregistrerCharge(charge);
           audit(existant ? 'compta.charge_modifiee' : 'compta.charge_creee', { id: charge.id }, acteur);
@@ -3223,11 +3229,39 @@ async function handleApi(req, res, url) {
         const donnees = await COMPTA.tout();
         const paie = url.pathname.endsWith('/paie');
         const nouvelles = paie
-          ? COMPTA.paieDuMois(donnees.employes, payload.periode, donnees.ecritures, { acteur })
-          : COMPTA.chargesDuMois(donnees.charges, payload.periode, donnees.ecritures, { acteur });
+          ? COMPTA.paieDuMois(donnees.employes, payload.periode, donnees.ecritures, { acteur, parametres: donnees.parametres })
+          : COMPTA.chargesDuMois(donnees.charges, payload.periode, donnees.ecritures, { acteur, parametres: donnees.parametres });
         await COMPTA.enregistrerEcritures(nouvelles);
         audit(paie ? 'compta.paie_generee' : 'compta.charges_generees', { periode: payload.periode, ecritures: nouvelles.length }, acteur);
         return json(res, 200, { ok: true, creees: nouvelles.length, total: nouvelles.reduce((t, e) => t + e.montant, 0) });
+      }
+
+      // Paramètres : catégories, modes de paiement, statuts (Comptabilité → Paramètres).
+      const routeParametre = url.pathname.match(/^\/api\/admin\/compta\/parametres\/(categories|modes|statuts)(?:\/([^/]+))?$/);
+      if (routeParametre) {
+        const [, type, idBrut] = routeParametre;
+        const donnees = await COMPTA.tout();
+        if (req.method === 'DELETE' && idBrut) {
+          const id = decodeURIComponent(idBrut);
+          const entree = donnees.parametres[type].find(p => p.id === id);
+          if (!entree) return json(res, 404, { ok: false, error: 'Paramètre introuvable.' });
+          if (entree.systeme) return json(res, 409, { ok: false, error: `« ${entree.libelle} » est indispensable au fonctionnement de la comptabilité : renommez-le si besoin.` });
+          const usages = COMPTA.usagesParametre(type, id, donnees);
+          if (usages) return json(res, 409, { ok: false, error: `Utilisé par ${usages} écriture${usages > 1 ? 's' : ''} ou charge${usages > 1 ? 's' : ''} : désactivez-le plutôt que de le supprimer.` });
+          await COMPTA.supprimerParametre(type, id);
+          audit('compta.parametre_supprime', { type, id }, acteur);
+          return json(res, 200, { ok: true });
+        }
+        if (req.method === 'POST' && !idBrut) {
+          const payload = await parseBody(req, 5_000);
+          const existante = payload.id ? donnees.parametres[type].find(p => p.id === text(payload.id, 40)) : null;
+          if (payload.id && !existante) return json(res, 404, { ok: false, error: 'Paramètre introuvable.' });
+          const { entree, erreurs } = COMPTA.validerParametre(type, payload, { existante, parametres: donnees.parametres });
+          if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+          await COMPTA.enregistrerParametre(entree);
+          audit(existante ? 'compta.parametre_modifie' : 'compta.parametre_cree', { type, id: entree.id }, acteur);
+          return json(res, existante ? 200 : 201, { ok: true, entree });
+        }
       }
 
       if (req.method === 'POST' && url.pathname === '/api/admin/compta/justificatifs') {

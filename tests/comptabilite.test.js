@@ -29,8 +29,11 @@ test('écriture : montant entier positif, date réelle, catégorie du bon sens, 
 
 test('modification : identifiant, rattachements et auteur d’origine conservés', () => {
   const origine = ecriture({ employeId: 'emp-1', periode: '2026-09' });
-  const { ecriture: modifiee } = C.validerEcriture({ ...origine, montant: 2000, employeId: 'autre' }, { existante: origine, acteur: 'intrus', maintenant: new Date('2026-09-18T00:00:00Z') });
+  const { ecriture: modifiee } = C.validerEcriture({ ...origine, montant: 2000, employeId: 'autre', creePar: 'faux' }, { existante: origine, acteur: 'awa', maintenant: new Date('2026-09-18T00:00:00Z') });
   assert.equal(modifiee.id, origine.id);
+  assert.equal(modifiee.creePar, origine.creePar, 'l’auteur de la saisie ne change pas');
+  assert.equal(modifiee.modifiePar, 'awa', 'utilisateur connecté qui modifie');
+  assert.equal(C.validerEcriture({ sens: 'sortie', date: '2026-09-10', montant: 1, categorie: 'entretien', libelle: 'x' }, { acteur: 'henri' }).ecriture.creePar, 'henri');
   assert.equal(modifiee.employeId, 'emp-1');
   assert.equal(modifiee.periode, '2026-09');
   assert.equal(modifiee.creeLe, origine.creeLe);
@@ -108,6 +111,52 @@ test('export CSV : BOM, « ; », colonnes entrée et sortie séparées, champs �
   assert.ok(texte.startsWith('﻿Date;Sens;Catégorie;Libellé;Tiers;Entrée (FCFA);Sortie (FCFA);'));
   const lignes = texte.trim().split('\r\n');
   assert.equal(lignes.length, 3);
-  assert.match(lignes[1], /^2026-09-01;Entrée;Locations & séjours;Acompte;;200000;;;Réglé;;villa oasis;;$/);
+  assert.match(lignes[1], /^2026-09-01;Entrée;Locations & séjours;Acompte;;200000;;;Réglé;;villa oasis;;;;$/);
+  assert.ok(lignes[0].endsWith(';Saisie par;Modifiée par'));
   assert.match(lignes[2], /^2026-09-12;Sortie;Entretien & réparations;"Plombier; fuite ""piscine""";;;35000;Espèces;Réglé;/);
+});
+
+test('paramètres : valeurs initiales, renommage, désactivation, ajout, suppression ; éléments système protégés', () => {
+  const p = C.normaliserParametres([
+    { type: 'categories', id: 'loyer', libelle: 'Loyer du bureau', sens: 'sortie', ordre: 0, actif: true },
+    { type: 'modes', id: 'cheque', libelle: 'Chèque', actif: false },
+    { type: 'modes', id: 'djamo', libelle: 'Djamo', ordre: 20, actif: true },
+    { type: 'categories', id: 'marketing', supprime: true },
+    { type: 'categories', id: 'salaires', supprime: true },
+    { type: 'statuts', id: 'regle', libelle: 'Payé', effet: 'exclu', actif: false },
+    { type: 'statuts', id: 'annule', libelle: 'Annulé', effet: 'exclu', ordre: 3 }
+  ]);
+  assert.equal(p.categories.find(c => c.id === 'loyer').libelle, 'Loyer du bureau');
+  assert.equal(p.categories[0].id, 'loyer', 'ordre enregistré respecté');
+  assert.equal(p.modes.find(m => m.id === 'cheque').actif, false);
+  assert.ok(p.modes.some(m => m.id === 'djamo' && m.actif));
+  assert.equal(p.categories.some(c => c.id === 'marketing'), false, 'valeur initiale supprimée');
+  assert.ok(p.categories.some(c => c.id === 'salaires' && c.systeme), 'salaires : système, jamais supprimé');
+  const regle = p.statuts.find(s => s.id === 'regle');
+  assert.deepEqual([regle.libelle, regle.effet, regle.actif], ['Payé', 'regle', true], 'statut système : libellé modifiable, effet et activation fixes');
+  assert.equal(p.statuts.find(s => s.id === 'annule').effet, 'exclu');
+});
+
+test('paramètre saisi : identifiant tiré du libellé, doublon refusé, sens et effet obligatoires', () => {
+  const p = C.normaliserParametres();
+  assert.deepEqual(C.validerParametre('modes', { libelle: 'Paiement Djamo' }, { parametres: p }).entree.id, 'paiement_djamo');
+  assert.match(C.validerParametre('modes', { libelle: 'Wave' }, { parametres: p }).erreurs[0], /existe déjà/);
+  assert.match(C.validerParametre('categories', { libelle: 'Dons' }, { parametres: p }).erreurs[0], /Entrée.*Sortie/);
+  assert.match(C.validerParametre('statuts', { libelle: 'En litige' }, { parametres: p }).erreurs[0], /effet/);
+  const salaires = p.categories.find(c => c.id === 'salaires');
+  assert.equal(C.validerParametre('categories', { libelle: 'Paie', sens: 'entree', actif: false }, { existante: salaires, parametres: p }).entree.sens, 'sortie');
+  assert.equal(C.usagesParametre('modes', 'wave', { ecritures: [{ mode: 'wave' }, { mode: 'especes' }], charges: [{ mode: 'wave' }] }), 2);
+});
+
+test('paramètres dans les calculs : statut « exclu » hors comptes, « attente » à payer ; paramètre désactivé gardé sur l’existant', () => {
+  const p = C.normaliserParametres([{ type: 'statuts', id: 'annule', libelle: 'Annulé', effet: 'exclu' }, { type: 'modes', id: 'cheque', actif: false }]);
+  const e = champs => C.validerEcriture({ sens: 'sortie', date: '2026-09-10', montant: 1000, categorie: 'entretien', libelle: 'x', ...champs }, { parametres: p }).ecriture;
+  const r = C.rapport([e({ montant: 5000 }), e({ montant: 700, statut: 'annule' }), e({ montant: 300, statut: 'a_regler' })], { debut: '2026-09-01', fin: '2026-09-30' }, [], p);
+  assert.deepEqual([r.sorties, r.aPayer], [5000, 300]);
+  assert.match(C.validerEcriture({ sens: 'sortie', date: '2026-09-10', montant: 1, categorie: 'entretien', libelle: 'x', mode: 'cheque' }, { parametres: p }).erreurs.join(), /désactivé/);
+  const ancienne = { id: 'x', mode: 'cheque', categorie: 'entretien', statut: 'regle' };
+  assert.equal(C.validerEcriture({ sens: 'sortie', date: '2026-09-10', montant: 1, categorie: 'entretien', libelle: 'x', mode: 'cheque' }, { existante: ancienne, parametres: p }).ecriture.mode, 'cheque');
+  const charge = C.validerCharge({ libelle: 'Loyer', categorie: 'loyer', montant: 100, jour: 5, debut: '2026-01', mode: 'virement' }).charge;
+  const sansVirement = C.normaliserParametres([{ type: 'modes', id: 'virement', actif: false }]);
+  assert.equal(C.chargesDuMois([charge], '2026-09', [], { parametres: sansVirement }).length, 1, 'échéance générée malgré le mode désactivé depuis');
 });

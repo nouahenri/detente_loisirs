@@ -53,6 +53,94 @@ const MODES = [
 
 const SENS = ['entree', 'sortie'];
 const STATUTS = ['regle', 'a_regler'];
+
+/*
+ * Paramètres administrables (demande du 17/09/2026) : catégories, modes de
+ * paiement et statuts s'ajoutent, se renomment, se désactivent ou se
+ * suppriment au studio (Comptabilité → Paramètres). Les listes ci-dessus sont
+ * les valeurs initiales. Un statut porte un EFFET qui décide des calculs :
+ *   · regle   — argent réellement encaissé ou payé : compte dans le solde ;
+ *   · attente — dû mais pas encore réglé : « à payer » / « à recevoir » ;
+ *   · exclu   — ni l'un ni l'autre (annulé, erreur de saisie…).
+ * Éléments système, jamais supprimés : la catégorie « salaires » (paie du
+ * mois) et les statuts « regle » et « a_regler » (effets fixes).
+ */
+const TYPES_PARAMETRES = ['categories', 'modes', 'statuts'];
+const EFFETS = ['regle', 'attente', 'exclu'];
+const SYSTEME = { categories: ['salaires'], modes: [], statuts: ['regle', 'a_regler'] };
+const PARAMETRES_INITIAUX = {
+  categories: CATEGORIES.map((c, i) => ({ ...c, ordre: i + 1, actif: true })),
+  modes: MODES.map((m, i) => ({ ...m, ordre: i + 1, actif: true })),
+  statuts: [
+    { id: 'regle', libelle: 'Réglé', effet: 'regle', ordre: 1, actif: true },
+    { id: 'a_regler', libelle: 'À régler', effet: 'attente', ordre: 2, actif: true }
+  ]
+};
+
+/**
+ * Paramètres complets : valeurs initiales, puis ce qui est enregistré
+ * (renommage, désactivation, ajout, suppression marquée `supprime`).
+ */
+function normaliserParametres(enregistres = []) {
+  const resultat = {};
+  for (const type of TYPES_PARAMETRES) {
+    const parId = new Map(PARAMETRES_INITIAUX[type].map(entree => [entree.id, { ...entree }]));
+    for (const ligne of (Array.isArray(enregistres) ? enregistres : []).filter(l => l?.type === type && l.id)) {
+      const systeme = SYSTEME[type].includes(ligne.id);
+      if (ligne.supprime && !systeme) { parId.delete(ligne.id); continue; }
+      const base = parId.get(ligne.id) || {};
+      const entree = {
+        ...base, id: ligne.id, libelle: texte(ligne.libelle, 80) || base.libelle || ligne.id,
+        ordre: Number.isFinite(Number(ligne.ordre)) ? Number(ligne.ordre) : (base.ordre || 999),
+        actif: systeme ? true : ligne.actif !== false && ligne.actif !== 0
+      };
+      if (type === 'categories') entree.sens = systeme ? base.sens : (SENS.includes(ligne.sens) ? ligne.sens : base.sens);
+      if (type === 'statuts') entree.effet = systeme ? base.effet : (EFFETS.includes(ligne.effet) ? ligne.effet : base.effet);
+      if ((type === 'categories' && !entree.sens) || (type === 'statuts' && !entree.effet)) continue;
+      parId.set(ligne.id, entree);
+    }
+    resultat[type] = [...parId.values()]
+      .map(entree => ({ ...entree, systeme: SYSTEME[type].includes(entree.id) }))
+      .sort((a, b) => a.ordre - b.ordre || String(a.libelle).localeCompare(String(b.libelle), 'fr'));
+  }
+  return resultat;
+}
+
+/** Identifiant stable d'un nouveau paramètre : minuscules, sans accents, « _ ». */
+function identifiantParametre(libelle) {
+  return texte(libelle, 80).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+}
+
+/** Paramètre saisi au studio. Renvoie { entree, erreurs }. */
+function validerParametre(type, source = {}, { existante = null, parametres = normaliserParametres() } = {}) {
+  const erreurs = [];
+  if (!TYPES_PARAMETRES.includes(type)) return { erreurs: ['Paramètre inconnu.'] };
+  const libelle = texte(source.libelle, 80);
+  if (!libelle) erreurs.push('Le libellé est requis.');
+  const id = existante?.id || identifiantParametre(libelle);
+  if (!existante && !id) erreurs.push('Libellé invalide.');
+  if (!existante && parametres[type].some(entree => entree.id === id)) erreurs.push(`« ${libelle} » existe déjà.`);
+  const systeme = SYSTEME[type].includes(id);
+  const entree = { type, id, libelle, ordre: Number.isInteger(Number(source.ordre)) ? Number(source.ordre) : (existante?.ordre || parametres[type].length + 1), actif: systeme ? true : source.actif !== false && source.actif !== 'false' };
+  if (type === 'categories') {
+    entree.sens = systeme ? existante?.sens : source.sens;
+    if (!SENS.includes(entree.sens)) erreurs.push('Choisissez « Entrée » ou « Sortie ».');
+  }
+  if (type === 'statuts') {
+    entree.effet = systeme ? existante?.effet : source.effet;
+    if (!EFFETS.includes(entree.effet)) erreurs.push('Choisissez l’effet du statut sur les comptes.');
+  }
+  return { erreurs, entree: erreurs.length ? null : entree };
+}
+
+/** Nombre d'écritures et de charges qui utilisent un paramètre. */
+function usagesParametre(type, id, { ecritures = [], charges = [] } = {}) {
+  const champ = { categories: 'categorie', modes: 'mode', statuts: 'statut' }[type];
+  return ecritures.filter(e => e[champ] === id).length + (type === 'statuts' ? 0 : charges.filter(c => c[champ] === id).length);
+}
+
+const effetStatut = (parametres, id) => parametres.statuts.find(s => s.id === id)?.effet || (id === 'regle' ? 'regle' : 'attente');
 const BIENS = ['villa', 'terrain', 'activity'];
 const MONTANT_MAX = 100_000_000_000;
 
@@ -78,22 +166,25 @@ function finDePeriode(periode) {
  * Écriture saisie au studio. `existante` : l'écriture modifiée (identifiant et
  * rattachements conservés). Renvoie { ecriture, erreurs }.
  */
-function validerEcriture(source = {}, { existante = null, acteur = '', maintenant = new Date() } = {}) {
+function validerEcriture(source = {}, { existante = null, acteur = '', maintenant = new Date(), parametres = normaliserParametres() } = {}) {
   const erreurs = [];
+  // Un paramètre désactivé reste accepté sur l'écriture qui le porte déjà.
+  const utilisable = (type, id, champ) => parametres[type].find(p => p.id === id && (p.actif || existante?.[champ] === id));
   const sens = SENS.includes(source.sens) ? source.sens : null;
   if (!sens) erreurs.push('Choisissez « Entrée » ou « Sortie ».');
   const date = texte(source.date, 10);
   if (!dateValide(date)) erreurs.push('Date invalide (AAAA-MM-JJ).');
   const montant = montantEntier(source.montant);
   if (!(montant > 0) || montant > MONTANT_MAX) erreurs.push('Le montant doit être un nombre positif (FCFA).');
-  const categorie = CATEGORIES.find(c => c.id === source.categorie);
-  if (!categorie) erreurs.push('Catégorie inconnue.');
+  const categorie = utilisable('categories', source.categorie, 'categorie');
+  if (!categorie) erreurs.push('Catégorie inconnue ou désactivée.');
   else if (sens && categorie.sens !== sens) erreurs.push(`« ${categorie.libelle} » est une catégorie de ${categorie.sens === 'entree' ? 'recette' : 'dépense'}.`);
   const libelle = texte(source.libelle, 240);
   if (!libelle) erreurs.push('Le libellé est requis.');
-  const mode = source.mode ? MODES.find(m => m.id === source.mode)?.id : '';
-  if (source.mode && !mode) erreurs.push('Mode de paiement inconnu.');
-  const statut = STATUTS.includes(source.statut) ? source.statut : 'regle';
+  const mode = source.mode ? utilisable('modes', source.mode, 'mode')?.id : '';
+  if (source.mode && !mode) erreurs.push('Mode de paiement inconnu ou désactivé.');
+  const statut = source.statut ? utilisable('statuts', source.statut, 'statut')?.id : 'regle';
+  if (!statut) erreurs.push('Statut inconnu ou désactivé.');
   const bienKind = BIENS.includes(source.bienKind) ? source.bienKind : '';
   const bienId = bienKind ? texte(source.bienId, 80) : '';
   const leadId = texte(source.leadId, 36);
@@ -110,7 +201,10 @@ function validerEcriture(source = {}, { existante = null, acteur = '', maintenan
       employeId: existante?.employeId || texte(source.employeId, 36), chargeId: existante?.chargeId || texte(source.chargeId, 36),
       periode: existante?.periode || (periodeValide(source.periode) ? source.periode : ''),
       justificatif, notes: texte(source.notes, 2000),
-      creePar: existante?.creePar || texte(acteur, 120), creeLe: existante?.creeLe || horodatage, majLe: horodatage
+      // Traçabilité (demande du 17/09/2026) : utilisateur connecté qui a saisi
+      // l'écriture, puis celui qui l'a modifiée en dernier.
+      creePar: existante ? (existante.creePar || '') : texte(acteur, 120), creeLe: existante?.creeLe || horodatage,
+      modifiePar: existante ? texte(acteur, 120) : '', majLe: horodatage
     }
   };
 }
@@ -134,11 +228,11 @@ function validerEmploye(source = {}, { existant = null, maintenant = new Date() 
   };
 }
 
-function validerCharge(source = {}, { existante = null, maintenant = new Date() } = {}) {
+function validerCharge(source = {}, { existante = null, maintenant = new Date(), parametres = normaliserParametres() } = {}) {
   const erreurs = [];
   const libelle = texte(source.libelle, 240);
   if (!libelle) erreurs.push('Le libellé de la charge est requis.');
-  const categorie = CATEGORIES.find(c => c.id === source.categorie && c.sens === 'sortie');
+  const categorie = parametres.categories.find(c => c.id === source.categorie && c.sens === 'sortie' && (c.actif || existante?.categorie === c.id));
   if (!categorie) erreurs.push('Choisissez une catégorie de dépense.');
   const montant = montantEntier(source.montant);
   if (!(montant > 0) || montant > MONTANT_MAX) erreurs.push('Le montant doit être un nombre positif (FCFA).');
@@ -149,8 +243,8 @@ function validerCharge(source = {}, { existante = null, maintenant = new Date() 
   const fin = texte(source.fin, 7);
   if (fin && !periodeValide(fin)) erreurs.push('Mois de fin invalide (AAAA-MM).');
   if (periodeValide(debut) && fin && periodeValide(fin) && fin < debut) erreurs.push('Le mois de fin précède le mois de début.');
-  const mode = source.mode ? MODES.find(m => m.id === source.mode)?.id : '';
-  if (source.mode && !mode) erreurs.push('Mode de paiement inconnu.');
+  const mode = source.mode ? parametres.modes.find(m => m.id === source.mode && (m.actif || existante?.mode === m.id))?.id : '';
+  if (source.mode && !mode) erreurs.push('Mode de paiement inconnu ou désactivé.');
   const bienKind = BIENS.includes(source.bienKind) ? source.bienKind : '';
   const horodatage = new Date(maintenant).toISOString();
   return {
@@ -168,7 +262,7 @@ function validerCharge(source = {}, { existante = null, maintenant = new Date() 
  * Salaires du mois à enregistrer (« à régler ») : employés actifs, embauchés
  * au plus tard ce mois-là, dont le salaire du mois n'est pas déjà saisi.
  */
-function paieDuMois(employes, periode, ecritures, { acteur = '', maintenant = new Date() } = {}) {
+function paieDuMois(employes, periode, ecritures, { acteur = '', maintenant = new Date(), parametres = normaliserParametres() } = {}) {
   if (!periodeValide(periode)) return [];
   const fin = finDePeriode(periode);
   const dejaPayes = new Set(ecritures.filter(e => e.employeId && e.periode === periode).map(e => e.employeId));
@@ -177,11 +271,11 @@ function paieDuMois(employes, periode, ecritures, { acteur = '', maintenant = ne
     .map(e => validerEcriture({
       sens: 'sortie', date: fin, montant: e.salaireMensuel, categorie: 'salaires', statut: 'a_regler',
       libelle: `Salaire ${periode} — ${e.nom}${e.poste ? ` (${e.poste})` : ''}`, tiers: e.nom, employeId: e.id, periode
-    }, { acteur, maintenant }).ecriture);
+    }, { acteur, maintenant, parametres }).ecriture);
 }
 
 /** Charges récurrentes du mois à enregistrer (« à régler »), une fois par charge et par mois. */
-function chargesDuMois(charges, periode, ecritures, { acteur = '', maintenant = new Date() } = {}) {
+function chargesDuMois(charges, periode, ecritures, { acteur = '', maintenant = new Date(), parametres = normaliserParametres() } = {}) {
   if (!periodeValide(periode)) return [];
   const deja = new Set(ecritures.filter(e => e.chargeId && e.periode === periode).map(e => e.chargeId));
   return charges
@@ -190,7 +284,12 @@ function chargesDuMois(charges, periode, ecritures, { acteur = '', maintenant = 
       sens: 'sortie', date: `${periode}-${String(c.jour).padStart(2, '0')}`, montant: c.montant, categorie: c.categorie,
       statut: 'a_regler', libelle: `${c.libelle} — ${periode}`, tiers: c.tiers, mode: c.mode,
       bienKind: c.bienKind, bienId: c.bienId, chargeId: c.id, periode
-    }, { acteur, maintenant }).ecriture);
+    }, {
+      acteur, maintenant,
+      // La charge garde sa catégorie et son mode même désactivés depuis : ses échéances continuent.
+      parametres: { ...parametres, categories: parametres.categories.map(x => (x.id === c.categorie ? { ...x, actif: true } : x)), modes: parametres.modes.map(x => (x.id === c.mode ? { ...x, actif: true } : x)) }
+    }).ecriture)
+    .filter(Boolean);
 }
 
 /** Catégorie d'un paiement selon la formule de la demande. */
@@ -204,10 +303,10 @@ function categorieDeDemande(lead) {
  * Ventes à encaisser : demandes confirmées avec un montant, et toute demande
  * ayant déjà reçu un paiement. Encaissé = entrées réglées rattachées.
  */
-function ventes(leads, ecritures) {
+function ventes(leads, ecritures, parametres = normaliserParametres()) {
   const paiements = new Map();
   for (const e of ecritures) {
-    if (!e.leadId || e.sens !== 'entree' || e.statut !== 'regle') continue;
+    if (!e.leadId || e.sens !== 'entree' || effetStatut(parametres, e.statut) !== 'regle') continue;
     if (!paiements.has(e.leadId)) paiements.set(e.leadId, []);
     paiements.get(e.leadId).push(e);
   }
@@ -251,11 +350,16 @@ function moisEntre(debut, fin) {
  * Rapport d'une période : totaux réglés, restes, répartition par catégorie,
  * par mois et par bien. Seules les écritures RÉGLÉES comptent dans le solde.
  */
-function rapport(ecritures, { debut, fin }, listeVentes = []) {
+function rapport(ecritures, { debut, fin }, listeVentes = [], parametres = normaliserParametres()) {
   const periode = ecritures.filter(e => dansPeriode(e, debut, fin));
-  const reglees = periode.filter(e => e.statut === 'regle');
+  const reglees = periode.filter(e => effetStatut(parametres, e.statut) === 'regle');
+  const enAttente = periode.filter(e => effetStatut(parametres, e.statut) === 'attente');
   const somme = (liste, sens) => liste.filter(e => e.sens === sens).reduce((total, e) => total + e.montant, 0);
-  const parCategorie = CATEGORIES.map(c => {
+  // Catégories connues, puis catégories supprimées depuis mais encore portées par des écritures.
+  const connues = parametres.categories.map(c => ({ id: c.id, libelle: c.libelle, sens: c.sens }));
+  const orphelines = [...new Set(reglees.map(e => e.categorie))].filter(id => !connues.some(c => c.id === id))
+    .map(id => ({ id, libelle: id, sens: reglees.find(e => e.categorie === id).sens }));
+  const parCategorie = [...connues, ...orphelines].map(c => {
     const lignes = reglees.filter(e => e.categorie === c.id);
     return { categorie: c.id, libelle: c.libelle, sens: c.sens, montant: lignes.reduce((t, e) => t + e.montant, 0), nombre: lignes.length };
   }).filter(ligne => ligne.nombre);
@@ -273,8 +377,8 @@ function rapport(ecritures, { debut, fin }, listeVentes = []) {
   const sorties = somme(reglees, 'sortie');
   return {
     debut, fin, entrees, sorties, solde: entrees - sorties,
-    aPayer: periode.filter(e => e.sens === 'sortie' && e.statut === 'a_regler').reduce((t, e) => t + e.montant, 0),
-    aRecevoir: periode.filter(e => e.sens === 'entree' && e.statut === 'a_regler').reduce((t, e) => t + e.montant, 0),
+    aPayer: somme(enAttente, 'sortie'),
+    aRecevoir: somme(enAttente, 'entree'),
     resteAEncaisser: listeVentes.reduce((total, v) => total + v.reste, 0),
     nombre: periode.length, parCategorie, parMois,
     parBien: [...biens.values()].sort((a, b) => (b.entrees - b.sorties) - (a.entrees - a.sorties))
@@ -282,18 +386,19 @@ function rapport(ecritures, { debut, fin }, listeVentes = []) {
 }
 
 /** Export pour le comptable : séparateur « ; », BOM UTF-8 (Excel français). */
-function csv(ecritures, { nomBien = () => '' } = {}) {
+function csv(ecritures, { nomBien = () => '', parametres = normaliserParametres() } = {}) {
+  const libelle = (type, id) => parametres[type].find(p => p.id === id)?.libelle || id || '';
   const champ = valeur => {
     const brut = String(valeur ?? '');
     return /[;"\n\r]/.test(brut) ? `"${brut.replace(/"/g, '""')}"` : brut;
   };
-  const lignes = [['Date', 'Sens', 'Catégorie', 'Libellé', 'Tiers', 'Entrée (FCFA)', 'Sortie (FCFA)', 'Mode', 'Statut', 'Référence', 'Bien', 'Demande', 'Notes']];
+  const lignes = [['Date', 'Sens', 'Catégorie', 'Libellé', 'Tiers', 'Entrée (FCFA)', 'Sortie (FCFA)', 'Mode', 'Statut', 'Référence', 'Bien', 'Demande', 'Notes', 'Saisie par', 'Modifiée par']];
   for (const e of [...ecritures].sort((a, b) => a.date.localeCompare(b.date))) {
     lignes.push([
-      e.date, e.sens === 'entree' ? 'Entrée' : 'Sortie', libelleCategorie(e.categorie), e.libelle, e.tiers,
-      e.sens === 'entree' ? e.montant : '', e.sens === 'sortie' ? e.montant : '', libelleMode(e.mode),
-      e.statut === 'regle' ? 'Réglé' : 'À régler', e.reference, e.bienKind ? nomBien(e.bienKind, e.bienId) : '',
-      e.leadId ? e.leadId.slice(0, 8) : '', e.notes
+      e.date, e.sens === 'entree' ? 'Entrée' : 'Sortie', libelle('categories', e.categorie), e.libelle, e.tiers,
+      e.sens === 'entree' ? e.montant : '', e.sens === 'sortie' ? e.montant : '', libelle('modes', e.mode),
+      libelle('statuts', e.statut), e.reference, e.bienKind ? nomBien(e.bienKind, e.bienId) : '',
+      e.leadId ? e.leadId.slice(0, 8) : '', e.notes, e.creePar, e.modifiePar
     ]);
   }
   return `﻿${lignes.map(ligne => ligne.map(champ).join(';')).join('\r\n')}\r\n`;
@@ -340,7 +445,8 @@ function lireFichier() {
   return {
     ecritures: Array.isArray(brut?.ecritures) ? brut.ecritures : [],
     employes: Array.isArray(brut?.employes) ? brut.employes : [],
-    charges: Array.isArray(brut?.charges) ? brut.charges : []
+    charges: Array.isArray(brut?.charges) ? brut.charges : [],
+    parametres: Array.isArray(brut?.parametres) ? brut.parametres : []
   };
 }
 
@@ -349,7 +455,7 @@ const ecritureDepuisLigne = l => ({
   tiers: l.tiers || '', mode: l.mode_paiement || '', statut: l.statut, reference: l.reference || '',
   bienKind: l.bien_kind || '', bienId: l.bien_id || '', leadId: l.lead_id || '', employeId: l.employe_id || '',
   chargeId: l.charge_id || '', periode: l.periode || '', justificatif: l.justificatif || '', notes: l.notes || '',
-  creePar: l.cree_par || '', creeLe: versIso(l.created_at), majLe: versIso(l.updated_at)
+  creePar: l.cree_par || '', creeLe: versIso(l.created_at), modifiePar: l.modifie_par || '', majLe: versIso(l.updated_at)
 });
 const employeDepuisLigne = l => ({
   id: l.id, nom: l.nom, poste: l.poste || '', telephone: l.telephone || '', salaireMensuel: Number(l.salaire_mensuel),
@@ -362,21 +468,49 @@ const chargeDepuisLigne = l => ({
   actif: Boolean(Number(l.actif)), notes: l.notes || '', creeLe: versIso(l.created_at), majLe: versIso(l.updated_at)
 });
 
-/** Tout le stockage : { ecritures, employes, charges }. */
+/** Tout le stockage : { ecritures, employes, charges, parametres (normalisés) }. */
 async function tout() {
   if (utiliserBase()) {
     try {
-      const [[ecritures], [employes], [charges]] = await Promise.all([
+      const [[ecritures], [employes], [charges], [parametres]] = await Promise.all([
         repo().query('SELECT * FROM compta_ecritures ORDER BY date_ecriture DESC, created_at DESC'),
         repo().query('SELECT * FROM compta_employes ORDER BY nom'),
-        repo().query('SELECT * FROM compta_charges ORDER BY libelle')
+        repo().query('SELECT * FROM compta_charges ORDER BY libelle'),
+        repo().query('SELECT * FROM compta_parametres')
       ]);
-      return { ecritures: ecritures.map(ecritureDepuisLigne), employes: employes.map(employeDepuisLigne), charges: charges.map(chargeDepuisLigne) };
+      return {
+        ecritures: ecritures.map(ecritureDepuisLigne), employes: employes.map(employeDepuisLigne), charges: charges.map(chargeDepuisLigne),
+        parametres: normaliserParametres(parametres.map(l => ({ type: l.type, id: l.id, libelle: l.libelle, sens: l.sens, effet: l.effet, ordre: l.ordre, actif: Boolean(Number(l.actif)), supprime: Boolean(Number(l.supprime)) })))
+      };
     } catch (error) {
       if (!tableAbsente(error)) throw error;
     }
   }
-  return lireFichier();
+  const donnees = lireFichier();
+  return { ...donnees, parametres: normaliserParametres(donnees.parametres) };
+}
+
+/** Enregistre un paramètre (ou sa suppression, `supprime: true`, pour une valeur initiale). */
+async function enregistrerParametre(entree) {
+  const ligne = { type: entree.type, id: entree.id, libelle: entree.libelle || '', sens: entree.sens || '', effet: entree.effet || '', ordre: Number(entree.ordre) || 0, actif: entree.actif !== false, supprime: Boolean(entree.supprime) };
+  return enBaseOuFichier(async r => {
+    await r.query(`INSERT INTO compta_parametres (type, id, libelle, sens, effet, ordre, actif, supprime) VALUES (?,?,?,?,?,?,?,?)
+      ON DUPLICATE KEY UPDATE libelle=VALUES(libelle), sens=VALUES(sens), effet=VALUES(effet), ordre=VALUES(ordre), actif=VALUES(actif), supprime=VALUES(supprime)`,
+    [ligne.type, ligne.id, ligne.libelle, ligne.sens, ligne.effet, ligne.ordre, ligne.actif ? 1 : 0, ligne.supprime ? 1 : 0]);
+    return ligne;
+  }, donnees => {
+    const index = donnees.parametres.findIndex(x => x.type === ligne.type && x.id === ligne.id);
+    if (index >= 0) donnees.parametres[index] = ligne; else donnees.parametres.push(ligne);
+    return ligne;
+  });
+}
+
+/** Supprime un paramètre ajouté, ou marque supprimée une valeur initiale. */
+async function supprimerParametre(type, id) {
+  const initial = PARAMETRES_INITIAUX[type]?.some(entree => entree.id === id);
+  if (initial) return enregistrerParametre({ type, id, supprime: true, actif: false });
+  return enBaseOuFichier(async r => (await r.query('DELETE FROM compta_parametres WHERE type = ? AND id = ?', [type, String(id)]))[0]?.affectedRows || 0,
+    donnees => { const avant = donnees.parametres.length; donnees.parametres = donnees.parametres.filter(p => !(p.type === type && p.id === String(id))); return avant - donnees.parametres.length; });
 }
 
 async function enBaseOuFichier(requeteBase, modifierFichier) {
@@ -391,9 +525,9 @@ async function enBaseOuFichier(requeteBase, modifierFichier) {
 }
 
 const ECRITURE_COLONNES = ['id', 'date_ecriture', 'sens', 'categorie', 'montant', 'libelle', 'tiers', 'mode_paiement', 'statut', 'reference',
-  'bien_kind', 'bien_id', 'lead_id', 'employe_id', 'charge_id', 'periode', 'justificatif', 'notes', 'cree_par', 'created_at'];
+  'bien_kind', 'bien_id', 'lead_id', 'employe_id', 'charge_id', 'periode', 'justificatif', 'notes', 'cree_par', 'modifie_par', 'created_at'];
 const valeursEcriture = e => [e.id, e.date, e.sens, e.categorie, e.montant, e.libelle, e.tiers, e.mode, e.statut, e.reference,
-  e.bienKind, e.bienId, e.leadId || null, e.employeId || null, e.chargeId || null, e.periode || null, e.justificatif, e.notes, e.creePar, versMysql(e.creeLe)];
+  e.bienKind, e.bienId, e.leadId || null, e.employeId || null, e.chargeId || null, e.periode || null, e.justificatif, e.notes, e.creePar, e.modifiePar || '', versMysql(e.creeLe)];
 const REQUETE_ECRITURE = `INSERT INTO compta_ecritures (${ECRITURE_COLONNES.join(', ')}) VALUES (${ECRITURE_COLONNES.map(() => '?').join(',')})
   ON DUPLICATE KEY UPDATE ${ECRITURE_COLONNES.filter(c => !['id', 'cree_par', 'created_at'].includes(c)).map(c => `${c}=VALUES(${c})`).join(', ')}`;
 
@@ -459,7 +593,9 @@ async function supprimerCharge(id) {
 }
 
 module.exports = {
-  CATEGORIES, MODES, SENS, STATUTS,
+  CATEGORIES, MODES, SENS, STATUTS, TYPES_PARAMETRES, EFFETS, SYSTEME, PARAMETRES_INITIAUX,
+  normaliserParametres, identifiantParametre, validerParametre, usagesParametre, effetStatut,
+  enregistrerParametre, supprimerParametre,
   periodeValide, dateValide, finDePeriode, libelleCategorie, libelleMode,
   validerEcriture, validerEmploye, validerCharge, paieDuMois, chargesDuMois, categorieDeDemande, ventes, rapport, csv, moisEntre,
   configure, tout, enregistrerEcritures, supprimerEcriture, enregistrerEmploye, supprimerEmploye, enregistrerCharge, supprimerCharge,

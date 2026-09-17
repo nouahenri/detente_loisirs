@@ -902,7 +902,7 @@
     const r = d.rapport;
     const aEncaisser = d.ventes.filter(v => v.reste > 0);
     const periodes = [['mois', 'Ce mois'], ['mois-precedent', 'Mois précédent'], ['annee', 'Cette année'], ['annee-precedente', 'Année précédente'], ['perso', 'Personnalisée']];
-    const onglets = [['journal', 'Journal', d.ecritures.length], ['ventes', 'Ventes à encaisser', aEncaisser.length], ['salaires', 'Salaires', d.employes.filter(e => e.actif).length], ['charges', 'Charges récurrentes', d.charges.filter(c => c.actif).length], ['rapport', 'Rapport', null]];
+    const onglets = [['journal', 'Journal', d.ecritures.length], ['ventes', 'Ventes à encaisser', aEncaisser.length], ['salaires', 'Salaires', d.employes.filter(e => e.actif).length], ['charges', 'Charges récurrentes', d.charges.filter(c => c.actif).length], ['rapport', 'Rapport', null], ['parametres', 'Paramètres', null]];
     hote.innerHTML = `
       <div class="compta-outils">
         <label>Période<select data-compta-periode>${periodes.map(([valeur, libelle]) => `<option value="${valeur}" ${compta.periode === valeur ? 'selected' : ''}>${libelle}</option>`).join('')}</select></label>
@@ -919,7 +919,7 @@
         <article class="kpi-card"><small>Sorties payées</small><strong>${money(r.sorties)}</strong><em>Dépenses, salaires, charges réglés</em></article>
         <article class="kpi-card compta-solde ${r.solde < 0 ? 'negatif' : ''}"><small>Solde de la période</small><strong>${r.solde < 0 ? '−' : ''}${money(Math.abs(r.solde))}</strong><em>Entrées − sorties réglées</em></article>
         <article class="kpi-card"><small>Reste à encaisser</small><strong>${money(r.resteAEncaisser)}</strong><em>${aEncaisser.length} vente${aEncaisser.length > 1 ? 's' : ''} confirmée${aEncaisser.length > 1 ? 's' : ''} non soldée${aEncaisser.length > 1 ? 's' : ''}</em></article>
-        <article class="kpi-card"><small>Dépenses à payer</small><strong>${money(r.aPayer)}</strong><em>Écritures « à régler » de la période</em></article>
+        <article class="kpi-card"><small>Dépenses à payer</small><strong>${money(r.aPayer)}</strong><em>Dépenses en attente de règlement</em></article>
       </div>
       <div class="filter-pills compta-onglets" role="tablist">${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-compta-onglet="${id}" class="${compta.onglet === id ? 'active' : ''}" aria-selected="${compta.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</div>
       <div class="compta-contenu" data-compta-contenu></div>`;
@@ -936,7 +936,14 @@
     $$('[data-compta-nouvelle]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirEcriture(null, { sens: bouton.dataset.comptaNouvelle })));
     $$('[data-compta-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { compta.onglet = bouton.dataset.comptaOnglet; renderCompta(); }));
     const contenu = $('[data-compta-contenu]', hote);
-    ({ journal: renderJournal, ventes: renderVentes, salaires: renderSalaires, charges: renderCharges, rapport: renderRapport })[compta.onglet](contenu);
+    ({ journal: renderJournal, ventes: renderVentes, salaires: renderSalaires, charges: renderCharges, rapport: renderRapport, parametres: renderParametres })[compta.onglet](contenu);
+  }
+
+  /** Pastille d'un statut : sa couleur suit son effet (réglé, en attente, hors comptes). */
+  function pastilleStatut(id) {
+    const statut = compta.donnees?.statuts?.find(s => s.id === id);
+    const classe = { regle: 'regle', attente: 'a-regler', exclu: 'exclu' }[statut?.effet] || '';
+    return `<span class="compta-statut ${classe}">${esc(statut?.libelle || id)}</span>`;
   }
 
   function ligneEcriture(e) {
@@ -944,7 +951,7 @@
     return `<div class="compta-ligne" role="button" tabindex="0" data-compta-ecriture="${esc(e.id)}">
       <time datetime="${esc(e.date)}">${esc(dateCourte(e.date))}</time>
       <div class="compta-ligne-texte"><strong>${esc(e.libelle)}</strong><small>${esc(details)}</small></div>
-      ${e.statut === 'a_regler' ? '<span class="compta-statut a-regler">À régler</span>' : '<span class="compta-statut regle">Réglé</span>'}
+      ${pastilleStatut(e.statut)}
       <strong class="compta-montant ${e.sens}">${esc(signeMontant(e))}</strong>
     </div>`;
   }
@@ -961,7 +968,7 @@
     const d = compta.donnees;
     hote.innerHTML = `<div class="compta-filtres">
         <div class="filter-pills">${[['all', 'Tout'], ['entree', 'Entrées'], ['sortie', 'Sorties']].map(([v, l]) => `<button type="button" data-compta-sens="${v}" class="${compta.sens === v ? 'active' : ''}">${l}</button>`).join('')}</div>
-        <select data-compta-categorie aria-label="Catégorie"><option value="">Toutes les catégories</option>${d.categories.map(c => `<option value="${c.id}" ${compta.categorie === c.id ? 'selected' : ''}>${c.sens === 'entree' ? 'Recette' : 'Dépense'} · ${esc(c.libelle)}</option>`).join('')}</select>
+        <select data-compta-categorie aria-label="Catégorie"><option value="">Toutes les catégories</option>${d.categories.filter(c => c.actif || d.ecritures.some(e => e.categorie === c.id)).map(c => `<option value="${c.id}" ${compta.categorie === c.id ? 'selected' : ''}>${c.sens === 'entree' ? 'Recette' : 'Dépense'} · ${esc(c.libelle)}</option>`).join('')}</select>
         <label class="admin-search"><span>Rechercher</span><input type="search" data-compta-recherche value="${esc(compta.recherche)}" placeholder="Libellé, tiers, référence…"></label>
       </div><div class="content-table compta-journal" data-compta-journal></div>`;
     const lister = () => {
@@ -1125,6 +1132,72 @@
     zone.addEventListener('mouseleave', () => { bulle.hidden = true; $$('.attenue', zone).forEach(el => el.classList.remove('attenue')); });
   }
 
+  // ---- Paramètres : catégories, modes de paiement, statuts ----------------
+  const EFFETS_STATUT = {
+    regle: ['Réglé', 'Argent réellement encaissé ou payé : compte dans le solde.'],
+    attente: ['En attente', 'Dû mais pas encore réglé : compte dans « à payer » ou « à recevoir ».'],
+    exclu: ['Hors comptes', 'N’entre dans aucun total (annulé, erreur de saisie…).']
+  };
+
+  function renderParametres(hote) {
+    const d = compta.donnees;
+    const bloc = (type, titre, aide, liste, detail) => `<section class="compta-parametres">
+        <div class="compta-section-tete"><div><h3>${titre}</h3><p class="compta-aide">${aide}</p></div><button type="button" data-parametre-nouveau="${type}"${type === 'categories' ? ` data-sens="${liste[0]?.sens || 'entree'}"` : ''}>＋ Ajouter</button></div>
+        <div class="content-table">${liste.length ? liste.map(p => {
+          const usages = d.usages?.[type]?.[p.id] || 0;
+          return `<div class="compta-ligne compta-parametre${p.actif ? '' : ' est-inactif'}" role="button" tabindex="0" data-parametre="${type}:${esc(p.id)}">
+            <div class="compta-ligne-texte"><strong>${esc(p.libelle)}</strong><small>${esc([detail(p), `${usages} utilisation${usages > 1 ? 's' : ''}`, p.systeme ? 'indispensable' : ''].filter(Boolean).join(' · '))}</small></div>
+            ${p.actif ? '' : '<span class="compta-statut">Désactivé</span>'}
+          </div>`;
+        }).join('') : '<div class="empty">Aucun élément.</div>'}</div>
+      </section>`;
+    hote.innerHTML = `<p class="compta-aide">Les listes proposées dans les écritures et les charges. Un élément déjà utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer, il reste lisible sur les écritures existantes.</p>
+      ${bloc('categories', 'Catégories des entrées', 'Recettes : locations, ventes, commissions…', d.categories.filter(c => c.sens === 'entree'), () => 'Entrée')}
+      ${bloc('categories', 'Catégories des sorties', 'Dépenses : salaires, charges, entretien…', d.categories.filter(c => c.sens === 'sortie'), () => 'Sortie')}
+      ${bloc('modes', 'Modes de paiement', 'Espèces, Mobile Money, virement…', d.modes, () => '')}
+      ${bloc('statuts', 'Statuts', 'L’effet d’un statut décide de ce qui compte dans le solde et dans les montants à payer ou à recevoir.', d.statuts, p => EFFETS_STATUT[p.effet]?.[0] || p.effet)}`;
+    $$('[data-parametre-nouveau]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirParametre(bouton.dataset.parametreNouveau, null, { sens: bouton.dataset.sens })));
+    $$('[data-parametre]', hote).forEach(ligne => {
+      const [type, ...reste] = ligne.dataset.parametre.split(':');
+      const ouvrir = () => ouvrirParametre(type, d[type].find(p => p.id === reste.join(':')));
+      ligne.addEventListener('click', ouvrir);
+      ligne.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ouvrir(); } });
+    });
+  }
+
+  function ouvrirParametre(type, parametre, preremplissage = {}) {
+    const p = { actif: true, ...preremplissage, ...(parametre || {}) };
+    const noms = { categories: ['Catégorie', 'Nouvelle catégorie'], modes: ['Mode de paiement', 'Nouveau mode de paiement'], statuts: ['Statut', 'Nouveau statut'] }[type];
+    const usages = parametre ? (compta.donnees.usages?.[type]?.[parametre.id] || 0) : 0;
+    const verrou = parametre?.systeme ? ' disabled' : '';
+    ouvrirTiroirCompta({
+      surtitre: 'COMPTABILITÉ · PARAMÈTRES', titre: parametre ? parametre.libelle : noms[1],
+      supprimable: Boolean(parametre) && !parametre.systeme,
+      champs: `<label>Libellé<input name="libelle" maxlength="80" required value="${esc(p.libelle || '')}"></label>
+        ${type === 'categories' ? `<fieldset class="compta-sens"><legend>Type</legend><label><input type="radio" name="sens" value="entree" ${p.sens === 'entree' ? 'checked' : ''}${verrou}> Entrée (recette)</label><label><input type="radio" name="sens" value="sortie" ${p.sens === 'sortie' ? 'checked' : ''}${verrou}> Sortie (dépense)</label></fieldset>` : ''}
+        ${type === 'statuts' ? `<fieldset class="compta-effets"><legend>Effet sur les comptes</legend>${Object.entries(EFFETS_STATUT).map(([effet, [libelle, aide]]) => `<label><input type="radio" name="effet" value="${effet}" ${p.effet === effet ? 'checked' : ''}${verrou}><span><strong>${libelle}</strong><small>${aide}</small></span></label>`).join('')}</fieldset>` : ''}
+        <div class="form-grid"><label>Ordre d’affichage<input type="number" name="ordre" min="0" max="999" step="1" value="${esc(p.ordre ?? '')}"></label></div>
+        <div class="toggle-row"><label><input type="checkbox" name="actif" value="yes" ${p.actif !== false ? 'checked' : ''}${verrou}> Actif (proposé dans les listes)</label></div>
+        ${parametre?.systeme ? '<p class="compta-aide">Élément indispensable (paie du mois, calcul du solde) : seuls son libellé et son ordre se modifient.</p>' : ''}
+        ${parametre ? `<p class="compta-tracabilite">${usages ? `Utilisé par <strong>${usages}</strong> écriture(s) ou charge(s) : il ne peut pas être supprimé, désactivez-le pour ne plus le proposer.` : 'Utilisé nulle part : il peut être supprimé.'}</p>` : ''}`,
+      enregistrer: async formulaire => {
+        if (!formulaire.reportValidity()) throw new Error('Complétez les champs requis');
+        const valeurs = Object.fromEntries(new FormData(formulaire));
+        const corps = { id: parametre?.id, libelle: valeurs.libelle, ordre: valeurs.ordre === '' ? undefined : Number(valeurs.ordre), actif: formulaire.elements.actif.checked };
+        if (type === 'categories') corps.sens = valeurs.sens || parametre?.sens;
+        if (type === 'statuts') corps.effet = valeurs.effet || parametre?.effet;
+        await api(`/api/admin/compta/parametres/${type}`, { method: 'POST', body: JSON.stringify(corps) });
+        toast(parametre ? 'Paramètre mis à jour' : 'Paramètre ajouté');
+      },
+      supprimer: async () => {
+        if (!confirm(`Supprimer « ${parametre.libelle} » ?`)) return false;
+        await api(`/api/admin/compta/parametres/${type}/${encodeURIComponent(parametre.id)}`, { method: 'DELETE' });
+        toast('Paramètre supprimé');
+        return true;
+      }
+    });
+  }
+
   // ---- Fiches de saisie -------------------------------------------------
   function ouvrirTiroirCompta({ surtitre, titre, champs, supprimable, apresOuverture, enregistrer, supprimer }) {
     document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop compta-backdrop"><form class="editor-drawer compta-fiche" novalidate><div class="editor-head"><div><span class="eyebrow">${esc(surtitre)}</span><h2>${esc(titre)}</h2></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">${champs}</div><div class="editor-actions">${supprimable ? '<button type="button" class="danger" data-compta-supprimer>Supprimer</button>' : ''}<button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
@@ -1150,19 +1223,30 @@
     $('input:not([type=hidden]):not([type=radio]), select', formulaire)?.focus();
   }
 
-  const optionsModes = actuel => `<option value="">—</option>${(compta.donnees?.modes || []).map(m => `<option value="${m.id}" ${actuel === m.id ? 'selected' : ''}>${esc(m.libelle)}</option>`).join('')}`;
+  const optionsModes = actuel => `<option value="">—</option>${(compta.donnees?.modes || []).filter(m => m.actif || m.id === actuel).map(m => `<option value="${esc(m.id)}" ${actuel === m.id ? 'selected' : ''}>${esc(m.libelle)}${m.actif ? '' : ' (désactivé)'}</option>`).join('')}`;
+  const optionsStatuts = actuel => (compta.donnees?.statuts || []).filter(s => s.actif || s.id === actuel).map(s => `<option value="${esc(s.id)}" ${actuel === s.id ? 'selected' : ''}>${esc(s.libelle)}${s.actif ? '' : ' (désactivé)'}</option>`).join('');
   const optionsBiens = (kind, id) => `<option value="">Aucun</option>${Object.entries({ villa: ['villas', 'Villa'], terrain: ['terrains', 'Terrain'], activity: ['activities', 'Activité'] }).map(([k, [cle, libelle]]) => (state.content[cle] || []).map(item => `<option value="${k}:${esc(item.id)}" ${kind === k && id === item.id ? 'selected' : ''}>${libelle} · ${esc(item.name || item.title || item.id)}</option>`).join('')).join('')}`;
+
+  /** Qui a saisi et modifié l'écriture ; pour une nouvelle, l'utilisateur connecté. */
+  function tracabiliteEcriture(ecriture) {
+    const horodatage = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(valeur)); } catch { return ''; } };
+    const moi = state.user?.username || 'vous';
+    if (!ecriture) return `<p class="compta-tracabilite">Sera enregistrée au nom de <strong>${esc(moi)}</strong>.</p>`;
+    const saisie = `Saisie par <strong>${esc(ecriture.creePar || 'inconnu')}</strong>${ecriture.creeLe ? ` le ${esc(horodatage(ecriture.creeLe))}` : ''}`;
+    const modification = ecriture.modifiePar ? ` · modifiée par <strong>${esc(ecriture.modifiePar)}</strong>${ecriture.majLe ? ` le ${esc(horodatage(ecriture.majLe))}` : ''}` : '';
+    return `<p class="compta-tracabilite">${saisie}${modification}. Une nouvelle modification sera enregistrée au nom de <strong>${esc(moi)}</strong>.</p>`;
+  }
 
   function ouvrirEcriture(ecriture, preremplissage = {}) {
     const e = { date: aujourdhui(), statut: 'regle', sens: 'sortie', ...preremplissage, ...(ecriture || {}) };
-    const categoriesDe = sens => (compta.donnees?.categories || []).filter(c => c.sens === sens);
+    const categoriesDe = sens => (compta.donnees?.categories || []).filter(c => c.sens === sens && (c.actif || c.id === e.categorie));
     const leads = [...state.leads].sort((a, b) => (b.status === 'confirme') - (a.status === 'confirme') || String(b.createdAt).localeCompare(String(a.createdAt)));
     const champs = `<fieldset class="compta-sens"><legend>Type d’écriture</legend><label><input type="radio" name="sens" value="entree" ${e.sens === 'entree' ? 'checked' : ''}> Entrée (recette)</label><label><input type="radio" name="sens" value="sortie" ${e.sens === 'sortie' ? 'checked' : ''}> Sortie (dépense)</label></fieldset>
       <div class="form-grid">
         <label>Date<input type="date" name="date" required value="${esc(e.date)}"></label>
         <label>Montant (FCFA)<input type="number" name="montant" min="1" step="1" required inputmode="numeric" value="${esc(e.montant ?? '')}"></label>
         <label>Catégorie<select name="categorie" required data-categories></select></label>
-        <label>Statut<select name="statut"><option value="regle" ${e.statut === 'regle' ? 'selected' : ''}>Réglé</option><option value="a_regler" ${e.statut === 'a_regler' ? 'selected' : ''}>À régler</option></select></label>
+        <label>Statut<select name="statut">${optionsStatuts(e.statut)}</select></label>
         <label>Mode de paiement<select name="mode">${optionsModes(e.mode)}</select></label>
         <label>Référence (facture, reçu)<input name="reference" maxlength="80" value="${esc(e.reference || '')}"></label>
       </div>
@@ -1174,6 +1258,7 @@
       </div>
       <div class="compta-piece"><input type="hidden" name="justificatif" value="${esc(e.justificatif || '')}"><span data-piece-etat>${e.justificatif ? `<a href="/api/admin/compta/justificatifs/${esc(e.justificatif)}" target="_blank" rel="noopener">Voir la pièce justificative</a>` : 'Aucune pièce justificative'}</span><label class="upload-button">＋ Joindre (photo ou PDF)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-piece-fichier></label>${e.justificatif ? '<button type="button" data-piece-retirer>Retirer</button>' : ''}</div>
       <label>Notes<textarea name="notes" rows="3" maxlength="2000">${esc(e.notes || '')}</textarea></label>
+      ${tracabiliteEcriture(ecriture)}
       ${ecriture?.employeId ? '<p class="compta-aide">Salaire généré depuis la fiche de l’employé.</p>' : ecriture?.chargeId ? '<p class="compta-aide">Échéance générée depuis une charge récurrente.</p>' : ''}`;
     ouvrirTiroirCompta({
       surtitre: ecriture ? 'COMPTABILITÉ · MODIFICATION' : 'COMPTABILITÉ · NOUVELLE ÉCRITURE',
@@ -1258,7 +1343,7 @@
 
   function ouvrirCharge(charge) {
     const c = charge || { actif: true, jour: 5, debut: aujourdhui().slice(0, 7) };
-    const categories = (compta.donnees?.categories || []).filter(x => x.sens === 'sortie');
+    const categories = (compta.donnees?.categories || []).filter(x => x.sens === 'sortie' && (x.actif || x.id === c.categorie));
     ouvrirTiroirCompta({
       surtitre: 'COMPTABILITÉ · CHARGES RÉCURRENTES', titre: charge ? charge.libelle : 'Nouvelle charge récurrente', supprimable: Boolean(charge),
       champs: `<label>Libellé<input name="libelle" maxlength="240" required value="${esc(c.libelle || '')}" placeholder="ex. Loyer du bureau, facture CIE"></label>

@@ -1132,3 +1132,19 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
   .compta-vente-actions { width:100%; }
   .compta-vente-actions button { flex:1 1 auto; }
 }
+
+.compta-tracabilite { margin:.4rem 0 1rem; padding:.7rem .9rem; border-radius:12px; background:#f8f9fc; color:var(--muted); font-size:.74rem; line-height:1.5; }
+.compta-tracabilite strong { color:var(--ink); }
+
+/* Comptabilité → Paramètres (17/09/2026) */
+.compta-parametres + .compta-parametres { margin-top:.4rem; }
+.compta-parametres .compta-section-tete .compta-aide { margin:.2rem 0 0; }
+.compta-ligne.compta-parametre { grid-template-columns:minmax(0,1fr) auto; }
+.compta-ligne.est-inactif .compta-ligne-texte strong { color:var(--muted); }
+.compta-statut.exclu { background:rgba(21,24,55,.06); color:var(--muted); text-decoration:line-through; }
+.compta-fiche .compta-effets { display:grid; gap:.5rem; margin:1rem 0 0; padding:0; border:0; }
+.compta-fiche .compta-effets legend { margin-bottom:.4rem; font-size:.78rem; font-weight:700; }
+.compta-fiche .compta-effets label { display:flex; align-items:flex-start; gap:.6rem; margin:0; padding:.65rem .8rem; border:1px solid var(--line); border-radius:12px; font-size:.8rem; }
+.compta-fiche .compta-effets input { width:auto; margin-top:.2rem; }
+.compta-fiche .compta-effets span { display:grid; gap:.15rem; }
+.compta-fiche .compta-effets small { color:var(--muted); font-weight:500; }
