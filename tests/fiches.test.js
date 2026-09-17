@@ -109,7 +109,7 @@ function valider(payload) {
   const helpers = server.slice(server.indexOf('function text('), server.indexOf('\n}\n', server.indexOf('function slug(')) + 3);
   const debut = server.indexOf('const EURO_RATE');
   const fin = server.indexOf('\n}\n', server.indexOf('function validateAndSanitizeContent(')) + 3;
-  const contexte = vm.createContext({ REF, FICHES, publicationsSansFiche: posts => posts });
+  const contexte = vm.createContext({ REF, FICHES, SYNC: require('../db/synchro-facebook'), publicationsSansFiche: posts => posts });
   vm.runInContext(`${helpers}\n${server.slice(debut, fin)}\nthis.valider = validateAndSanitizeContent;`, contexte);
   return hote(contexte.valider(payload, REF.normaliserReferentiels(null)));
 }
@@ -156,6 +156,7 @@ test('terrain : traductions nettoyées', () => {
 test('dépôt MySQL : traductions et mentions de tarif écrites dans les bonnes colonnes', () => {
   const repository = lire('db/repository.js');
   const contexte = vm.createContext({ Math, Number, JSON, EURO_RATE: 655.957, bool: v => (v ? 1 : 0), jsonColumn: v => JSON.stringify(v ?? []) });
+  vm.runInContext("function etatAnnonce(item) {\n  return ['active', 'suspendue', 'archivee'].includes(item?.etat) ? item.etat : 'active';\n}", contexte);
   const colonnes = constante => {
     const sql = repository.slice(repository.indexOf(`const ${constante}`), repository.indexOf('`;', repository.indexOf(`const ${constante}`)));
     return sql.slice(sql.indexOf('(') + 1, sql.indexOf(')')).split(',').map(c => c.trim());
@@ -208,12 +209,10 @@ test('publication : l’origine est enregistrée au journal et l’identifiant r
   const debut = server.indexOf('async function publishFacebookPost(');
   const bloc = server.slice(debut, server.indexOf('\n}\n', debut));
   assert.match(bloc, /facebookId: text\(result\.post_id \|\| result\.id, 200\)[^\n]*origine/);
-  const partage = server.slice(server.indexOf('async function shareContentToFacebook('), server.indexOf('// PUBLICATION AUTOMATIQUE VERS LA PAGE FACEBOOK'));
-  assert.match(partage, /origine: \{ kind, id \}/);
-  assert.match(partage, /facebookId: result\.post_id \|\| result\.id/);
-  const auto = server.slice(server.indexOf('async function autoShareContentToFacebook('), server.indexOf('async function handleApi('));
-  assert.match(auto, /origine: \{ kind, id \}/);
-  assert.match(auto, /facebookId: resultat\.post_id \|\| resultat\.id/);
+  // Annonces publiées depuis le site (17/09/2026) : origine et publication, pas la photo.
+  const annonce = server.slice(server.indexOf('async function publierAnnonceFacebook('), server.indexOf('async function modifierTexteFacebook('));
+  assert.match(annonce, /origine: \{ kind, id: item\.id \}/);
+  assert.match(annonce, /text\(resultat\.post_id \|\| resultat\.id, 200\)/);
 });
 
 // --------------------------------------------------------------------------

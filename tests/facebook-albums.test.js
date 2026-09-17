@@ -117,7 +117,7 @@ test('URL invalide écartée sans faire tomber le lot', () => {
 test('la requête Graph réclame les albums entiers, pas leur première page', async () => {
   const r = recuperateur();
   await r.get();
-  assert.match(r.appels[0], /attachments\{media_type,media,target\{id\},subattachments\.limit\(100\)\{media\}\}/,
+  assert.match(r.appels[0], /attachments\{media_type,media,target\{id\},subattachments\.limit\(100\)\{media,target\{id\}\}\}/,
     'sans .limit(), Graph coupe les sous-pièces à 12 photos');
 });
 
@@ -156,7 +156,7 @@ test('.limit() refusé : repli sur la pagination par défaut, albums conservés'
   await r.get();
   assert.equal(r.appels.length, 2);
   assert.match(r.appels[0], /subattachments\.limit\(100\)/);
-  assert.match(r.appels[1], /subattachments\{media\}/, 'le repli garde les albums');
+  assert.match(r.appels[1], /subattachments\{media,target\{id\}\}/, 'le repli garde les albums et les identifiants des photos');
 });
 
 test('champ attachments refusé : repli sur les champs de base plutôt qu’échec', async () => {

@@ -503,17 +503,20 @@ test('facebook : plusieurs images partent en un seul post (album), pas en rafale
   assert.match(posts[0].corps, /attached_media%5B2%5D/, 'Les trois photos doivent être rattachées.');
   assert.equal(resultat.duplicate, false);
 
-  // Une seule image conserve le chemin simple : /photos publié directement,
-  // qui donne un meilleur rendu qu'un album d'une seule photo.
+  // Une seule image suit le même chemin depuis le 17/09/2026 : la légende
+  // d'une publication /photos ne se modifie pas par Graph, le texte d'une
+  // publication du fil, si (synchronisation des annonces site → Facebook).
   appels.length = 0;
-  await context.publier({ message: 'Une seule vue', imageUrls: ['assets/uploads/a.jpg'] });
-  assert.equal(appels.length, 1);
-  assert.match(appels[0].chemin, /\/photos$/);
-  assert.match(appels[0].corps, /published=true/);
+  const seule = await context.publier({ message: 'Une seule vue', imageUrls: ['assets/uploads/a.jpg'] });
+  assert.equal(appels.length, 2);
+  assert.match(appels[0].corps, /published=false/);
+  assert.match(appels[1].chemin, /\/feed$/);
+  assert.equal(seule.photos.length, 1, 'photo envoyée rattachée à sa valeur sur le site');
+  assert.equal(seule.photos[0].local, 'assets/uploads/a.jpg');
 
-  // Rétrocompatibilité : le partage depuis le catalogue envoie `imageUrl`.
+  // Rétrocompatibilité : `imageUrl` (singulier) reste accepté.
   appels.length = 0;
   await context.publier({ message: 'Depuis le catalogue', imageUrl: 'assets/uploads/z.jpg' });
-  assert.equal(appels.length, 1);
-  assert.match(appels[0].chemin, /\/photos$/);
+  assert.equal(appels.length, 2);
+  assert.match(appels[1].chemin, /\/feed$/);
 });

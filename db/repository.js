@@ -68,6 +68,11 @@ function jsonColumn(value) {
 
 function bool(value) { return value ? 1 : 0; }
 
+/** État d'une annonce ; toute valeur inconnue vaut « active ». */
+function etatAnnonce(item) {
+  return ['active', 'suspendue', 'archivee'].includes(item?.etat) ? item.etat : 'active';
+}
+
 /** Date ISO ↔ DATETIME UTC MySQL. */
 function toMysqlDate(value) {
   if (!value) return null;
@@ -134,7 +139,11 @@ function villaFromRow(row) {
     features: parseArray(row.features),
     highlights: parseArray(row.highlights),
     // Traductions EN/ES de la fiche (db/migration-5-points.sql).
-    translations: parseObject(row.translations)
+    translations: parseObject(row.translations),
+    // Gestion de l'annonce (db/migration-gestion-compta.sql) : état et case
+    // « Publier sur Facebook » (NULL = jamais enregistrée).
+    etat: row.etat || 'active',
+    facebook: row.facebook === null || row.facebook === undefined ? null : Boolean(Number(row.facebook)),
   };
 }
 
@@ -142,8 +151,8 @@ const VILLA_UPSERT = `INSERT INTO villas
   (id, name, tagline, category, category_label, environment, location, description, price_per_night, price_euro,
    weekend_package, capacity, bedrooms, bathrooms, beds, status, badge, visible, featured,
    rating, reviews_count, images, features, highlights, sort_order,
-   localisation_id, localisation_precision, badge_id, equipements, translations)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+   localisation_id, localisation_precision, badge_id, equipements, translations, etat, facebook)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     name=VALUES(name), tagline=VALUES(tagline), category=VALUES(category),
     category_label=VALUES(category_label), environment=VALUES(environment),
@@ -155,7 +164,8 @@ const VILLA_UPSERT = `INSERT INTO villas
     reviews_count=VALUES(reviews_count), images=VALUES(images), features=VALUES(features),
     highlights=VALUES(highlights), sort_order=VALUES(sort_order),
     localisation_id=VALUES(localisation_id), localisation_precision=VALUES(localisation_precision),
-    badge_id=VALUES(badge_id), equipements=VALUES(equipements), translations=VALUES(translations)`;
+    badge_id=VALUES(badge_id), equipements=VALUES(equipements), translations=VALUES(translations),
+    etat=VALUES(etat), facebook=VALUES(facebook)`;
 
 function villaParams(item, index) {
   return [
@@ -169,7 +179,8 @@ function villaParams(item, index) {
     Number(item.reviewsCount) || 0,
     jsonColumn(item.images), jsonColumn(item.features), jsonColumn(item.highlights), index,
     item.localisationId || null, item.localisationPrecision || '', item.badgeId || null, jsonColumn(item.equipements),
-    JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {})
+    JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {}),
+    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null
   ];
 }
 
@@ -207,7 +218,11 @@ function terrainFromRow(row) {
     badgeId: row.badge_id || '',
     latitude: row.latitude === null ? null : Number(row.latitude),
     longitude: row.longitude === null ? null : Number(row.longitude),
-    translations: parseObject(row.translations)
+    translations: parseObject(row.translations),
+    // Gestion de l'annonce (db/migration-gestion-compta.sql) : état et case
+    // « Publier sur Facebook » (NULL = jamais enregistrée).
+    etat: row.etat || 'active',
+    facebook: row.facebook === null || row.facebook === undefined ? null : Boolean(Number(row.facebook)),
   };
 }
 
@@ -215,8 +230,8 @@ const TERRAIN_UPSERT = `INSERT INTO terrains
   (id, reference, title, location, district, area_sqm, price_total, price_per_sqm, price_euro,
    land_status, land_status_label, utilities, status, description, images, highlights,
    visible, featured, badge, latitude, longitude, sort_order,
-   localisation_id, localisation_precision, badge_id, translations)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+   localisation_id, localisation_precision, badge_id, translations, etat, facebook)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     reference=VALUES(reference), title=VALUES(title), location=VALUES(location),
     district=VALUES(district), area_sqm=VALUES(area_sqm), price_total=VALUES(price_total),
@@ -227,7 +242,8 @@ const TERRAIN_UPSERT = `INSERT INTO terrains
     featured=VALUES(featured), badge=VALUES(badge), latitude=VALUES(latitude),
     longitude=VALUES(longitude), sort_order=VALUES(sort_order),
     localisation_id=VALUES(localisation_id), localisation_precision=VALUES(localisation_precision),
-    badge_id=VALUES(badge_id), translations=VALUES(translations)`;
+    badge_id=VALUES(badge_id), translations=VALUES(translations),
+    etat=VALUES(etat), facebook=VALUES(facebook)`;
 
 function terrainParams(item, index) {
   // Sécurité de dernier rempart : les prix dérivés sont recalculés ici aussi,
@@ -247,7 +263,8 @@ function terrainParams(item, index) {
     item.longitude === null || item.longitude === undefined || item.longitude === '' ? null : Number(item.longitude),
     index,
     item.localisationId || null, item.localisationPrecision || '', item.badgeId || null,
-    JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {})
+    JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {}),
+    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null
   ];
 }
 
@@ -278,15 +295,19 @@ function activityFromRow(row) {
     pricePrefix: row.price_prefix || '',
     priceSuffix: row.price_suffix || '',
     translations: parseObject(row.translations),
-    badge: row.badge, badgeId: row.badge_id || '', visible: Boolean(row.visible), featured: Boolean(row.featured)
+    badge: row.badge, badgeId: row.badge_id || '', visible: Boolean(row.visible), featured: Boolean(row.featured),
+    // Gestion de l'annonce (db/migration-gestion-compta.sql) : état et case
+    // « Publier sur Facebook » (NULL = jamais enregistrée).
+    etat: row.etat || 'active',
+    facebook: row.facebook === null || row.facebook === undefined ? null : Boolean(Number(row.facebook)),
   };
 }
 
 const ACTIVITY_UPSERT = `INSERT INTO activities
   (id, title, subtitle, description, image, images, duration, price, price_amount, price_unit,
    group_price_amount, group_size, badge, visible, featured, sort_order, badge_id,
-   price_prefix, price_suffix, translations)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+   price_prefix, price_suffix, translations, etat, facebook)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     title=VALUES(title), subtitle=VALUES(subtitle), description=VALUES(description),
     image=VALUES(image), images=VALUES(images), duration=VALUES(duration), price=VALUES(price),
@@ -294,7 +315,7 @@ const ACTIVITY_UPSERT = `INSERT INTO activities
     group_price_amount=VALUES(group_price_amount), group_size=VALUES(group_size),
     badge=VALUES(badge), visible=VALUES(visible), featured=VALUES(featured), sort_order=VALUES(sort_order),
     badge_id=VALUES(badge_id), price_prefix=VALUES(price_prefix), price_suffix=VALUES(price_suffix),
-    translations=VALUES(translations)`;
+    translations=VALUES(translations), etat=VALUES(etat), facebook=VALUES(facebook)`;
 
 function activityParams(item, index) {
   return [
@@ -308,7 +329,8 @@ function activityParams(item, index) {
     bool(item.visible !== false), bool(item.featured), index,
     item.badgeId || null,
     item.pricePrefix || '', item.priceSuffix || '',
-    JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {})
+    JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {}),
+    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null
   ];
 }
 
@@ -808,6 +830,12 @@ async function updateFacebookPostFiche(id, fiche) {
  * reçue. Au-delà, Graph ne renvoie simplement pas tout — ce n’est pas une
  * suppression, et effacer là serait une perte de données.
  */
+/** Publication supprimée de la Page depuis le site (case décochée, annonce retirée). */
+async function deleteFacebookPost(id) {
+  const [resultat] = await query('DELETE FROM facebook_posts WHERE id = ?', [String(id)]);
+  return resultat?.affectedRows || 0;
+}
+
 async function pruneFacebookPosts(posts = [], { fenetre = posts } = {}) {
   const ids = posts.map(post => String(post?.id || '')).filter(Boolean);
   if (!ids.length) return 0;
@@ -989,7 +1017,7 @@ module.exports = {
   // leads
   listLeads, createLead, updateLead,
   // facebook
-  listFacebookPosts, listFacebookPostFiches, updateFacebookPostFiche, upsertFacebookPosts, pruneFacebookPosts, pruneFacebookVideos, claimPublishKey, completePublish, failPublish,
+  listFacebookPosts, listFacebookPostFiches, updateFacebookPostFiche, upsertFacebookPosts, deleteFacebookPost, pruneFacebookPosts, pruneFacebookVideos, claimPublishKey, completePublish, failPublish,
   listPublishLog, recordFacebookEvents,
   // audit & verrous
   appendAudit, listAudit, acquireLock, releaseLock,

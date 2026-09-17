@@ -170,7 +170,14 @@ async function main() {
       ['activities', 'translations', 'JSON NULL AFTER `price_suffix`'],
       // Accord pour les offres WhatsApp (db/migration-whatsapp.sql).
       ['leads', 'whatsapp_optin', 'TINYINT(1) NULL DEFAULT NULL AFTER `source_ip`'],
-      ['leads', 'whatsapp_optin_at', 'DATETIME NULL DEFAULT NULL AFTER `whatsapp_optin`']
+      ['leads', 'whatsapp_optin_at', 'DATETIME NULL DEFAULT NULL AFTER `whatsapp_optin`'],
+      // Gestion des annonces (db/migration-gestion-compta.sql).
+      ['villas', 'etat', "VARCHAR(20) NOT NULL DEFAULT 'active' AFTER `translations`"],
+      ['villas', 'facebook', 'TINYINT(1) NULL DEFAULT NULL AFTER `etat`'],
+      ['terrains', 'etat', "VARCHAR(20) NOT NULL DEFAULT 'active' AFTER `translations`"],
+      ['terrains', 'facebook', 'TINYINT(1) NULL DEFAULT NULL AFTER `etat`'],
+      ['activities', 'etat', "VARCHAR(20) NOT NULL DEFAULT 'active' AFTER `featured`"],
+      ['activities', 'facebook', 'TINYINT(1) NULL DEFAULT NULL AFTER `etat`']
     ];
     for (const [table, column, definition] of additions) {
       const [existing] = await connection.execute(

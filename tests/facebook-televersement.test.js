@@ -72,7 +72,9 @@ test('un visuel présent sur le disque part en multipart, pas par URL', async ()
   const p = publieur();
   await p.publier({ message: 'Vue de la villa', imageUrls: [VISUEL_REEL] });
 
-  assert.equal(p.appels.length, 1);
+  // Une photo seule part en album d'une photo depuis le 17/09/2026 (texte
+  // modifiable par Graph) : téléversement non publié, puis publication du fil.
+  assert.equal(p.appels.length, 2);
   const envoi = p.appels[0];
   assert.match(envoi.chemin, /\/photos$/);
   assert.equal(envoi.multipart, true,
@@ -80,7 +82,8 @@ test('un visuel présent sur le disque part en multipart, pas par URL', async ()
   assert.ok(envoi.tailleFichier > 0, 'les octets de l’image doivent accompagner la requête');
   assert.equal(envoi.typeFichier, 'image/jpeg');
   assert.equal(envoi.nomFichier, 'residence-villa-luxe.jpg');
-  assert.deepEqual(envoi.champs, ['caption', 'published', 'source']);
+  assert.deepEqual(envoi.champs, ['published', 'source']);
+  assert.match(p.appels[1].chemin, /\/feed$/);
 });
 
 test('aucun en-tête Content-Type imposé sur un envoi multipart', async () => {
@@ -97,7 +100,7 @@ test('une URL externe reste passée telle quelle : rien à téléverser', async 
   const envoi = p.appels[0];
   assert.equal(envoi.multipart, false);
   assert.match(envoi.corps, /url=https%3A%2F%2Fimages\.unsplash\.com/);
-  assert.match(envoi.corps, /published=true/);
+  assert.match(envoi.corps, /published=false/);
 });
 
 test('un chemin local absent du disque retombe sur l’URL publique', async () => {

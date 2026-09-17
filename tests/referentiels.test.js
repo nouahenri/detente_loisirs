@@ -149,6 +149,7 @@ test('équipements pré-cochés : « piscine » seulement si le mot figure dans 
 // --------------------------------------------------------------------------
 test('écritures des villas, terrains et activités : autant de valeurs que de colonnes', () => {
   const contexte = vm.createContext({ Math, Number, JSON, EURO_RATE: 655.957, bool: v => (v ? 1 : 0), jsonColumn: v => JSON.stringify(v ?? []) });
+  vm.runInContext("function etatAnnonce(item) {\n  return ['active', 'suspendue', 'archivee'].includes(item?.etat) ? item.etat : 'active';\n}", contexte);
   for (const [constante, fonction] of [['VILLA_UPSERT', 'villaParams'], ['TERRAIN_UPSERT', 'terrainParams'], ['ACTIVITY_UPSERT', 'activityParams']]) {
     const sql = repository.slice(repository.indexOf(`const ${constante}`), repository.indexOf('`;', repository.indexOf(`const ${constante}`)));
     const colonnes = sql.slice(sql.indexOf('(') + 1, sql.indexOf(')')).split(',').length;

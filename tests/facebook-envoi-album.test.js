@@ -17,7 +17,7 @@ const server = fs.readFileSync(path.join(root, 'server.js'), 'utf8');
 
 function monter({ feed, publications = [], journalInitial = [], supprimees = [] }) {
   const debut = server.indexOf('async function publierSansDoublon(');
-  const fin = server.indexOf('// Site → Facebook : option EXPLICITE');
+  const fin = server.indexOf('function facebookImportedIds()');
   assert.ok(debut > 0 && fin > debut, 'bloc de publication introuvable dans server.js');
   const appels = [];
   const journal = structuredClone(journalInitial);

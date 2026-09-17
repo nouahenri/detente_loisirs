@@ -18,6 +18,7 @@ const REF = require('./db/referentiels');
 const FICHES = require('./db/fiches');
 const WA = require('./db/whatsapp-promo');
 const NOTIF = require('./db/notifications-app');
+const SYNC = require('./db/synchro-facebook');
 
 const PORT = Number(process.env.PORT || 3456);
 const ROOT = __dirname;
@@ -28,8 +29,9 @@ const FB_EVENTS_FILE = path.join(STORE_DIR, 'facebook-events.json');
 const FB_STATE_FILE = path.join(STORE_DIR, 'facebook-sync-state.json');
 const FB_POSTS_FILE = path.join(STORE_DIR, 'facebook-posts.json');
 const FB_PUBLISH_FILE = path.join(STORE_DIR, 'facebook-publish-log.json');
-// Mémoire du partage automatique : fiches déjà envoyées, compteur d'échecs.
-const FB_AUTO_FILE = path.join(STORE_DIR, 'facebook-auto-state.json');
+// Annonces ⇄ publications : texte et photos au dernier accord entre le site et
+// la Page, par identifiant Facebook (db/synchro-facebook.js).
+const FB_SYNCHRO_FILE = path.join(STORE_DIR, 'facebook-synchro.json');
 // Publications volontairement retirées du site depuis le studio. Un simple
 // fichier suffit : aucune colonne à ajouter en base, donc aucune migration
 // à faire passer en production.
@@ -725,6 +727,17 @@ function validateTerrains(payload, errors, warnings) {
  * Références inconnues → erreur explicite ; textes affichés (adresse, badge,
  * libellé de catégorie) recalculés depuis le référentiel, jamais saisis.
  */
+/**
+ * Gestion d'une annonce (17/09/2026) : état (active, suspendue, archivée) et
+ * case « Publier sur Facebook » — vraie, fausse, ou null tant qu'elle n'a
+ * jamais été enregistrée (annonce antérieure : l'état de la Page fait foi).
+ * L'ancien drapeau à usage unique `shareToFacebook` disparaît.
+ */
+function gestionAnnonce(item) {
+  const { shareToFacebook, ...reste } = item;
+  return { ...reste, etat: SYNC.etatAnnonce(item), facebook: item.facebook === true ? true : item.facebook === false ? false : null };
+}
+
 function appliquerReferentiels(item, referentiels, errors, options) {
   const { nom, avecCategorie = false, avecStatutVilla = false, avecLocalisation = false, avecEquipements = false } = options;
   const resultat = { ...item };
@@ -860,23 +873,33 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
   const settings = payload.settings && typeof payload.settings === 'object' ? {
     ...payload.settings, heroTitle: text(payload.settings.heroTitle, 180), heroSubtitle: text(payload.settings.heroSubtitle, 500),
     phone: text(payload.settings.phone, 60), facebookPage: text(payload.settings.facebookPage, 1000),
-    officeHours: text(payload.settings.officeHours, 120), currency: text(payload.settings.currency, 20) || 'FCFA',
-    // Relais automatique site -> Page Facebook. Booléen strict : une chaîne
-    // « false » venue d'un formulaire ne doit pas activer l'envoi.
-    facebookAutoPublish: payload.settings.facebookAutoPublish === true || payload.settings.facebookAutoPublish === 'true'
+    officeHours: text(payload.settings.officeHours, 120), currency: text(payload.settings.currency, 20) || 'FCFA'
   } : {};
-  const terrains = validateTerrains(payload, errors, warnings).map((item, index) => appliquerReferentiels(item, referentiels, errors,
-    { nom: item.title || `Terrain ${index + 1}`, avecLocalisation: true }));
-  const villasRattachees = villas.map((item, index) => appliquerReferentiels(item, referentiels, errors,
-    { nom: item.name || `Villa ${index + 1}`, avecCategorie: true, avecStatutVilla: true, avecLocalisation: true, avecEquipements: true }));
-  const activitiesRattachees = activities.map((item, index) => appliquerReferentiels(item, referentiels, errors,
-    { nom: item.title || `Activité ${index + 1}` }));
+  // Relais automatique retiré le 17/09/2026 : seule la case de chaque annonce
+  // décide de sa publication sur Facebook.
+  delete settings.facebookAutoPublish;
+  const terrains = validateTerrains(payload, errors, warnings).map((item, index) => gestionAnnonce(appliquerReferentiels(item, referentiels, errors,
+    { nom: item.title || `Terrain ${index + 1}`, avecLocalisation: true })));
+  const villasRattachees = villas.map((item, index) => gestionAnnonce(appliquerReferentiels(item, referentiels, errors,
+    { nom: item.name || `Villa ${index + 1}`, avecCategorie: true, avecStatutVilla: true, avecLocalisation: true, avecEquipements: true })));
+  const activitiesRattachees = activities.map((item, index) => gestionAnnonce(appliquerReferentiels(item, referentiels, errors,
+    { nom: item.title || `Activité ${index + 1}` })));
   return {
     content: { villas: villasRattachees, terrains, activities: activitiesRattachees, reviews: Array.isArray(payload.reviews) ? payload.reviews.slice(0, 100) : [],
       faq: Array.isArray(payload.faq) ? payload.faq.slice(0, 100) : [], settings,
       facebookPosts: Array.isArray(payload.facebookPosts) ? publicationsSansFiche(payload.facebookPosts.slice(0, 20)) : [], updatedAt: new Date().toISOString() },
     errors, warnings
   };
+}
+
+/**
+ * Contenu vu par les visiteurs (site, application) : les annonces suspendues
+ * ou archivées depuis le studio en sont retirées. Le studio lit le contenu
+ * complet sur GET /api/admin/content.
+ */
+function contenuPublic(contenu) {
+  const actives = liste => (Array.isArray(liste) ? liste.filter(item => SYNC.etatAnnonce(item) === 'active') : liste);
+  return { ...contenu, villas: actives(contenu.villas), terrains: actives(contenu.terrains), activities: actives(contenu.activities) };
 }
 
 /** Vrai quand un contenu n'a ni villa, ni terrain, ni activité. */
@@ -1105,6 +1128,7 @@ async function resolveActor(req) {
 // ---------------------------------------------------------------------------
 const ADMIN_ROUTE_PERMISSIONS = [
   ['GET', /^\/api\/admin\/dashboard$/, 'dashboard:view'],
+  ['GET', /^\/api\/admin\/content$/, 'content:read'],
   ['POST', /^\/api\/admin\/content$/, 'content:write'],
   ['POST', /^\/api\/admin\/content\/validate$/, 'content:write'],
   ['GET', /^\/api\/admin\/referentiels$/, 'content:write'],
@@ -1247,9 +1271,12 @@ function champsPublications() {
   const base = 'fields=id,message,created_time,permalink_url,full_picture';
   // `target{id}` : identifiant de la vidéo d'une publication vidéo ou Reel,
   // pour la lire sur le site (voir videoDuPost).
+  // `subattachments{target{id}}` : identifiant de chaque photo d'un album,
+  // pour savoir quelles photos ont été ajoutées ou retirées sur Facebook
+  // (synchronisation des annonces, db/synchro-facebook.js).
   const album = {
-    complet: `,attachments{media_type,media,target{id},subattachments.limit(${PHOTOS_PAR_PAGE_ALBUM}){media}}`,
-    standard: ',attachments{media_type,media,target{id},subattachments{media}}',
+    complet: `,attachments{media_type,media,target{id},subattachments.limit(${PHOTOS_PAR_PAGE_ALBUM}){media,target{id}}}`,
+    standard: ',attachments{media_type,media,target{id},subattachments{media,target{id}}}',
     aucun: ''
   }[niveauAlbums];
   return `${base}${album}&limit=20`;
@@ -1540,6 +1567,29 @@ function facebookPostImages(post) {
   return urls.slice(0, 80);
 }
 
+/**
+ * Photos d'une publication avec leur identifiant Facebook, dans l'ordre de
+ * l'album : [{ id, src }]. Vide quand Graph ne donne pas les identifiants
+ * (repli sans pièces jointes) — la synchronisation ne conclut alors rien.
+ */
+function photosDuPost(post) {
+  const photos = [];
+  for (const piece of post?.attachments?.data || []) {
+    const sousPieces = piece?.subattachments?.data || [];
+    const pieces = sousPieces.length ? sousPieces : (/photo/i.test(String(piece?.media_type || '')) ? [piece] : []);
+    for (const sous of pieces) {
+      const id = text(sous?.target?.id, 40);
+      const src = safePublicUrl(sous?.media?.image?.src);
+      if (/^\d+$/.test(id) && src) photos.push({ id, src });
+    }
+  }
+  if (photos.length) return photos.slice(0, 80);
+  // Publication déjà normalisée (miroir) : ses photos sont conservées.
+  return (Array.isArray(post?.photos) ? post.photos : [])
+    .filter(photo => /^\d+$/.test(text(photo?.id, 40)) && safePublicUrl(photo?.src))
+    .map(photo => ({ id: text(photo.id, 40), src: safePublicUrl(photo.src) })).slice(0, 80);
+}
+
 function normalizeFacebookPost(post) {
   const id = text(post?.id, 200);
   const permalink = safePublicUrl(post?.permalink_url);
@@ -1549,6 +1599,7 @@ function normalizeFacebookPost(post) {
   if (post?.full_picture && !picture) dropped.push('full_picture');
   const images = facebookPostImages(post);
   const video = videoDuPost(post);
+  const photos = photosDuPost(post);
   return {
     id,
     message: text(post?.message, 60000),
@@ -1558,6 +1609,7 @@ function normalizeFacebookPost(post) {
     // déjà ; `images` porte la galerie entière.
     full_picture: picture || images[0] || '',
     images,
+    ...(photos.length ? { photos } : {}),
     ...(video ? { video } : {}),
     ...(dropped.length ? { _droppedFields: dropped } : {})
   };
@@ -1924,15 +1976,22 @@ async function runFacebookSync(reason) {
         content.facebookPosts = posts.filter((post, rang) => rang < 20 || post.video);
         content.facebookUpdatedAt = new Date().toISOString();
         writeJSON(CONTENT_FILE, content);
+        // Facebook → site : texte et photos modifiés sur la publication d'une
+        // annonce reportés sur l'annonce. Isolé : un échec ici ne fait pas
+        // repasser toute la synchronisation.
+        const versSite = await appliquerFacebookVersSite(posts)
+          .catch(error => ({ annonces: [], references: 0, erreurs: [text(error.message, 300)] }));
         const state = updateFacebookState({
           status: 'connecte', lastSyncAt: content.facebookUpdatedAt, lastSyncReason: reason,
           lastError: null, postCount: posts.length,
-          lastSkippedPosts: posts.skipped || 0, lastDegradedPosts: (posts.degraded || []).length
+          lastSkippedPosts: posts.skipped || 0, lastDegradedPosts: (posts.degraded || []).length,
+          lastAnnoncesDepuisFacebook: versSite.annonces.length, lastErreursAnnonces: versSite.erreurs
         });
         audit('facebook.synced', { reason, count: posts.length, attempt, skipped: posts.skipped || 0, degraded: (posts.degraded || []).length,
-          videos: posts.filter(post => post.video).length, videosCompletes: lectureVideos.complet });
+          videos: posts.filter(post => post.video).length, videosCompletes: lectureVideos.complet,
+          annoncesDepuisFacebook: versSite.annonces.length, erreursAnnonces: versSite.erreurs.length });
         notifierNouveautesApp('facebook').catch(() => {});
-        return { posts, state };
+        return { posts, state, annonces: versSite.annonces };
       } catch (error) {
         lastError = error;
         if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 350));
@@ -2085,6 +2144,9 @@ async function publishFacebookPost(payload) {
     .map(resoudreVisuel)
     .filter(Boolean)
     .slice(0, 10);
+  // Valeurs telles que saisies sur le site (« assets/uploads/… »), rang pour
+  // rang avec `visuels` : resoudreVisuel n'écarte que les valeurs vides.
+  const sourcesVisuels = imagesBrutes.map(valeur => text(valeur, 2000)).filter(Boolean).slice(0, 10);
   // Conservé pour la clé d’idempotence et le journal : la valeur d’origine
   // identifie la publication aussi bien qu’une URL, fichier local compris.
   const imageUrls = visuels.map(v => v.url || v.fichier);
@@ -2127,18 +2189,27 @@ async function publishFacebookPost(payload) {
   }
 
   let result;
+  // Photos parties sur la Page, avec leur identifiant Facebook et leur valeur
+  // d'origine sur le site : référence de la synchronisation des annonces.
+  const photosEnvoyees = [];
   const debutEnvoi = Date.now();
   try {
-    if (visuels.length > 1) {
+    if (visuels.length >= 1) {
       // Album : Meta n'accepte pas plusieurs images en un seul appel. On
       // téléverse chaque photo SANS la publier (published=false) — elle reste
       // invisible sur la Page — puis un unique post les rassemble via
       // attached_media. Le visiteur voit une publication, pas une rafale.
+      // Une photo seule suit le même chemin depuis le 17/09/2026 : le texte
+      // d'une publication photo simple (légende) ne se modifie pas par Graph,
+      // celui d'une publication du fil, si.
       const identifiants = [];
-      for (const visuel of visuels) {
+      for (const [index, visuel] of visuels.entries()) {
         const photo = await envoyerPhoto(visuel, { publie: false });
         const id = text(photo.id, 200);
-        if (id) identifiants.push(id);
+        if (id) {
+          identifiants.push(id);
+          photosEnvoyees.push({ fbId: id, local: sourcesVisuels[index] || null });
+        }
       }
       if (!identifiants.length) throw new Error('Aucune image n’a pu être téléversée sur Facebook.');
 
@@ -2154,9 +2225,6 @@ async function publishFacebookPost(payload) {
         method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params,
         timeoutMs: GRAPH_UPLOAD_TIMEOUT_MS
       }), message, debutEnvoi);
-    } else if (visuels.length === 1) {
-      const caption = [message, link].filter(Boolean).join('\n\n');
-      result = await publierSansDoublon(() => envoyerPhoto(visuels[0], { publie: true, legende: caption }), message, debutEnvoi);
     } else {
       const params = new URLSearchParams({ message });
       if (link) params.set('link', link);
@@ -2176,16 +2244,9 @@ async function publishFacebookPost(payload) {
   writeJSON(FB_PUBLISH_FILE, history.slice(0, 300));
   updateFacebookState({ status: 'connecte', lastPublishAt: createdAt, lastError: null });
   audit('facebook.published', { facebookId: result.post_id || result.id, images: imageUrls.length, hasLink: Boolean(link) });
-  return { ...result, duplicate: false, publishedAt: createdAt };
+  return { ...result, duplicate: false, publishedAt: createdAt, photos: photosEnvoyees };
 }
 
-// ---------------------------------------------------------------------------
-// Site → Facebook : option EXPLICITE à la publication du contenu.
-// Le sens site → Facebook n'a jamais été automatique et ne le devient pas ici :
-// l'administrateur coche « Publier aussi sur Facebook » et désigne les fiches.
-// Garde anti-boucle : une fiche marquée comme importée depuis Facebook
-// (source === 'facebook' ou facebookOriginId connu) n'est jamais republiée.
-// ---------------------------------------------------------------------------
 function facebookImportedIds() {
   return new Set(readJSON(FB_POSTS_FILE, []).map(post => String(post?.id || '')).filter(Boolean));
 }
@@ -2228,216 +2289,282 @@ function buildShareMessage(item, kind) {
     .filter(Boolean).join('\n\n').slice(0, 60000);
 }
 
-// Galerie d'une fiche telle qu'elle part sur la Page : toutes les photos, en
-// album, dans la limite de 10 fixée par Meta. Partagée par le partage manuel
-// et le relais automatique : le 13/09/2026, le partage manuel n'envoyait que la
-// première photo et produisait une publication différente de l'automatique.
-function visuelsFiche(item) {
-  return (Array.isArray(item?.images) && item.images.length ? item.images : [item?.image])
-    .filter(Boolean).slice(0, 10);
-}
-
-async function shareContentToFacebook(payload, content) {
-  const options = payload?.facebookShare;
-  if (!options || options.enabled !== true) return { requested: false };
-  if (!facebookConfig().connected) return { requested: true, published: 0, errors: ['Connexion Meta non configurée.'] };
-
-  const wanted = (Array.isArray(options.items) ? options.items : []).slice(0, 10);
-  if (!wanted.length) return { requested: true, published: 0, errors: ['Aucune fiche sélectionnée.'] };
-
-  const imported = facebookImportedIds();
-  const publiees = fichesPubliees();
-  const pages = { villa: 'residences.html', terrain: 'terrains.html', activity: 'loisirs.html' };
-  const results = [];
-  const errors = [];
-  const blocked = [];
-  const dejaPubliees = [];
-
-  for (const raw of wanted) {
-    const kind = text(raw?.kind, 20);
-    const id = slug(raw?.id, '');
-    const collection = kind === 'villa' ? content.villas : kind === 'terrain' ? content.terrains : kind === 'activity' ? content.activities : null;
-    if (!collection || !id) { errors.push(`Fiche « ${text(raw?.id, 80)} » inconnue.`); continue; }
-    const item = collection.find(entry => entry.id === id);
-    if (!item) { errors.push(`Fiche « ${id} » introuvable après validation.`); continue; }
-
-    // ---- Garde anti-boucle ----
-    if (item.source === 'facebook' || (item.facebookOriginId && imported.has(String(item.facebookOriginId)))) {
-      blocked.push(id);
-      audit('facebook.share_blocked', { kind, id, reason: 'contenu-importe-de-facebook' });
-      continue;
-    }
-    // ---- Déjà sur la Page : une annonce n'y part qu'une fois ----
-    if (publiees.has(`${kind}:${id}`)) {
-      dejaPubliees.push(id);
-      audit('facebook.share_blocked', { kind, id, reason: 'deja-publiee', facebookId: publiees.get(`${kind}:${id}`).facebookId });
-      continue;
-    }
-
-    const message = buildShareMessage(item, kind);
-    const link = PUBLIC_SITE_URL ? `${PUBLIC_SITE_URL}/${pages[kind]}` : '';
-    const imageUrls = visuelsFiche(item);
-    // Clé d'idempotence dérivée de la fiche : republier une fiche inchangée
-    // ne crée pas de doublon sur la Page.
-    const idempotencyKey = crypto.createHash('sha256')
-      .update(JSON.stringify({ kind, id, message, link, imageUrls })).digest('hex');
-    try {
-      const result = await publishFacebookPost({ message, link, imageUrls, idempotencyKey, origine: { kind, id } });
-      // post_id d'abord : pour une photo, `id` désigne la photo, pas la publication.
-      results.push({ kind, id, facebookId: result.post_id || result.id || null, duplicate: Boolean(result.duplicate) });
-    } catch (error) {
-      errors.push(`${id} : ${text(error.message, 300)}`);
-    }
-  }
-  if (results.length) syncFacebookPosts('apres-publication-contenu').catch(() => {});
-  audit('facebook.shared_from_content', { published: results.length, blocked: blocked.length, dejaPubliees: dejaPubliees.length, errors: errors.length });
-  return { requested: true, published: results.length, results, blocked, dejaPubliees, errors };
-}
-
 // ===========================================================================
-// PUBLICATION AUTOMATIQUE VERS LA PAGE FACEBOOK
+// ANNONCES DU SITE ⇄ PUBLICATIONS FACEBOOK (décisions du 17/09/2026)
 // ---------------------------------------------------------------------------
-// Quand `settings.facebookAutoPublish` est actif, toute NOUVELLE fiche visible
-// part seule sur la Page au moment de la publication du contenu. Trois gardes
-// rendent l'automatisme sûr :
+// Une annonce part sur la Page SI ET SEULEMENT SI sa case « Publier sur
+// Facebook » est cochée. Décocher la case, suspendre, archiver ou supprimer
+// l'annonce supprime sa publication. Une annonce publiée reste synchronisée
+// dans les deux sens, texte et photos. Logique pure : db/synchro-facebook.js.
 //
-//   1. AMORÇAGE. À la première publication qui suit l'activation, l'inventaire
-//      existant est enregistré SANS rien envoyer. Sans cela, activer l'option
-//      sur un catalogue de quarante fiches déclencherait quarante publications
-//      d'un coup — et un blocage de l'application par Meta.
-//   2. PLAFOND. Cinq publications au maximum par enregistrement ; le reliquat
-//      part à la publication suivante. Une importation massive ne peut donc
-//      pas saturer la Page ni le quota Graph.
-//   3. ABANDON APRÈS TROIS ÉCHECS. Une fiche dont l'image est injoignable ne
-//      peut pas être retentée indéfiniment à chaque clic sur « Publier ».
-//
-// La clé d'idempotence est dérivée de la seule identité de la fiche
-// (« auto:villa:ma-villa ») et non de son texte : corriger une description ne
-// republie donc pas la fiche. C'est la différence avec le partage manuel, où
-// l'administrateur coche délibérément ce qu'il veut renvoyer.
+// Remplace le partage « à la prochaine publication » (case à usage unique,
+// verrouillée ensuite) et le relais automatique des nouvelles fiches (réglage
+// facebookAutoPublish), qui publiait aussi les annonces dont la case n'était
+// pas cochée.
 // ===========================================================================
+const visuelsFiche = SYNC.visuelsFiche;
+const PAGES_ANNONCES = { villa: 'residences.html', terrain: 'terrains.html', activity: 'loisirs.html' };
+// Envois lourds (photos à téléverser) par publication du contenu : une
+// importation massive ne sature ni la Page ni le quota Graph. Le reste part à
+// la publication suivante ; retraits et textes ne sont pas plafonnés.
+const FB_ENVOIS_MAX_PAR_PUBLICATION = 5;
 
-const AUTO_MAX_PAR_PUBLICATION = 5;
-const AUTO_MAX_ECHECS = 3;
+function lienAnnonce(kind) {
+  return PUBLIC_SITE_URL ? `${PUBLIC_SITE_URL}/${PAGES_ANNONCES[kind]}` : '';
+}
 
-function lireEtatAuto() {
-  const brut = readJSON(FB_AUTO_FILE, {});
+function nomAnnonce(item) {
+  return text(item?.name || item?.title || item?.id, 160);
+}
+
+/** Garde anti-boucle : une fiche née d'une publication Facebook n'y retourne jamais. */
+function annonceImportee(item, importees = facebookImportedIds()) {
+  return item?.source === 'facebook' || Boolean(item?.facebookOriginId && importees.has(String(item.facebookOriginId)));
+}
+
+/** facebookId → { kind, id, message, photos: [{ fbId, local }], majLe }. */
+function lireReferencesFacebook() {
+  const brut = readJSON(FB_SYNCHRO_FILE, {});
+  return brut && brut.references && typeof brut.references === 'object' ? brut.references : {};
+}
+
+function ecrireReferencesFacebook(modifier) {
+  const references = lireReferencesFacebook();
+  modifier(references);
+  writeJSON(FB_SYNCHRO_FILE, { references, updatedAt: new Date().toISOString() });
+  return references;
+}
+
+function planFacebook(contenu, precedent) {
+  const importees = facebookImportedIds();
+  return SYNC.planVersFacebook({
+    contenu, precedent, publiees: fichesPubliees(), references: lireReferencesFacebook(),
+    message: buildShareMessage, importee: item => annonceImportee(item, importees), siteUrl: PUBLIC_SITE_URL
+  });
+}
+
+/** Plan lisible pour la confirmation du studio. */
+function resumePlanFacebook(plan) {
+  const noms = type => plan.filter(action => action.type === type).map(action => nomAnnonce(action.item));
   return {
-    amorce: brut.amorce === true,
-    amorceAt: brut.amorceAt || null,
-    cles: Array.isArray(brut.cles) ? brut.cles.map(String) : [],
-    echecs: brut.echecs && typeof brut.echecs === 'object' ? brut.echecs : {},
-    lastRunAt: brut.lastRunAt || null
+    publier: noms('publier'), photos: noms('photos'), texte: noms('texte'),
+    retirer: plan.filter(action => action.type === 'retirer').map(action => ({ nom: nomAnnonce(action.item), raison: action.raison }))
   };
 }
 
-/** Fiches éligibles au partage automatique, dans l'ordre du catalogue. */
-function fichesPartageables(content) {
-  const collections = [
-    ['villa', content.villas],
-    ['terrain', content.terrains],
-    ['activity', content.activities]
-  ];
-  const importees = facebookImportedIds();
-  const fiches = [];
-  for (const [kind, collection] of collections) {
-    for (const item of Array.isArray(collection) ? collection : []) {
-      const id = slug(item?.id, '');
-      if (!id) continue;
-      if (item.visible === false) continue;
-      // Garde anti-boucle : une fiche née d'une publication Facebook ne
-      // retourne jamais sur Facebook.
-      if (item.source === 'facebook') continue;
-      if (item.facebookOriginId && importees.has(String(item.facebookOriginId))) continue;
-      fiches.push({ kind, id, cle: `${kind}:${id}`, item });
+/** Publication retirée de la Page : le journal ne la compte plus comme en ligne. */
+function marquerPublicationRetiree(facebookId, raison) {
+  const journal = readJSON(FB_PUBLISH_FILE, []);
+  let modifie = false;
+  for (const entree of Array.isArray(journal) ? journal : []) {
+    if (entree && String(entree.facebookId) === String(facebookId) && entree.status === 'publie') {
+      Object.assign(entree, { status: 'retire', retireLe: new Date().toISOString(), raisonRetrait: raison });
+      modifie = true;
     }
   }
-  return fiches;
+  if (modifie) writeJSON(FB_PUBLISH_FILE, journal);
 }
 
-async function autoShareContentToFacebook(content) {
-  const actif = content?.settings?.facebookAutoPublish === true;
-  if (!actif) return { enabled: false };
-  if (!facebookConfig().connected) {
-    return { enabled: true, published: 0, errors: ['Connexion Meta non configurée : publication automatique en attente.'] };
+async function retirerPublicationFacebook(facebookId, raison) {
+  try {
+    await graphRequest(encodeURIComponent(facebookId), { method: 'DELETE' });
+  } catch (error) {
+    // Déjà supprimée à la main sur la Page : le but est atteint.
+    if (!/does not exist/i.test(error.message || '')) throw error;
   }
+  marquerPublicationRetiree(facebookId, raison);
+  ecrireReferencesFacebook(references => { delete references[facebookId]; });
+  const posts = readJSON(FB_POSTS_FILE, []);
+  if (Array.isArray(posts) && posts.some(post => String(post?.id) === String(facebookId))) {
+    writeJSON(FB_POSTS_FILE, posts.filter(post => String(post?.id) !== String(facebookId)));
+  }
+  await tryDb('retrait d’une publication', repo => repo.deleteFacebookPost(facebookId));
+  audit('facebook.publication_retiree', { facebookId, raison });
+}
 
-  const etat = lireEtatAuto();
-  const fiches = fichesPartageables(content);
-  const maintenant = new Date().toISOString();
-
-  // --- Amorçage : on mémorise l'existant sans publier ---
-  if (!etat.amorce) {
-    writeJSON(FB_AUTO_FILE, {
-      amorce: true, amorceAt: maintenant, lastRunAt: maintenant,
-      cles: fiches.map(fiche => fiche.cle), echecs: {}
+async function publierAnnonceFacebook(kind, item) {
+  const message = buildShareMessage(item, kind);
+  const link = lienAnnonce(kind);
+  const imageUrls = visuelsFiche(item);
+  // Une annonce retirée puis recochée repart : le rang de publication entre
+  // dans la clé, sinon l'envoi précédent la ferait passer pour un doublon.
+  const rang = readJSON(FB_PUBLISH_FILE, []).filter(entree => {
+    const origine = entree?.status === 'retire' ? origineEntree(entree) : null;
+    return origine && origine.kind === kind && origine.id === item.id;
+  }).length;
+  const idempotencyKey = crypto.createHash('sha256')
+    .update(JSON.stringify({ kind, id: item.id, message, link, imageUrls, rang })).digest('hex');
+  const resultat = await publishFacebookPost({ message, link, imageUrls, idempotencyKey, origine: { kind, id: item.id } });
+  // post_id d'abord : pour une photo, `id` désigne la photo, pas la publication.
+  const facebookId = text(resultat.post_id || resultat.id, 200);
+  if (facebookId && !resultat.duplicate) {
+    ecrireReferencesFacebook(references => {
+      references[facebookId] = { kind, id: item.id, ...SYNC.referenceApresEnvoi(message, resultat.photos, PUBLIC_SITE_URL), majLe: new Date().toISOString() };
     });
-    audit('facebook.auto_amorce', { fiches: fiches.length });
-    return { enabled: true, published: 0, amorce: fiches.length, errors: [] };
   }
+  return { facebookId, duplicate: Boolean(resultat.duplicate) };
+}
 
-  const connues = new Set(etat.cles);
-  // Fiche déjà partie sur la Page depuis le site, quel que soit le chemin.
-  // Doublon constaté en production le 13/09/2026 : une villa neuve cochée
-  // « Publier aussi sur Facebook » était publiée par le partage manuel, puis
-  // republiée quinze secondes plus tard par ce relais (clés d'idempotence
-  // différentes). Le journal des publications fait foi.
-  const dejaPubliees = new Set([...originesPublications().values()].map(o => `${o.kind}:${o.id}`));
-  const rattrapees = fiches.filter(fiche => !connues.has(fiche.cle) && dejaPubliees.has(fiche.cle));
-  rattrapees.forEach(fiche => connues.add(fiche.cle));
-  const cles = etat.cles.concat(rattrapees.map(fiche => fiche.cle));
-  const candidates = fiches.filter(fiche =>
-    !connues.has(fiche.cle) && (etat.echecs[fiche.cle] || 0) < AUTO_MAX_ECHECS);
-  const aPublier = candidates.slice(0, AUTO_MAX_PAR_PUBLICATION);
-  const enAttente = candidates.length - aPublier.length;
+async function modifierTexteFacebook(facebookId, kind, item) {
+  const message = buildShareMessage(item, kind);
+  const complet = [message, lienAnnonce(kind)].filter(Boolean).join('\n\n');
+  await graphRequest(encodeURIComponent(facebookId), {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ message: complet })
+  });
+  ecrireReferencesFacebook(references => {
+    if (!references[facebookId]) return;
+    references[facebookId].message = SYNC.texteDeReference(message, PUBLIC_SITE_URL);
+    references[facebookId].majLe = new Date().toISOString();
+  });
+  // Le studio montre aussitôt le nouveau texte, sans attendre la synchronisation.
+  const posts = readJSON(FB_POSTS_FILE, []);
+  const post = Array.isArray(posts) ? posts.find(entree => String(entree?.id) === String(facebookId)) : null;
+  if (post) { post.message = complet; writeJSON(FB_POSTS_FILE, posts); }
+  audit('facebook.texte_modifie', { facebookId, kind, id: item.id });
+}
 
-  if (!aPublier.length) {
-    writeJSON(FB_AUTO_FILE, { ...etat, cles, lastRunAt: maintenant });
-    return { enabled: true, published: 0, pending: 0, errors: [] };
+/**
+ * Site → Facebook, après l'enregistrement du contenu : publie, retire,
+ * met à jour le texte ou republie (photos changées) selon le plan. Un échec
+ * Facebook ne fait jamais échouer l'enregistrement : le site prime sur la Page.
+ */
+async function synchroniserAnnoncesVersFacebook(contenu, precedent) {
+  const bilan = { publiees: [], republiees: [], textes: [], retirees: [], enAttente: [], erreurs: [] };
+  const plan = planFacebook(contenu, precedent);
+  if (!plan.length) return bilan;
+  if (!facebookConfig().connected) {
+    bilan.erreurs.push('Connexion Meta non configurée : Facebook n’a pas été mis à jour.');
+    return bilan;
   }
-
-  const pages = { villa: 'residences.html', terrain: 'terrains.html', activity: 'loisirs.html' };
-  const publiees = [];
-  const errors = [];
-  const echecs = { ...etat.echecs };
-
-  for (const fiche of aPublier) {
-    const { kind, id, item } = fiche;
-    const message = buildShareMessage(item, kind);
-    const link = PUBLIC_SITE_URL ? `${PUBLIC_SITE_URL}/${pages[kind]}` : '';
-    // La galerie complète part en album : le travail de mise en ligne des
-    // visuels profite aussi à la Page, pas seulement au site.
-    const imageUrls = visuelsFiche(item);
+  let envoisLourds = 0;
+  for (const action of plan) {
+    const nom = nomAnnonce(action.item);
     try {
-      const resultat = await publishFacebookPost({
-        message, link, imageUrls,
-        idempotencyKey: `auto:${fiche.cle}`,
-        origine: { kind, id }
-      });
-      publiees.push({ kind, id, facebookId: resultat.post_id || resultat.id || null, duplicate: Boolean(resultat.duplicate) });
-      delete echecs[fiche.cle];
+      if (action.type === 'retirer') {
+        await retirerPublicationFacebook(action.facebookId, action.raison);
+        bilan.retirees.push(nom);
+      } else if (action.type === 'texte') {
+        await modifierTexteFacebook(action.facebookId, action.kind, action.item);
+        bilan.textes.push(nom);
+      } else {
+        if (envoisLourds >= FB_ENVOIS_MAX_PAR_PUBLICATION) { bilan.enAttente.push(nom); continue; }
+        envoisLourds += 1;
+        // Graph ne change pas les photos d'une publication : on la remplace.
+        if (action.type === 'photos') await retirerPublicationFacebook(action.facebookId, 'photos-modifiees');
+        await publierAnnonceFacebook(action.kind, action.item);
+        (action.type === 'photos' ? bilan.republiees : bilan.publiees).push(nom);
+      }
     } catch (error) {
-      echecs[fiche.cle] = (echecs[fiche.cle] || 0) + 1;
-      const restant = AUTO_MAX_ECHECS - echecs[fiche.cle];
-      errors.push(`${id} : ${text(error.message, 300)}${restant > 0 ? '' : ' (abandon après 3 tentatives)'}`);
+      bilan.erreurs.push(`${nom} : ${text(error.message, 300)}`);
     }
   }
-
-  writeJSON(FB_AUTO_FILE, {
-    amorce: true, amorceAt: etat.amorceAt, lastRunAt: maintenant,
-    cles: cles.concat(publiees.map(entree => `${entree.kind}:${entree.id}`)),
-    echecs
+  if (bilan.publiees.length || bilan.republiees.length) syncFacebookPosts('apres-publication-contenu').catch(() => {});
+  audit('facebook.annonces_synchronisees', {
+    publiees: bilan.publiees.length, republiees: bilan.republiees.length, textes: bilan.textes.length,
+    retirees: bilan.retirees.length, enAttente: bilan.enAttente.length, erreurs: bilan.erreurs.length
   });
-  if (publiees.length) syncFacebookPosts('apres-publication-auto').catch(() => {});
-  audit('facebook.auto_shared', { published: publiees.length, pending: enAttente, errors: errors.length });
-  return { enabled: true, published: publiees.length, results: publiees, pending: enAttente, errors };
+  return bilan;
+}
+
+/**
+ * Photo ajoutée sur Facebook → fichier du site. Les adresses fbcdn expirent au
+ * bout de quelques jours : une annonce ne peut pas en dépendre.
+ */
+async function telechargerPhotoFacebook(photo) {
+  const identifiant = text(photo?.fbId, 40).replace(/\D/g, '');
+  if (!identifiant) throw new Error('Photo Facebook sans identifiant.');
+  const base = `facebook-${identifiant}`;
+  for (const extension of ['.jpg', '.png', '.webp']) {
+    if (fs.existsSync(path.join(UPLOAD_DIR, `${base}${extension}`))) return `assets/uploads/${base}${extension}`;
+  }
+  let adresse;
+  try { adresse = new URL(photo.src); } catch { throw new Error('Adresse de photo Facebook invalide.'); }
+  if (adresse.protocol !== 'https:' || !/(^|\.)(fbcdn\.net|facebook\.com)$/i.test(adresse.hostname)) {
+    throw new Error('Adresse de photo Facebook inattendue.');
+  }
+  const controleur = new AbortController();
+  const minuterie = setTimeout(() => controleur.abort(), 30_000);
+  let reponse;
+  try { reponse = await fetch(adresse, { signal: controleur.signal }); }
+  catch (error) { throw new Error(`Photo Facebook injoignable : ${text(error.message, 120)}`); }
+  finally { clearTimeout(minuterie); }
+  if (!reponse.ok) throw new Error(`Photo Facebook illisible (HTTP ${reponse.status}).`);
+  const type = String(reponse.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+  const extension = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[type];
+  if (!extension) throw new Error(`Format de photo Facebook inattendu (${text(type, 40) || 'inconnu'}).`);
+  const octets = Buffer.from(await reponse.arrayBuffer());
+  if (!octets.length || octets.length > TAILLE_MAX_PHOTO) throw new Error('Photo Facebook vide ou trop lourde.');
+  const fichier = `${base}${extension}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, fichier), octets);
+  audit('media.facebook_telechargee', { fichier, octets: octets.length });
+  return `assets/uploads/${fichier}`;
+}
+
+/**
+ * Facebook → site, après chaque synchronisation : texte et photos modifiés
+ * sur la publication d'une annonce sont reportés sur l'annonce.
+ */
+async function appliquerFacebookVersSite(posts) {
+  const contenu = await lireContenuBrut();
+  const references = lireReferencesFacebook();
+  const plan = SYNC.planVersSite({ posts, origines: originesPublications(), references, contenu, siteUrl: PUBLIC_SITE_URL });
+  const bilan = { annonces: [], references: 0, erreurs: [] };
+  if (!plan.length) return bilan;
+  const maintenant = new Date().toISOString();
+  const collections = { villa: 'villas', terrain: 'terrains', activity: 'activities' };
+  for (const action of plan) {
+    if (action.type === 'reference') {
+      references[action.facebookId] = { kind: action.kind, id: action.id, ...action.reference, majLe: maintenant };
+      bilan.references += 1;
+      continue;
+    }
+    const liste = contenu[collections[action.kind]];
+    const index = Array.isArray(liste) ? liste.findIndex(item => item.id === action.id) : -1;
+    if (index < 0) continue;
+    const reference = references[action.facebookId];
+    let images = null;
+    let photos = reference.photos;
+    if (action.photos) {
+      const locales = new Map((reference.photos || []).filter(photo => photo.local).map(photo => [photo.fbId, photo.local]));
+      try {
+        for (const photo of action.photos) {
+          if (!locales.has(photo.fbId)) locales.set(photo.fbId, await telechargerPhotoFacebook(photo));
+        }
+      } catch (error) {
+        // Galerie incomplète : l'annonce reste telle quelle, nouvel essai à la prochaine synchronisation.
+        bilan.erreurs.push(`${nomAnnonce(liste[index])} : ${text(error.message, 200)}`);
+        continue;
+      }
+      images = SYNC.galerieDepuisFacebook(liste[index], action.photos, reference, locales);
+      photos = action.photos.map(photo => ({ fbId: photo.fbId, local: locales.get(photo.fbId) }));
+    }
+    liste[index] = SYNC.appliquerChangementSite(action.kind, liste[index], { champs: action.champs, images });
+    references[action.facebookId] = { ...reference, message: action.texte, photos, majLe: maintenant };
+    bilan.annonces.push({ kind: action.kind, id: action.id, texte: Boolean(action.champs), photos: Boolean(images) });
+  }
+  if (bilan.annonces.length) {
+    if (fs.existsSync(CONTENT_FILE)) createBackup('avant-synchro-facebook');
+    // Nouvel horodatage : un studio ouvert avant ce changement ne peut plus
+    // l'écraser en publiant (verrou de POST /api/admin/content).
+    contenu.updatedAt = maintenant;
+    const ecriture = await store.writeContent(contenu);
+    if (ecriture.dbExpected && !ecriture.persistedToDb) {
+      // Références inchangées : la synchronisation suivante réessaiera.
+      bilan.erreurs.push(`Enregistrement en base refusé : ${text(ecriture.error, 200)}`);
+      bilan.annonces = [];
+      return bilan;
+    }
+    bilan.annonces.forEach(annonce => audit('facebook.annonce_depuis_facebook', annonce));
+  }
+  writeJSON(FB_SYNCHRO_FILE, { references, updatedAt: maintenant });
+  return bilan;
 }
 
 async function handleApi(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/content') {
     // `terrains` fait partie du contrat d'API : la clé existe toujours,
     // même si le stockage est antérieur à la rubrique.
-    return json(res, 200, await store.readContent());
+    return json(res, 200, contenuPublic(await store.readContent()));
   }
 
   if (req.method === 'POST' && url.pathname === '/api/leads') {
@@ -2564,6 +2691,11 @@ async function handleApi(req, res, url) {
     }
   }
 
+  // Contenu complet pour le studio, annonces suspendues et archivées comprises.
+  if (req.method === 'GET' && url.pathname === '/api/admin/content') {
+    return json(res, 200, await store.readContent());
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/admin/dashboard') {
     const leads = await store.readLeads();
     const content = await store.readContent();
@@ -2606,9 +2738,18 @@ async function handleApi(req, res, url) {
       // du studio a envoyé son état initial vide, et toutes les tables du
       // catalogue ont été effacées. Aucun usage du studio ne vide d'un coup
       // villas, terrains ET activités : on refuse.
-      if (catalogueVide(result.content) && !catalogueVide(await lireContenuBrut())) {
+      const precedent = await lireContenuBrut();
+      if (catalogueVide(result.content) && !catalogueVide(precedent)) {
         audit('content.publish_refused_empty', {}, actorLabel(actor));
         return json(res, 409, { ok: false, error: 'Publication refusée : elle aurait vidé tout le catalogue (aucune villa, aucun terrain, aucune activité). Rechargez le studio puis recommencez.' });
+      }
+      // Contenu modifié depuis l'ouverture du studio (annonce mise à jour
+      // depuis Facebook, autre onglet) : publier cet état périmé effacerait ces
+      // changements, puis les renverrait effacés sur la Page.
+      const base = text(payload.baseUpdatedAt, 40);
+      if (base && precedent.updatedAt && base !== String(precedent.updatedAt)) {
+        audit('content.publish_refused_stale', { base, actuel: precedent.updatedAt }, actorLabel(actor));
+        return json(res, 409, { ok: false, code: 'contenu-modifie', error: 'Le contenu a été modifié depuis l’ouverture du studio (mise à jour reçue de Facebook ou d’un autre onglet). Rechargez la page avant de publier : vos modifications non publiées seront à refaire.' });
       }
       if (fs.existsSync(CONTENT_FILE)) createBackup('avant-publication');
       const currentContent = await store.readContent();
@@ -2636,17 +2777,13 @@ async function handleApi(req, res, url) {
         });
       }
       audit('content.published', { villas: result.content.villas.length, terrains: result.content.terrains.length, activities: result.content.activities.length, warnings: result.warnings.length }, actorLabel(actor));
-      // Option explicite « Publier aussi sur Facebook » : cases cochées fiche
-      // par fiche, indépendante du relais automatique ci-dessous.
-      const share = await shareContentToFacebook(payload, result.content);
-      // Relais automatique des nouveautés, piloté par le réglage du studio.
-      // Son échec ne doit jamais faire échouer l'enregistrement du contenu :
-      // le site prime sur la Page.
-      let facebookAuto = { enabled: false };
-      try { facebookAuto = await autoShareContentToFacebook(result.content); }
-      catch (error) { facebookAuto = { enabled: true, published: 0, errors: [text(error.message, 300)] }; }
+      // Cases « Publier sur Facebook » et états des annonces → Page. Un échec
+      // Facebook ne fait jamais échouer l'enregistrement : le site prime.
+      let facebook;
+      try { facebook = await synchroniserAnnoncesVersFacebook(result.content, precedent); }
+      catch (error) { facebook = { publiees: [], republiees: [], textes: [], retirees: [], enAttente: [], erreurs: [text(error.message, 300)] }; }
       notifierNouveautesApp('studio').catch(() => {});
-      return json(res, 200, { ok: true, updatedAt: result.content.updatedAt, warnings: result.warnings, facebookShare: share, facebookAuto, storage: ecriture.dbExpected ? 'mysql' : 'fichiers' });
+      return json(res, 200, { ok: true, updatedAt: result.content.updatedAt, warnings: result.warnings, facebook, storage: ecriture.dbExpected ? 'mysql' : 'fichiers' });
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
 
@@ -2700,7 +2837,9 @@ async function handleApi(req, res, url) {
   if (req.method === 'POST' && url.pathname === '/api/admin/content/validate') {
     try {
       const result = validateAndSanitizeContent(await parseBody(req, 4_000_000), await store.lireReferentiels());
-      return json(res, result.errors.length ? 422 : 200, { ok: !result.errors.length, errors: result.errors, warnings: result.warnings });
+      // Ce que la publication fera sur Facebook : le studio le fait confirmer.
+      const facebook = result.errors.length ? null : resumePlanFacebook(planFacebook(result.content, await lireContenuBrut()));
+      return json(res, result.errors.length ? 422 : 200, { ok: !result.errors.length, errors: result.errors, warnings: result.warnings, facebook });
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
 
@@ -3639,7 +3778,7 @@ async function envoyerLotsExpo(lots, origine) {
 /** Annonce aux téléphones inscrits les annonces apparues depuis le dernier passage. */
 async function notifierNouveautesApp(origine) {
   try {
-    const contenu = await store.readContent();
+    const contenu = contenuPublic(await store.readContent());
     const exclues = new Set(originesPublications().keys());
     const annonces = NOTIF.annoncesPubliques(contenu, { publicationsExclues: exclues });
     const etat = readJSON(APP_NOTIF_FILE, {});
