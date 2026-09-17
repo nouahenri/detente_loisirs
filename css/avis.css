@@ -10,8 +10,9 @@
 .avis-resume-likes, .avis-resume-note { display:inline-flex; align-items:center; gap:.3rem; font-weight:600; }
 .avis-resume-note { color:#9a7400; }
 .avis-resume-note small { color:var(--color-gray-slate, #4b5568); font-weight:500; }
-.avis-resume-bouton { margin-left:auto; border:1px solid rgba(21,24,55,.16); background:#fff; color:var(--color-forest, #151837); border-radius:999px; padding:.3rem .8rem; font:600 .75rem/1.2 inherit; cursor:pointer; }
-.avis-resume-bouton:hover { border-color:var(--color-gold, #e8b904); }
+/* « ★ 4,6 · 12 avis » : lien vers les avis de la fiche (ancre). */
+.avis-resume-lien { display:inline-flex; align-items:center; gap:.25rem; min-height:32px; margin:-.35rem 0; padding:.35rem .1rem; border:0; background:none; color:var(--color-gray-slate, #4b5568); font:600 .78rem/1.2 inherit; text-decoration:underline; text-decoration-color:rgba(21,24,55,.25); text-underline-offset:3px; cursor:pointer; }
+.avis-resume-lien:hover { color:var(--color-forest, #151837); text-decoration-color:currentColor; }
 
 /* Section des avis dans une fiche */
 .avis-annonce { margin-top:1.8rem; padding-top:1.4rem; border-top:1px solid rgba(21,24,55,.1); }
@@ -21,7 +22,7 @@
 .avis-jaime svg { color:#d94a64; }
 .avis-jaime strong { font-weight:800; }
 .avis-jaime.est-aime { background:#fdecef; border-color:#f3b8c3; }
-.avis-jaime:focus-visible, .avis-resume-bouton:focus-visible, .avis-voir-tout:focus-visible, .avis-publier:focus-visible { outline:3px solid var(--color-gold, #e8b904); outline-offset:2px; }
+.avis-jaime:focus-visible, .avis-resume-lien:focus-visible, .avis-voir-tout:focus-visible, .avis-publier:focus-visible { outline:3px solid var(--color-gold, #e8b904); outline-offset:2px; }
 .avis-synthese { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin:.9rem 0 .2rem; color:var(--color-gray-slate, #4b5568); font-size:.9rem; }
 .avis-synthese strong { color:var(--color-forest, #151837); font-size:1.05rem; }
 .avis-vide, .avis-chargement { margin:.8rem 0; color:var(--color-gray-slate, #4b5568); font-size:.9rem; }

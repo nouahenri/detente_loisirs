@@ -19,21 +19,21 @@
       titre: "Avis des visiteurs", jaime: "J’aime", aime: "Vous aimez", aucun: "Aucun avis pour le moment : soyez le premier à partager votre expérience.",
       avis: n => `${n} avis`, surCinq: "/ 5", laisser: "Laisser un avis", nom: "Votre nom", note: "Votre note", commentaire: "Votre commentaire",
       publier: "Publier mon avis", envoi: "Publication…", merci: "Merci ! Votre avis est publié.", voirTout: n => `Voir les ${n} avis`,
-      erreur: "Envoi impossible pour le moment. Réessayez plus tard.", etoiles: n => `${n} étoile${n > 1 ? "s" : ""} sur 5`, bouton: "Avis",
+      erreur: "Envoi impossible pour le moment. Réessayez plus tard.", etoiles: n => `${n} étoile${n > 1 ? "s" : ""} sur 5`, bouton: "Avis", voirAvis: "Voir les avis",
       fermer: "Fermer", choisirNote: "Choisissez une note de 1 à 5 étoiles."
     },
     en: {
       titre: "Visitor reviews", jaime: "Like", aime: "You like this", aucun: "No reviews yet: be the first to share your experience.",
-      avis: n => `${n} review${n > 1 ? "s" : ""}`, surCinq: "/ 5", laisser: "Leave a review", nom: "Your name", note: "Your rating", commentaire: "Your comment",
+      avis: n => `${n} review${n === 1 ? "" : "s"}`, surCinq: "/ 5", laisser: "Leave a review", nom: "Your name", note: "Your rating", commentaire: "Your comment",
       publier: "Post my review", envoi: "Posting…", merci: "Thank you! Your review is live.", voirTout: n => `See all ${n} reviews`,
-      erreur: "Could not send right now. Please try again later.", etoiles: n => `${n} star${n > 1 ? "s" : ""} out of 5`, bouton: "Reviews",
+      erreur: "Could not send right now. Please try again later.", etoiles: n => `${n} star${n > 1 ? "s" : ""} out of 5`, bouton: "Reviews", voirAvis: "See the reviews",
       fermer: "Close", choisirNote: "Choose a rating from 1 to 5 stars."
     },
     es: {
       titre: "Opiniones de los visitantes", jaime: "Me gusta", aime: "Te gusta", aucun: "Aún no hay opiniones: sea el primero en compartir su experiencia.",
-      avis: n => `${n} opinión${n > 1 ? "es" : ""}`, surCinq: "/ 5", laisser: "Dejar una opinión", nom: "Su nombre", note: "Su nota", commentaire: "Su comentario",
+      avis: n => `${n} ${n === 1 ? "opinión" : "opiniones"}`, surCinq: "/ 5", laisser: "Dejar una opinión", nom: "Su nombre", note: "Su nota", commentaire: "Su comentario",
       publier: "Publicar mi opinión", envoi: "Publicando…", merci: "¡Gracias! Su opinión está publicada.", voirTout: n => `Ver las ${n} opiniones`,
-      erreur: "No se pudo enviar ahora. Inténtelo más tarde.", etoiles: n => `${n} estrella${n > 1 ? "s" : ""} de 5`, bouton: "Opiniones",
+      erreur: "No se pudo enviar ahora. Inténtelo más tarde.", etoiles: n => `${n} estrella${n > 1 ? "s" : ""} de 5`, bouton: "Opiniones", voirAvis: "Ver las opiniones",
       fermer: "Cerrar", choisirNote: "Elija una nota de 1 a 5 estrellas."
     }
   };
@@ -64,13 +64,15 @@
   const nombre = valeur => new Intl.NumberFormat(langue() === "fr" ? "fr-FR" : langue() === "es" ? "es-ES" : "en-GB", { maximumFractionDigits: 1 }).format(valeur);
   const etoiles = note => `<span class="avis-etoiles" role="img" aria-label="${esc(t("etoiles", Math.round(note)))}">${"★".repeat(Math.round(note))}<span>${"★".repeat(5 - Math.round(note))}</span></span>`;
 
-  /** Résumé compact d'une carte : J'aime, note moyenne, nombre d'avis. */
+  /**
+   * Résumé compact d'une carte : J'aime, puis « ★ note · N avis » cliquable
+   * (demande du 17/09/2026) qui ouvre la fiche directement sur les avis.
+   */
   function resumeHTML(avis, kind, id) {
     const a = avis || { likes: 0, note: null, nombre: 0 };
     return `<div class="avis-resume" data-avis-resume="${esc(kind)}:${esc(id)}">
       <span class="avis-resume-likes" title="${esc(t("jaime"))}">${COEUR} ${a.likes}</span>
-      ${a.nombre ? `<span class="avis-resume-note">★ ${nombre(a.note)} <small>(${esc(t("avis", a.nombre))})</small></span>` : ""}
-      ${kind === "activity" ? `<button type="button" class="avis-resume-bouton" data-avis-ouvrir="${esc(id)}">${esc(t("bouton"))}</button>` : ""}
+      <button type="button" class="avis-resume-lien" data-avis-voir="${esc(kind)}:${esc(id)}" aria-label="${esc(`${t("voirAvis")} (${t("avis", a.nombre)})`)}">${a.nombre ? `<span class="avis-resume-note">★ ${nombre(a.note)}</span> · ` : ""}${esc(t("avis", a.nombre))}</button>
     </div>`;
   }
 
@@ -107,6 +109,24 @@
 
   function commentaireHTML(c) {
     return `<li class="avis-commentaire"><div class="avis-commentaire-tete"><strong>${esc(c.nom)}</strong>${etoiles(c.note)}<time datetime="${esc(c.creeLe)}">${esc(dateCourte(c.creeLe))}</time></div><p>${esc(c.commentaire).replace(/\n/g, "<br>")}</p></li>`;
+  }
+
+  // Fiche ouverte depuis « N avis » : la section défile jusqu'aux avis une fois rendue.
+  let ancreAvis = null;
+
+  function allerAuxAvis(hote, kind, id) {
+    if (!ancreAvis || ancreAvis !== `${kind}:${id}`) return;
+    ancreAvis = null;
+    // Après le focus que la fiche pose sur « Fermer » à l'ouverture (30 ms),
+    // qui la ramènerait en haut : le focus passe au titre des avis.
+    window.setTimeout(() => {
+      const section = hote.querySelector(".avis-annonce");
+      if (!section) return;
+      const titre = section.querySelector("h3");
+      if (titre) { titre.setAttribute("tabindex", "-1"); titre.focus({ preventScroll: true }); }
+      const bouger = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+      section.scrollIntoView({ behavior: bouger, block: "start" });
+    }, 150);
   }
 
   /** Section complète des avis d'une annonce, dans `hote`. */
@@ -189,6 +209,7 @@
       });
     };
     dessiner();
+    allerAuxAvis(hote, kind, id);
   }
 
   /** Fiche d'une villa ou d'un terrain ouverte : section des avis en fin de fiche. */
@@ -224,9 +245,19 @@
   }
 
   document.addEventListener("click", event => {
-    const bouton = event.target.closest("[data-avis-ouvrir]");
-    if (bouton) { event.preventDefault(); ouvrirFenetreActivite(bouton.getAttribute("data-avis-ouvrir")); }
-  });
+    const lien = event.target.closest("[data-avis-voir]");
+    if (!lien) return;
+    // La carte elle-même peut réagir au clic : seul le lien agit ici.
+    event.preventDefault();
+    event.stopPropagation();
+    const [kind, ...reste] = lien.getAttribute("data-avis-voir").split(":");
+    const id = reste.join(":");
+    ancreAvis = `${kind}:${id}`;
+    if (kind === "activity") ouvrirFenetreActivite(id);
+    else if (kind === "villa" && typeof openVillaModal === "function") openVillaModal(id);
+    else if (kind === "terrain" && typeof openTerrainModal === "function") openTerrainModal(id);
+    else ancreAvis = null;
+  }, true);
   window.addEventListener("dl:cards-rendered", decorerCartes);
   if (document.readyState !== "loading") decorerCartes();
   else document.addEventListener("DOMContentLoaded", decorerCartes);
