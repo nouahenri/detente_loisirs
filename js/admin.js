@@ -6,6 +6,9 @@
   const state = {
     user: null,
     content: { villas: [], terrains: [], activities: [], reviews: [], faq: [], settings: {}, facebookPosts: [] },
+    // Faux tant que le contenu réel n'est pas chargé et affiché : publier l'état
+    // initial vide ci-dessus a effacé tout le catalogue le 16/09/2026.
+    contenuCharge: false,
     leads: [], dashboard: null, dirty: false, leadFilter: 'all', leadSearch: '', backups: [], audit: [], facebook: null,
     users: [], roles: [], newsletter: null, subscriberFilter: 'all', subscriberSearch: ''
   };
@@ -184,11 +187,18 @@
     location.reload();
   }
 
+  function majBoutonPublier() {
+    $('#saveAllBtn').disabled = !state.contenuCharge;
+    $('#saveAllBtn').title = state.contenuCharge ? '' : 'Chargement du contenu en cours…';
+  }
+
   async function loadAll() {
+    state.contenuCharge = false;
+    majBoutonPublier();
     // Chaque appel est conditionné à la permission correspondante : un rôle
     // restreint ne déclenche même pas la requête (et donc aucun 403 inutile).
-    const [managed, leads, facebook, backups, audit, dashboard, users, newsletter] = await Promise.all([
-      fetch('/api/content', { cache:'no-store' }).then(r => r.json()).catch(() => ({})),
+    const [contenuLu, leads, facebook, backups, audit, dashboard, users, newsletter] = await Promise.all([
+      fetch('/api/content', { cache:'no-store' }).then(r => (r.ok ? r.json() : null)).catch(() => null),
       can('leads:read') ? api('/api/admin/leads').catch(() => ({ leads:[] })) : Promise.resolve({ leads:[] }),
       can('facebook:read') ? api('/api/admin/facebook/posts').catch(error => ({ connected:false, posts:[], error:error.message })) : Promise.resolve(null),
       can('backup:manage') ? api('/api/admin/backups').catch(() => ({ backups:[] })) : Promise.resolve({ backups:[] }),
@@ -197,6 +207,7 @@
       can('users:manage') ? api('/api/admin/users').catch(() => ({ users:[], roles:[] })) : Promise.resolve(null),
       can('newsletter:read') ? api('/api/admin/newsletter').catch(() => null) : Promise.resolve(null)
     ]);
+    const managed = contenuLu || {};
     if (dashboard) state.dashboard = dashboard;
     if (users) { state.users = users.users || []; state.roles = users.roles || []; }
     state.newsletter = newsletter;
@@ -226,6 +237,11 @@
     if (can('facebook:read') && facebook) renderFacebook(facebook);
     if (can('users:manage')) renderUsers();
     if (can('newsletter:read')) renderNewsletter();
+    // Contenu illisible : l'écran montre des valeurs de repli, qu'une
+    // publication substituerait au vrai catalogue. On bloque et on le dit.
+    state.contenuCharge = Boolean(contenuLu);
+    majBoutonPublier();
+    if (!contenuLu) toast('Contenu du site illisible : publication bloquée. Rechargez la page.');
   }
 
   const VIEW_TITLES = {
@@ -1868,6 +1884,7 @@
 
 function dirty() { state.dirty = true; $('#saveState').textContent = 'Modifications non publiées'; $('#saveState').style.color = '#cca203'; }
   async function saveContent() {
+    if (!state.contenuCharge) { toast('Le contenu n’est pas encore chargé : patientez avant de publier.'); return; }
     captureSettings();
     const button = $('#saveAllBtn');
     button.disabled = true; button.textContent = 'Vérification…';
@@ -1936,7 +1953,7 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
       if (!enBase) toast('Publié en fichiers uniquement : la base de données n’a PAS été mise à jour. Prévenez l’hébergeur.');
       else toast(validation.warnings?.length ? `Publié en base · ${validation.warnings.length} point(s) à surveiller` : 'Publié et enregistré en base de données');
     } catch(error) { toast(error.message); }
-    finally { button.disabled = false; button.textContent = 'Publier les changements'; }
+    finally { button.disabled = !state.contenuCharge; button.textContent = 'Publier les changements'; }
   }
   // =========================================================================
   // ONGLET UTILISATEURS (rôle « propriétaire » uniquement)

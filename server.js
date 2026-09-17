@@ -879,6 +879,11 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
   };
 }
 
+/** Vrai quand un contenu n'a ni villa, ni terrain, ni activité. */
+function catalogueVide(contenu) {
+  return ['villas', 'terrains', 'activities'].every(cle => !(Array.isArray(contenu?.[cle]) && contenu[cle].length));
+}
+
 function json(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
     'Content-Type': MIME['.json'], 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
@@ -2597,6 +2602,14 @@ async function handleApi(req, res, url) {
       const payload = await parseBody(req, 4_000_000);
       const result = validateAndSanitizeContent(payload, await store.lireReferentiels());
       if (result.errors.length) return json(res, 422, { ok: false, error: result.errors[0], errors: result.errors, warnings: result.warnings });
+      // Incident du 16/09/2026 : « Publier » cliqué avant la fin du chargement
+      // du studio a envoyé son état initial vide, et toutes les tables du
+      // catalogue ont été effacées. Aucun usage du studio ne vide d'un coup
+      // villas, terrains ET activités : on refuse.
+      if (catalogueVide(result.content) && !catalogueVide(await lireContenuBrut())) {
+        audit('content.publish_refused_empty', {}, actorLabel(actor));
+        return json(res, 409, { ok: false, error: 'Publication refusée : elle aurait vidé tout le catalogue (aucune villa, aucun terrain, aucune activité). Rechargez le studio puis recommencez.' });
+      }
       if (fs.existsSync(CONTENT_FILE)) createBackup('avant-publication');
       const currentContent = await store.readContent();
       // Les réglages du site (téléphone, liens, identité éditoriale) sont
