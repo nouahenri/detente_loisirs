@@ -1045,7 +1045,8 @@ const LEGACY_ACTOR = {
   role: 'proprietaire',
   roleLabel: 'Accès de secours par clé',
   active: true,
-  permissions: auth.permissionsFor('proprietaire'),
+  // Accès de secours : toutes les permissions, quels que soient les réglages des rôles.
+  permissions: auth.TOUTES_PERMISSIONS,
   degraded: true,
   viaCookie: false
 };
@@ -1235,6 +1236,8 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['POST', /^\/api\/admin\/facebook\/publish$/, 'facebook:write'],
   ['POST', /^\/api\/admin\/facebook\/sync-to-site$/, 'facebook:write'],
   ['GET', /^\/api\/admin\/users$/, 'users:manage'],
+  ['POST', /^\/api\/admin\/roles$/, 'users:manage'],
+  ['DELETE', /^\/api\/admin\/roles\/[^/]+$/, 'users:manage'],
   ['POST', /^\/api\/admin\/users$/, 'users:manage'],
   ['PATCH', /^\/api\/admin\/users\/[^/]+$/, 'users:manage'],
   ['DELETE', /^\/api\/admin\/users\/[^/]+$/, 'users:manage'],
@@ -3534,13 +3537,41 @@ async function handleApi(req, res, url) {
     return json(res, 200, {
       ok: true,
       users: users.map(auth.publicUser),
-      roles: auth.ROLES.map(role => ({
-        value: role, label: auth.ROLE_LABELS[role],
-        description: auth.ROLE_DESCRIPTIONS[role], permissions: auth.permissionsFor(role)
+      // Rôles et permissions administrables (17/09/2026) : cases à cocher du studio.
+      roles: (await auth.actualiserRoles()) && auth.listeRoles().map(role => ({
+        value: role.code, label: role.libelle, description: role.description, permissions: role.permissions,
+        systeme: role.systeme, ordre: role.ordre, utilisateurs: users.filter(user => user.role === role.code).length
       })),
+      catalogue: auth.CATALOGUE_PERMISSIONS, permissionVitale: auth.PERMISSION_VITALE,
       currentUserId: actor.id,
       degraded: Boolean(actor.degraded)
     });
+  }
+
+  // ---- Rôles et permissions (17/09/2026) ----
+  if (req.method === 'POST' && url.pathname === '/api/admin/roles') {
+    try {
+      const payload = await parseBody(req, 10_000);
+      await auth.actualiserRoles(true);
+      const existant = payload.code ? auth.listeRoles().find(role => role.code === text(payload.code, 20)) : null;
+      if (payload.code && !existant) return json(res, 404, { ok: false, error: 'Rôle introuvable.' });
+      const { role, erreurs } = auth.validerRole(payload, { existant });
+      if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+      await auth.enregistrerRole(role);
+      audit(existant ? 'role.modifie' : 'role.cree', { code: role.code, permissions: role.permissions }, actorLabel(actor));
+      return json(res, existant ? 200 : 201, { ok: true, role });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
+  const routeRole = url.pathname.match(/^\/api\/admin\/roles\/([^/]+)$/);
+  if (req.method === 'DELETE' && routeRole) {
+    try {
+      const code = decodeURIComponent(routeRole[1]);
+      await auth.actualiserRoles(true);
+      await auth.supprimerRole(code);
+      audit('role.supprime', { code }, actorLabel(actor));
+      return json(res, 200, { ok: true });
+    } catch (error) { return json(res, 409, { ok: false, error: text(error.message, 300) }); }
   }
 
   if (req.method === 'POST' && url.pathname === '/api/admin/users') {
@@ -3734,7 +3765,7 @@ async function handleAuthApi(req, res, url) {
         permissions: actor.permissions || auth.permissionsFor(actor.role),
         degraded: Boolean(actor.degraded)
       },
-      roles: auth.ROLES.map(role => ({ value: role, label: auth.ROLE_LABELS[role], description: auth.ROLE_DESCRIPTIONS[role] })),
+      roles: auth.listeRoles().map(role => ({ value: role.code, label: role.libelle, description: role.description })),
       setupRequired: noAccounts
     });
   }
@@ -3792,6 +3823,7 @@ async function handleAuthApi(req, res, url) {
     }
 
     const session = await auth.createSession(result.user.id, { ip, userAgent });
+    await auth.actualiserRoles();
     audit('auth.login', { username: result.user.username, role: result.user.role, ip }, result.user.username);
     return json(res, 200, {
       ok: true,
@@ -4419,6 +4451,8 @@ async function initDatabase() {
     databaseError = health.error;
     console.warn(`MySQL injoignable (${health.error}). Repli sur les fichiers JSON.`);
   }
+  // Rôles et permissions réglés au studio, avant la première requête.
+  await auth.actualiserRoles(true).catch(error => console.warn(`Rôles : ${error.message}`));
 }
 
 /**

@@ -160,3 +160,11 @@ test('paramètres dans les calculs : statut « exclu » hors comptes, « attente
   const sansVirement = C.normaliserParametres([{ type: 'modes', id: 'virement', actif: false }]);
   assert.equal(C.chargesDuMois([charge], '2026-09', [], { parametres: sansVirement }).length, 1, 'échéance générée malgré le mode désactivé depuis');
 });
+
+test('studio : le filtre de catégorie du journal suit Entrées / Sorties', () => {
+  const admin = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'js', 'admin.js'), 'utf8');
+  const journal = admin.slice(admin.indexOf('function renderJournal('), admin.indexOf('const STATUTS_VENTE'));
+  assert.match(journal, /compta\.sens === 'all' \|\| c\.sens === compta\.sens/);
+  assert.match(journal, /if \(compta\.categorie && !visibles\.some\(c => c\.id === compta\.categorie\)\) compta\.categorie = '';/, 'catégorie de l’autre sens abandonnée');
+  assert.ok(journal.indexOf('remplirCategories();\n      lister();') > journal.indexOf("compta.sens = bouton.dataset.comptaSens"), 'liste recalculée au changement de journal');
+});

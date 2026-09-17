@@ -274,12 +274,17 @@
       </section>
 
       <section class="admin-view" data-panel="users">
-        <div class="section-tools"><p>Comptes autorisés à ouvrir le studio. Chaque rôle donne accès à un périmètre précis, appliqué par le serveur.</p><button class="primary" id="newUserBtn">＋ Ajouter un utilisateur</button></div>
-        <div class="content-table" id="usersTable"></div>
-        <article class="panel roles-panel">
-          <div class="panel-head"><div><span class="eyebrow">RÔLES</span><h3>Qui peut faire quoi</h3></div></div>
-          <div class="roles-grid" id="rolesGrid"></div>
-        </article>
+        <!-- Deux onglets (17/09/2026) : les comptes, puis les rôles définis par
+             cases à cocher (prédéfinis mais modifiables, rôles créés). -->
+        <nav class="onglets-nav" id="usersOnglets" role="tablist" aria-label="Utilisateurs et rôles"></nav>
+        <div data-users-panneau="utilisateurs">
+          <div class="section-tools"><p>Comptes autorisés à ouvrir le studio. Chaque rôle donne accès à un périmètre précis, appliqué par le serveur.</p><button class="primary" id="newUserBtn">＋ Ajouter un utilisateur</button></div>
+          <div class="content-table" id="usersTable"></div>
+        </div>
+        <div data-users-panneau="roles" hidden>
+          <div class="section-tools"><p>Cochez ce que chaque rôle permet. Les modifications s’appliquent aussitôt à tous les utilisateurs du rôle, sans nouvelle connexion.</p><button class="primary" id="newRoleBtn">＋ Nouveau rôle</button></div>
+          <div class="roles-matrice" id="rolesMatrice"></div>
+        </div>
       </section>
 
       <section class="admin-view" data-panel="facebook">

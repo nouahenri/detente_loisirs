@@ -57,6 +57,7 @@
     $('#logoutBtn').addEventListener('click', logout);
     $('#passwordBtn').addEventListener('click', openPasswordEditor);
     $('#newUserBtn').addEventListener('click', () => openUserEditor());
+    $('#newRoleBtn')?.addEventListener('click', () => ouvrirRole(null));
     $('#campaignSendBtn').addEventListener('click', sendCampaign);
     $('#exportSubscribersBtn').addEventListener('click', exportSubscribers);
     $('#subscriberSearch').addEventListener('input', event => { state.subscriberSearch = event.target.value; renderSubscribers(); });
@@ -291,7 +292,7 @@
     ]);
     const managed = contenuLu || {};
     if (dashboard) state.dashboard = dashboard;
-    if (users) { state.users = users.users || []; state.roles = users.roles || []; }
+    if (users) { state.users = users.users || []; state.roles = users.roles || []; state.catalogue = users.catalogue || []; state.permissionVitale = users.permissionVitale || 'users:manage'; }
     state.newsletter = newsletter;
     // Référentiels : servis avec le contenu public ; le studio y ajoute le
     // nombre de fiches par entrée, qui décide entre suppression et désactivation.
@@ -1053,9 +1054,24 @@
     const d = compta.donnees;
     hote.innerHTML = `<div class="compta-filtres">
         <div class="filter-pills">${[['all', 'Tout'], ['entree', 'Entrées'], ['sortie', 'Sorties']].map(([v, l]) => `<button type="button" data-compta-sens="${v}" class="${compta.sens === v ? 'active' : ''}">${l}</button>`).join('')}</div>
-        <select data-compta-categorie aria-label="Catégorie"><option value="">Toutes les catégories</option>${d.categories.filter(c => c.actif || d.ecritures.some(e => e.categorie === c.id)).map(c => `<option value="${c.id}" ${compta.categorie === c.id ? 'selected' : ''}>${c.sens === 'entree' ? 'Recette' : 'Dépense'} · ${esc(c.libelle)}</option>`).join('')}</select>
+        <select data-compta-categorie aria-label="Catégorie"></select>
         <label class="admin-search"><span>Rechercher</span><input type="search" data-compta-recherche value="${esc(compta.recherche)}" placeholder="Libellé, tiers, référence…"></label>
       </div><div class="content-table compta-journal" data-compta-journal></div>`;
+    // Catégories du journal choisi : recettes pour « Entrées », dépenses pour « Sorties », les deux groupées pour « Tout ».
+    const remplirCategories = () => {
+      const visibles = d.categories.filter(c => (c.actif || d.ecritures.some(e => e.categorie === c.id)) && (compta.sens === 'all' || c.sens === compta.sens));
+      if (compta.categorie && !visibles.some(c => c.id === compta.categorie)) compta.categorie = '';
+      const option = c => `<option value="${esc(c.id)}" ${compta.categorie === c.id ? 'selected' : ''}>${esc(c.libelle)}</option>`;
+      const groupe = (sens, titre) => {
+        const items = visibles.filter(c => c.sens === sens);
+        return items.length ? `<optgroup label="${titre}">${items.map(option).join('')}</optgroup>` : '';
+      };
+      const tous = { all: 'Toutes les catégories', entree: 'Toutes les recettes', sortie: 'Toutes les dépenses' }[compta.sens];
+      $('[data-compta-categorie]', hote).innerHTML = `<option value="">${tous}</option>${compta.sens === 'all'
+        ? groupe('entree', 'Recettes') + groupe('sortie', 'Dépenses')
+        : visibles.map(option).join('')}`;
+    };
+    remplirCategories();
     const lister = () => {
       const requete = compta.recherche.trim().toLocaleLowerCase('fr');
       const lignes = d.ecritures.filter(e => (compta.sens === 'all' || e.sens === compta.sens) && (!compta.categorie || e.categorie === compta.categorie)
@@ -1067,6 +1083,7 @@
     $$('[data-compta-sens]', hote).forEach(bouton => bouton.addEventListener('click', () => {
       compta.sens = bouton.dataset.comptaSens;
       $$('[data-compta-sens]', hote).forEach(b => b.classList.toggle('active', b === bouton));
+      remplirCategories();
       lister();
     }));
     $('[data-compta-categorie]', hote).addEventListener('change', event => { compta.categorie = event.target.value; lister(); });
@@ -2816,11 +2833,137 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
     $$('[data-edit-user]').forEach(button => button.addEventListener('click', () => openUserEditor(button.dataset.editUser)));
     $$('[data-delete-user]').forEach(button => button.addEventListener('click', () => deleteUser(button.dataset.deleteUser)));
 
-    $('#rolesGrid').innerHTML = (state.roles || []).map(role => `<article class="role-card">
-      <strong>${esc(role.label)}</strong>
-      <p>${esc(role.description)}</p>
-      <ul>${(role.permissions || []).map(permission => `<li>${esc(PERMISSION_LABELS[permission] || permission)}</li>`).join('')}</ul>
-    </article>`).join('');
+    renderOngletsUtilisateurs();
+    renderRoles();
+  }
+
+  // ---- Rôles et permissions (17/09/2026) --------------------------------
+  let ongletUtilisateurs = 'utilisateurs';
+  function renderOngletsUtilisateurs() {
+    const nav = $('#usersOnglets');
+    if (!nav) return;
+    const onglets = [['utilisateurs', 'Utilisateurs', state.users.length], ['roles', 'Rôles et permissions', state.roles.length]];
+    nav.innerHTML = onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-users-onglet="${id}" class="${ongletUtilisateurs === id ? 'active' : ''}" aria-selected="${ongletUtilisateurs === id}">${libelle} <span>${nombre}</span></button>`).join('');
+    $$('[data-users-panneau]').forEach(panneau => { panneau.hidden = panneau.dataset.usersPanneau !== ongletUtilisateurs; });
+    $$('[data-users-onglet]', nav).forEach(bouton => bouton.addEventListener('click', () => { ongletUtilisateurs = bouton.dataset.usersOnglet; renderOngletsUtilisateurs(); }));
+  }
+
+  /*
+   * Vue des rôles : liste compacte (une ligne par rôle, résumé de ses droits)
+   * pour rester lisible quand les rôles se multiplient ; grille comparative
+   * permissions × rôles en second affichage. Un clic sur un rôle ouvre ses cases à cocher.
+   */
+  let vueRoles = 'liste';
+  let rechercheRoles = '';
+  const SEUIL_RECHERCHE_ROLES = 6;
+  function renderRoles() {
+    const hote = $('#rolesMatrice');
+    if (!hote) return;
+    const roles = state.roles || [];
+    hote.innerHTML = `<div class="roles-outils">
+        <div class="filter-pills" aria-label="Affichage des rôles">${[['liste', 'Liste'], ['grille', 'Grille comparative']].map(([id, libelle]) => `<button type="button" data-roles-vue="${id}" class="${vueRoles === id ? 'active' : ''}" aria-pressed="${vueRoles === id}">${libelle}</button>`).join('')}</div>
+        ${roles.length > SEUIL_RECHERCHE_ROLES ? `<label class="admin-search"><span>Rechercher</span><input type="search" data-roles-recherche value="${esc(rechercheRoles)}" placeholder="Nom ou description du rôle"></label>` : ''}
+      </div><div data-roles-corps></div>`;
+    $$('[data-roles-vue]', hote).forEach(bouton => bouton.addEventListener('click', () => { vueRoles = bouton.dataset.rolesVue; renderRoles(); }));
+    $('[data-roles-recherche]', hote)?.addEventListener('input', event => { rechercheRoles = event.target.value; renderCorpsRoles(); });
+    renderCorpsRoles();
+  }
+
+  function renderCorpsRoles() {
+    const corps = $('#rolesMatrice [data-roles-corps]');
+    if (!corps) return;
+    const catalogue = state.catalogue || [];
+    const requete = (state.roles || []).length > SEUIL_RECHERCHE_ROLES ? rechercheRoles.trim().toLocaleLowerCase('fr') : '';
+    const roles = (state.roles || []).filter(role => !requete || `${role.label} ${role.description || ''}`.toLocaleLowerCase('fr').includes(requete));
+    const utilisateurs = role => `${role.utilisateurs || 0} utilisateur${role.utilisateurs > 1 ? 's' : ''}`;
+    if (!roles.length) {
+      corps.innerHTML = '<div class="empty">Aucun rôle ne correspond à cette recherche.</div>';
+    } else if (vueRoles === 'liste') {
+      const total = catalogue.reduce((somme, groupe) => somme + groupe.permissions.length, 0);
+      corps.innerHTML = `<div class="content-table roles-liste">${roles.map(role => {
+        const accordees = role.permissions || [];
+        const groupes = catalogue.map(groupe => {
+          const nb = groupe.permissions.filter(([code]) => accordees.includes(code)).length;
+          if (!nb) return '';
+          const partiel = nb < groupe.permissions.length;
+          return `<span class="roles-puce ${partiel ? 'partiel' : ''}" title="${esc(groupe.groupe)} : ${nb} sur ${groupe.permissions.length}">${esc(groupe.groupe)}${partiel ? ` <b>${nb}/${groupe.permissions.length}</b>` : ''}</span>`;
+        }).join('');
+        const part = total ? Math.round(accordees.length / total * 100) : 0;
+        return `<button type="button" class="roles-ligne" data-ouvrir-role="${esc(role.value)}" title="Modifier le rôle ${esc(role.label)}">
+          <span class="roles-ligne-nom"><strong>${esc(role.label)}</strong><em class="${role.systeme ? '' : 'cree'}">${role.systeme ? 'Prédéfini' : 'Créé'}</em>${role.description ? `<small>${esc(role.description)}</small>` : ''}</span>
+          <span class="roles-ligne-puces">${groupes || '<small>Aucune permission</small>'}</span>
+          <span class="roles-ligne-meta"><span class="roles-jauge" aria-hidden="true"><i style="width:${part}%"></i></span><small>${accordees.length}/${total} permissions</small><small>${utilisateurs(role)}</small></span>
+          <span class="roles-ligne-fleche" aria-hidden="true">›</span>
+        </button>`;
+      }).join('')}</div>`;
+    } else {
+      corps.innerHTML = `<div class="content-table roles-table-cadre"><table class="roles-table">
+      <thead><tr><th scope="col">Permission</th>${roles.map(role => `<th scope="col"><button type="button" data-ouvrir-role="${esc(role.value)}" title="Modifier le rôle ${esc(role.label)}"><strong>${esc(role.label)}</strong><small>${utilisateurs(role)}${role.systeme ? '' : ' · créé'}</small></button></th>`).join('')}</tr></thead>
+      <tbody>${catalogue.map(groupe => `<tr class="roles-groupe"><th scope="rowgroup" colspan="${roles.length + 1}"><span>${esc(groupe.groupe)}</span></th></tr>${groupe.permissions.map(([code, libelle]) => `<tr><th scope="row">${esc(libelle)}</th>${roles.map(role => { const oui = (role.permissions || []).includes(code); return `<td class="${oui ? 'oui' : 'non'}"><span aria-label="${oui ? 'Autorisé' : 'Non autorisé'}">${oui ? '✓' : '—'}</span></td>`; }).join('')}</tr>`).join('')}`).join('')}</tbody>
+    </table></div>`;
+    }
+    $$('[data-ouvrir-role]', corps).forEach(bouton => bouton.addEventListener('click', () => ouvrirRole(state.roles.find(role => role.value === bouton.dataset.ouvrirRole))));
+  }
+
+  function ouvrirRole(role) {
+    const vitale = state.permissionVitale || 'users:manage';
+    const cochee = code => (role?.permissions || []).includes(code);
+    const verrou = code => role?.value === 'proprietaire' && code === vitale;
+    // Une seule fiche de rôle à la fois, sinon les cases de l'une s'enregistreraient sous l'autre.
+    $$('.role-editor-backdrop').forEach(ancienne => ancienne.remove());
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop role-editor-backdrop"><form class="editor-drawer role-fiche" novalidate><div class="editor-head"><div><span class="eyebrow">${role ? (role.systeme ? 'RÔLE PRÉDÉFINI' : 'RÔLE') : 'NOUVEAU RÔLE'}</span><h2>${role ? esc(role.label) : 'Nouveau rôle'}</h2></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">
+      <label>Nom du rôle<input name="libelle" maxlength="60" required value="${esc(role?.label || '')}" placeholder="ex. Comptable, Agent d’accueil"></label>
+      <label>Description<input name="description" maxlength="240" value="${esc(role?.description || '')}" placeholder="Ce que fait une personne qui a ce rôle"></label>
+      ${role ? `<p class="compta-tracabilite">${role.utilisateurs ? `<strong>${role.utilisateurs}</strong> utilisateur${role.utilisateurs > 1 ? 's ont' : ' a'} ce rôle : ${role.utilisateurs > 1 ? 'leurs' : 'ses'} droits changent dès l’enregistrement.` : 'Aucun utilisateur n’a encore ce rôle.'}</p>` : ''}
+      <div class="roles-permissions">${(state.catalogue || []).map((groupe, index) => `<fieldset>
+        <legend><span>${esc(groupe.groupe)}</span><label class="roles-tout"><input type="checkbox" data-tout-groupe="${index}"> Tout</label></legend>
+        ${groupe.permissions.map(([code, libelle]) => `<label class="roles-case"><input type="checkbox" name="permissions" value="${esc(code)}" data-groupe="${index}" ${cochee(code) || verrou(code) ? 'checked' : ''} ${verrou(code) ? 'disabled' : ''}><span>${esc(libelle)}${verrou(code) ? '<small>Toujours active pour le propriétaire : sans elle, plus personne ne pourrait gérer les accès.</small>' : ''}</span></label>`).join('')}
+      </fieldset>`).join('')}</div>
+    </div><div class="editor-actions">${role && !role.systeme ? '<button type="button" class="danger" data-supprimer-role>Supprimer</button>' : ''}<button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">${role ? 'Enregistrer' : 'Créer le rôle'}</button></div></form></div>`);
+    const fond = document.body.lastElementChild;
+    const formulaire = $('form', fond);
+    const fermer = () => { document.removeEventListener('keydown', echap); fond.remove(); };
+    const echap = event => { if (event.key === 'Escape') fermer(); };
+    $$('[data-close-editor]', fond).forEach(bouton => bouton.addEventListener('click', fermer));
+    fond.addEventListener('click', event => { if (event.target === fond) fermer(); });
+    document.addEventListener('keydown', echap);
+    // Case « Tout » de chaque groupe : coche ou décoche le groupe, et reflète son état.
+    const majTout = index => {
+      const cases = $$(`[name="permissions"][data-groupe="${index}"]`, formulaire);
+      const tout = $(`[data-tout-groupe="${index}"]`, formulaire);
+      const nb = cases.filter(c => c.checked).length;
+      tout.checked = nb === cases.length;
+      tout.indeterminate = nb > 0 && nb < cases.length;
+    };
+    $$('[data-tout-groupe]', formulaire).forEach(tout => {
+      const index = tout.dataset.toutGroupe;
+      tout.addEventListener('change', () => { $$(`[name="permissions"][data-groupe="${index}"]:not(:disabled)`, formulaire).forEach(c => { c.checked = tout.checked; }); majTout(index); });
+      $$(`[name="permissions"][data-groupe="${index}"]`, formulaire).forEach(c => c.addEventListener('change', () => majTout(index)));
+      majTout(index);
+    });
+    const recharger = async () => {
+      const donnees = await api('/api/admin/users');
+      state.users = donnees.users || []; state.roles = donnees.roles || []; state.catalogue = donnees.catalogue || state.catalogue;
+      renderUsers();
+    };
+    formulaire.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!formulaire.reportValidity()) return;
+      const permissions = $$('[name="permissions"]:checked', formulaire).map(c => c.value);
+      const bouton = $('button[type="submit"]', formulaire);
+      bouton.disabled = true;
+      try {
+        await api('/api/admin/roles', { method: 'POST', body: JSON.stringify({ code: role?.value, libelle: formulaire.elements.libelle.value, description: formulaire.elements.description.value, permissions }) });
+        fermer(); await recharger();
+        toast(role ? 'Rôle mis à jour : droits appliqués aussitôt' : 'Rôle créé');
+      } catch (error) { toast(error.message); bouton.disabled = false; }
+    });
+    $('[data-supprimer-role]', fond)?.addEventListener('click', async () => {
+      if (!confirm(`Supprimer le rôle « ${role.label} » ?`)) return;
+      try { await api(`/api/admin/roles/${encodeURIComponent(role.value)}`, { method: 'DELETE' }); fermer(); await recharger(); toast('Rôle supprimé'); }
+      catch (error) { toast(error.message); }
+    });
+    $('input', formulaire)?.focus();
   }
 
   const PERMISSION_LABELS = {
@@ -2882,7 +3025,7 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
           } else toast('Compte mis à jour');
         }
         const refreshed = await api('/api/admin/users');
-        state.users = refreshed.users || []; state.roles = refreshed.roles || state.roles;
+        state.users = refreshed.users || []; state.roles = refreshed.roles || state.roles; state.catalogue = refreshed.catalogue || state.catalogue;
         renderUsers(); close();
       } catch (error) { toast(error.message); }
     });

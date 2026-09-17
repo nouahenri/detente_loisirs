@@ -101,8 +101,135 @@ const ROLE_PERMISSIONS = {
   ]
 };
 
+/*
+ * RÔLES ADMINISTRABLES (demande du 17/09/2026) : les rôles ci-dessus sont les
+ * rôles prédéfinis ; leurs permissions se cochent au studio (Utilisateurs →
+ * Rôles et permissions), et d'autres rôles peuvent être créés. Le serveur lit
+ * le registre en mémoire, rafraîchi toutes les 30 secondes et après chaque
+ * modification (plusieurs processus Passenger partagent la même base).
+ */
+const CATALOGUE_PERMISSIONS = [
+  { groupe: 'Pilotage', permissions: [['dashboard:view', 'Voir la vue d’ensemble']] },
+  { groupe: 'Catalogue du site', permissions: [['content:read', 'Consulter les annonces'], ['content:write', 'Créer et modifier les annonces, référentiels et avis'], ['settings:write', 'Modifier les réglages du site']] },
+  { groupe: 'Clients', permissions: [['leads:read', 'Consulter les demandes'], ['leads:write', 'Traiter les demandes et bloquer des demandeurs'], ['leads:export', 'Exporter les demandes']] },
+  { groupe: 'Newsletter', permissions: [['newsletter:read', 'Consulter abonnés et campagnes'], ['newsletter:write', 'Envoyer des campagnes']] },
+  { groupe: 'Facebook', permissions: [['facebook:read', 'Consulter les publications'], ['facebook:write', 'Publier et synchroniser']] },
+  { groupe: 'Finances', permissions: [['compta:manage', 'Comptabilité : entrées, sorties, salaires']] },
+  { groupe: 'Administration', permissions: [['backup:manage', 'Sauvegardes et exports'], ['audit:read', 'Journal d’audit'], ['users:manage', 'Utilisateurs, rôles et permissions']] }
+];
+const TOUTES_PERMISSIONS = CATALOGUE_PERMISSIONS.flatMap(groupe => groupe.permissions.map(([code]) => code));
+// Sans elle, plus personne ne pourrait rendre des droits : le propriétaire la garde.
+const PERMISSION_VITALE = 'users:manage';
+const ROLES_FILE = 'roles.json';
+const ROLES_TTL_MS = 30_000;
+
+const ROLES_INITIAUX = ROLES.map((code, index) => ({
+  code, libelle: ROLE_LABELS[code], description: ROLE_DESCRIPTIONS[code],
+  permissions: [...ROLE_PERMISSIONS[code]], ordre: index + 1, systeme: true
+}));
+
+/** Registre complet : rôles prédéfinis, puis modifications et rôles créés. */
+function normaliserRoles(lignes = []) {
+  const parCode = new Map(ROLES_INITIAUX.map(role => [role.code, { ...role, permissions: [...role.permissions] }]));
+  for (const ligne of Array.isArray(lignes) ? lignes : []) {
+    const code = text(ligne?.code, 20);
+    if (!code) continue;
+    const base = parCode.get(code);
+    if (ligne.supprime) { if (!base?.systeme) parCode.delete(code); continue; }
+    let permissions = Array.isArray(ligne.permissions) ? ligne.permissions : (() => { try { return JSON.parse(ligne.permissions || '[]'); } catch { return []; } })();
+    permissions = TOUTES_PERMISSIONS.filter(p => permissions.includes(p));
+    if (code === 'proprietaire' && !permissions.includes(PERMISSION_VITALE)) permissions.push(PERMISSION_VITALE);
+    parCode.set(code, {
+      code, libelle: text(ligne.libelle, 60) || base?.libelle || code, description: text(ligne.description, 240) || base?.description || '',
+      permissions, ordre: Number.isFinite(Number(ligne.ordre)) ? Number(ligne.ordre) : (base?.ordre || 99), systeme: Boolean(base?.systeme)
+    });
+  }
+  return [...parCode.values()].sort((a, b) => a.ordre - b.ordre || a.libelle.localeCompare(b.libelle, 'fr'));
+}
+
+let registreRoles = normaliserRoles();
+let rolesLusLe = 0;
+
+function listeRoles() { return registreRoles.map(role => ({ ...role, permissions: [...role.permissions] })); }
+function roleExiste(code) { return registreRoles.some(role => role.code === code); }
+function libelleRole(code) { return registreRoles.find(role => role.code === code)?.libelle || ROLE_LABELS[code] || code; }
+
+/** Relit les rôles en base ou dans data/roles.json (au plus toutes les 30 s, sauf `force`). */
+async function actualiserRoles(force = false) {
+  if (!force && Date.now() - rolesLusLe < ROLES_TTL_MS) return registreRoles;
+  let lignes = null;
+  if (useDb()) {
+    try { [lignes] = await sql('SELECT code, libelle, description, permissions, ordre, supprime FROM roles'); }
+    catch (error) { if (!(error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146)) { rolesLusLe = Date.now(); return registreRoles; } }
+  }
+  if (!lignes) lignes = jsonStore.read(ROLES_FILE, []);
+  registreRoles = normaliserRoles(lignes);
+  rolesLusLe = Date.now();
+  return registreRoles;
+}
+
+/** Identifiant d'un nouveau rôle : minuscules, sans accents, 20 caractères au plus. */
+function codeRole(libelle) {
+  return text(libelle, 60).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20).replace(/-$/, '');
+}
+
+/** Rôle saisi au studio. Renvoie { role, erreurs }. */
+function validerRole(source = {}, { existant = null } = {}) {
+  const erreurs = [];
+  const libelle = text(source.libelle, 60);
+  if (!libelle) erreurs.push('Le nom du rôle est requis.');
+  const code = existant?.code || codeRole(libelle);
+  if (libelle && !existant && !code) erreurs.push('Nom de rôle invalide.');
+  if (!existant && roleExiste(code)) erreurs.push(`Le rôle « ${libelle} » existe déjà.`);
+  const demandees = Array.isArray(source.permissions) ? source.permissions : [];
+  const permissions = TOUTES_PERMISSIONS.filter(p => demandees.includes(p));
+  if (code === 'proprietaire' && !permissions.includes(PERMISSION_VITALE)) permissions.push(PERMISSION_VITALE);
+  if (!permissions.length) erreurs.push('Cochez au moins une permission.');
+  return {
+    erreurs,
+    role: erreurs.length ? null : { code, libelle, description: text(source.description, 240), permissions, ordre: Number.isInteger(Number(source.ordre)) ? Number(source.ordre) : (existant?.ordre || registreRoles.length + 1), systeme: Boolean(existant?.systeme) }
+  };
+}
+
+async function enregistrerRole(role) {
+  let enBase = false;
+  if (useDb()) {
+    try {
+      await sql(`INSERT INTO roles (code, libelle, description, permissions, ordre, supprime) VALUES (?,?,?,?,?,0)
+        ON DUPLICATE KEY UPDATE libelle=VALUES(libelle), description=VALUES(description), permissions=VALUES(permissions), ordre=VALUES(ordre), supprime=0`,
+      [role.code, role.libelle, role.description, JSON.stringify(role.permissions), role.ordre]);
+      enBase = true;
+    } catch (error) { if (!(error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146)) throw error; }
+  }
+  if (!enBase) {
+    const lignes = jsonStore.read(ROLES_FILE, []).filter(ligne => ligne.code !== role.code);
+    jsonStore.write(ROLES_FILE, [...lignes, { code: role.code, libelle: role.libelle, description: role.description, permissions: role.permissions, ordre: role.ordre }]);
+  }
+  await actualiserRoles(true);
+  return role;
+}
+
+/** Supprime un rôle créé au studio ; refusé pour un rôle prédéfini ou encore attribué. */
+async function supprimerRole(code) {
+  const role = registreRoles.find(entree => entree.code === code);
+  if (!role) throw new Error('Rôle introuvable.');
+  if (role.systeme) throw new Error('Rôle prédéfini : modifiez ses permissions plutôt que de le supprimer.');
+  const titulaires = (await listUsers()).filter(user => user.role === code).length;
+  if (titulaires) throw new Error(`Rôle attribué à ${titulaires} utilisateur${titulaires > 1 ? 's' : ''} : changez d’abord leur rôle.`);
+  let enBase = false;
+  if (useDb()) {
+    try { await sql('DELETE FROM roles WHERE code = ?', [code]); enBase = true; }
+    catch (error) { if (!(error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146)) throw error; }
+  }
+  if (!enBase) jsonStore.write(ROLES_FILE, jsonStore.read(ROLES_FILE, []).filter(ligne => ligne.code !== code));
+  await actualiserRoles(true);
+  return true;
+}
+
 function permissionsFor(role) {
-  return ROLE_PERMISSIONS[role] ? [...ROLE_PERMISSIONS[role]] : [];
+  const entree = registreRoles.find(item => item.code === role);
+  return entree ? [...entree.permissions] : [];
 }
 
 function can(actor, permission) {
@@ -258,7 +385,7 @@ function publicUser(user) {
     username: user.username,
     email: user.email || '',
     role: user.role,
-    roleLabel: ROLE_LABELS[user.role] || user.role,
+    roleLabel: libelleRole(user.role),
     active: user.active !== false,
     lastLoginAt: user.lastLoginAt || null,
     failedAttempts: Number(user.failedAttempts || 0),
@@ -339,7 +466,8 @@ async function createUser({ username, email = '', password, role = 'editeur', ac
   if (!isValidUsername(key)) {
     throw new Error('Nom d’utilisateur invalide : 3 à 60 caractères, lettres non accentuées, chiffres, point, tiret ou souligné.');
   }
-  if (!ROLES.includes(role)) throw new Error(`Rôle inconnu « ${role} » (attendus : ${ROLES.join(', ')}).`);
+  await actualiserRoles();
+  if (!roleExiste(role)) throw new Error(`Rôle inconnu « ${role} » (attendus : ${registreRoles.map(r => r.code).join(', ')}).`);
   const weak = passwordProblem(password);
   if (weak) throw new Error(weak);
   if (await getUserByUsername(key)) throw new Error(`Le nom d’utilisateur « ${key} » est déjà utilisé.`);
@@ -382,7 +510,8 @@ async function updateUser(id, patch = {}) {
   if (!user) return null;
   const next = { ...user };
   if (patch.role !== undefined) {
-    if (!ROLES.includes(patch.role)) throw new Error(`Rôle inconnu « ${patch.role} ».`);
+    await actualiserRoles();
+    if (!roleExiste(patch.role)) throw new Error(`Rôle inconnu « ${patch.role} ».`);
     next.role = patch.role;
   }
   if (patch.email !== undefined) next.email = text(patch.email, 180);
@@ -750,6 +879,8 @@ async function authenticate(username, password) {
 /** Résout l'acteur d'une requête à partir du jeton de session. */
 async function resolveSession(token) {
   if (!token) return null;
+  // Permissions du rôle telles qu'elles sont réglées au studio en ce moment.
+  await actualiserRoles();
   const session = await touchSession(token);
   if (!session) return null;
   const user = await getUserById(session.userId);
@@ -765,6 +896,8 @@ async function resolveSession(token) {
 
 module.exports = {
   ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_PERMISSIONS,
+  CATALOGUE_PERMISSIONS, TOUTES_PERMISSIONS, PERMISSION_VITALE,
+  normaliserRoles, listeRoles, roleExiste, libelleRole, actualiserRoles, validerRole, enregistrerRole, supprimerRole,
   SESSION_TTL_MS, MAX_ATTEMPTS_BEFORE_LOCK, LOCK_STEPS_MINUTES,
   GENERIC_LOGIN_ERROR,
   configure, permissionsFor, can, publicUser, isLocked,
