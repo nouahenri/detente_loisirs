@@ -1668,9 +1668,8 @@ function initSimulator(villaParam, activityParam) {
     });
   }
 
-  // Cochée par défaut : la balade en bateau, comme dans la version précédente.
-  const defautBateau = activityAddons.find(a => a.item.id === "balade-bateau");
-  if (defautBateau && defautBateau.input) defautBateau.input.checked = true;
+  // Aucune activité cochée d'office (demande du 19/09/2026) : c'est le
+  // visiteur qui choisit. La balade en bateau était présélectionnée.
 
   // Lien profond `?activite=<id>` : on ne coche que l'activité demandée.
   const requestedActivity = typeof ACTIVITIES_DATA !== "undefined" ? ACTIVITIES_DATA.find(item => item.id === activityParam) : null;

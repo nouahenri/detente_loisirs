@@ -368,7 +368,7 @@ export function villasFiltrees(villas: Villa[], filtre: string) {
   return liste.length ? liste : villas;
 }
 
-/** Valeurs de départ du simulateur : vendredi prochain → dimanche, balade en bateau cochée. */
+/** Valeurs de départ du simulateur : vendredi prochain → dimanche, aucune activité cochée d’office (19/09/2026). */
 export function preparerDevis(d: Donnees, actuel: Devis, coordonnees: { nom?: string; tel?: string; email?: string }): Devis {
   if (actuel.pret) return actuel;
   const aujourdhui = new Date();
@@ -382,7 +382,6 @@ export function preparerDevis(d: Donnees, actuel: Devis, coordonnees: { nom?: st
     // Dates déjà choisies (formulaire de recherche de l'accueil) : conservées.
     arrivee: actuel.arrivee || dateISO(vendredi),
     depart: actuel.depart || dateISO(dimanche),
-    activites: actuel.activites.length ? actuel.activites : d.activites.some(a => a.id === 'balade-bateau') ? ['balade-bateau'] : [],
     villaId: actuel.villaId || (d.villas.find(v => !estIndisponible(v)) || { id: '' }).id,
     mode: d.villas.length || actuel.mode === 'voiture' ? actuel.mode : 'activites',
     // Horaires, délai et lieux de la location connus : dates et lieu par défaut.
