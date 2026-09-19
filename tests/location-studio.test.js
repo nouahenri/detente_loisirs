@@ -14,7 +14,7 @@ test('menu : « Voitures » pour qui édite le catalogue, « Location » et son 
   assert.match(html, /data-view="location" data-permission="location:manage"/);
   assert.match(html, /id="locationSousMenu" data-permission="location:manage" hidden/);
   for (const onglet of ['planning', 'reservations', 'indisponibilites', 'reglages']) assert.match(html, new RegExp(`data-location-aller="${onglet}"`));
-  assert.ok(html.indexOf('js/location-voitures.js') < html.indexOf('js/admin.js'), 'règles partagées chargées avant le studio');
+  assert.ok(html.indexOf('<script src="js/location-voitures.js') < html.indexOf('<script src="js/admin.js'), 'règles partagées chargées avant le studio');
 });
 
 test('sous-menu : relit les données (nouvelles demandes du site et de l’app)', () => {
