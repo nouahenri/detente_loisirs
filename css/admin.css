@@ -1254,3 +1254,78 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
   .roles-table-cadre { scroll-padding-left:128px; }
   .roles-table tbody th, .roles-table thead th:first-child { width:128px; min-width:128px; max-width:128px; font-size:.72rem; }
 }
+
+/* ---- Location de voitures (17/09/2026) ---- */
+.vehicule-bloc { margin:0; padding:.8rem 1rem 1rem; border:1px solid var(--line); border-radius:14px; }
+.vehicule-bloc legend { padding:0 .4rem; font-size:.72rem; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
+.vehicule-aide, .vehicule-apercu { margin:.2rem 0 .6rem; color:var(--muted); font-size:.74rem; line-height:1.5; }
+.vehicule-apercu { margin-top:.6rem; color:var(--ink); font-weight:600; }
+[data-si-chauffeur][hidden], [data-si-conducteur][hidden] { display:none; }
+.location-kpis { margin-bottom:.4rem; }
+.loc-statut { display:inline-flex; align-items:center; padding:.2rem .55rem; border-radius:99px; font-size:.66rem; font-weight:800; white-space:nowrap; }
+.loc-demande { background:#fff4d6; color:#8a5a00; }
+.loc-confirmee { background:#dcf3e6; color:#16743a; }
+.loc-en-cours { background:#e3e8ff; color:#2c3fa8; }
+.loc-terminee { background:#eceef4; color:#5d6479; }
+.loc-annulee { background:#fdecea; color:#b3261e; }
+.loc-indispo { background:repeating-linear-gradient(135deg, #fbe3e1 0 6px, #f7d0cc 6px 12px); color:#9a1f17; }
+.loc-source { display:block; margin-top:.2rem; color:var(--muted); font-size:.64rem; }
+.loc-outils { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.6rem 1rem; margin-bottom:.8rem; }
+.loc-navigation { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; }
+.loc-navigation > button:not(.primary) { border:1px solid var(--line); background:white; color:var(--ink); border-radius:999px; padding:.5rem .8rem; font-size:.72rem; font-weight:700; }
+.loc-navigation strong { margin-left:.4rem; font-size:.84rem; }
+.loc-duree { display:flex; align-items:center; gap:.4rem; font-size:.72rem; font-weight:700; color:var(--muted); }
+.loc-duree select { width:auto; padding:.45rem .6rem; }
+.loc-planning { overflow-x:auto; border:1px solid var(--line); border-radius:16px; background:white; }
+.loc-grille { min-width:calc(190px + var(--jours) * 44px); }
+.loc-ligne { display:grid; grid-template-columns:190px 1fr; border-bottom:1px solid var(--line); min-height:52px; }
+.loc-ligne:last-child { border-bottom:0; }
+.loc-vehicule { position:sticky; left:0; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:.4rem; padding:.5rem .6rem; background:white; border-right:1px solid var(--line); }
+.loc-vehicule strong { display:block; font-size:.76rem; line-height:1.25; }
+.loc-vehicule small { color:var(--muted); font-size:.64rem; }
+.loc-ajout { flex:0 0 auto; width:28px; height:28px; padding:0; border:1px solid var(--line); border-radius:50%; background:white; color:var(--ink); font-weight:800; }
+.loc-entete { min-height:44px; background:#f8f9fc; }
+.loc-entete .loc-vehicule { background:#f8f9fc; }
+.loc-jours { display:grid; grid-template-columns:repeat(var(--jours), 1fr); }
+.loc-jour { display:grid; place-items:center; align-content:center; gap:0; border-left:1px solid var(--line); font-size:.62rem; color:var(--muted); }
+.loc-jour strong { font-size:.8rem; color:var(--ink); }
+.loc-jour.we { background:rgba(21,24,55,.03); }
+.loc-jour.auj { background:#fef8e2; }
+.loc-jour.auj strong { color:#8a6a00; }
+.loc-piste { position:relative; background-image:repeating-linear-gradient(90deg, transparent 0 calc(100% / var(--jours) - 1px), var(--line) calc(100% / var(--jours) - 1px) calc(100% / var(--jours))); }
+.loc-barre { position:absolute; top:9px; bottom:9px; overflow:hidden; padding:0 .45rem; border:0; border-radius:8px; font-size:.64rem; font-weight:800; text-align:left; white-space:nowrap; text-overflow:ellipsis; cursor:pointer; box-shadow:0 1px 3px rgba(21,24,55,.12); }
+.loc-barre.loc-demande { background:#fff4d6; border:1.5px dashed #d69e00; }
+.loc-barre.loc-indispo { top:4px; bottom:4px; opacity:.9; }
+.loc-barre:focus-visible { outline:3px solid rgba(232,185,4,.6); outline-offset:1px; }
+.loc-legende { display:flex; flex-wrap:wrap; gap:.4rem 1.1rem; margin:.7rem 0 0; padding:0; list-style:none; font-size:.68rem; color:var(--muted); }
+.loc-legende i { display:inline-block; width:14px; height:10px; margin-right:.35rem; border-radius:3px; vertical-align:-1px; }
+.loc-ligne-reservation { cursor:pointer; }
+.loc-reservations .table-row, .location-contenu .content-table .table-row { grid-template-columns:1.2fr 1.2fr 1.3fr .9fr .9fr; }
+.loc-resume { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; margin-bottom:.4rem; }
+.loc-resume small { color:var(--muted); font-size:.7rem; }
+.loc-estimation { padding:.7rem .9rem; border-radius:12px; background:#f8f9fc; font-size:.78rem; }
+.loc-estimation p { margin:.15rem 0; }
+.loc-alerte { color:#b3261e; font-weight:700; }
+.loc-note { color:var(--muted); }
+.loc-case-chauffeur { display:grid; gap:.3rem; }
+.loc-case-chauffeur span:last-of-type { display:flex; align-items:center; gap:.45rem; font-weight:600; }
+.loc-case-chauffeur input { width:auto; }
+.loc-case-chauffeur small { color:var(--muted); font-weight:500; }
+.editor-actions .loc-transition { border-radius:999px; }
+.loc-reglages { display:grid; gap:1rem; }
+.loc-reglages h3 { margin:0 0 .3rem; }
+.loc-reglage-ligne { display:grid; grid-template-columns:minmax(0, 1.6fr) minmax(0, 1fr) auto auto; gap:.5rem; align-items:end; margin:.4rem 0; }
+[data-option].loc-reglage-ligne { grid-template-columns:minmax(0, 1.6fr) minmax(0, 1fr) auto auto auto; }
+.loc-montant { display:grid; gap:.2rem; font-size:.66rem; font-weight:700; color:var(--muted); }
+.loc-actif { display:flex; align-items:center; gap:.35rem; font-size:.72rem; font-weight:700; white-space:nowrap; padding-bottom:.6rem; }
+.loc-actif input { width:auto; }
+.loc-reglage-ligne > button { width:36px; height:36px; padding:0; border-radius:50%; }
+@media (max-width:760px) {
+  .loc-grille { min-width:calc(128px + var(--jours) * 38px); }
+  .loc-ligne { grid-template-columns:128px 1fr; }
+  .loc-reservations .table-row, .location-contenu .content-table .table-row { grid-template-columns:1fr 1fr; padding:.8rem; }
+  /* La règle générique des tableaux masque la 3e cellule sur mobile : ici elle porte les dates. */
+  .location-contenu .content-table .table-row > * { display:block !important; }
+  .loc-reglage-ligne, [data-option].loc-reglage-ligne { grid-template-columns:1fr 1fr; }
+  .loc-reglage-ligne > input[name="nom"] { grid-column:1 / -1; }
+}

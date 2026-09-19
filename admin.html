@@ -101,6 +101,7 @@
         <button data-view="villas" data-permission="content:write"><span>⌂</span> Villas</button>
         <button data-view="terrains" data-permission="content:write"><span>◱</span> Terrains</button>
         <button data-view="activities" data-permission="content:write"><span>⌁</span> Activités</button>
+        <button data-view="vehicles" data-permission="content:write"><span>⛟</span> Voitures</button>
         <button data-view="referentiels" data-permission="content:write"><span>☷</span> Référentiels</button>
         <button data-view="leads" data-permission="leads:read"><span>◎</span> Demandes</button>
         <button data-view="compta" data-permission="compta:manage"><span>₣</span> Comptabilité</button>
@@ -112,6 +113,14 @@
           <button type="button" data-compta-aller="charges">Charges récurrentes</button>
           <button type="button" data-compta-aller="rapport">Rapport</button>
           <button type="button" data-compta-aller="parametres">Paramètres</button>
+        </div>
+        <button data-view="location" data-permission="location:manage"><span>⏱</span> Location</button>
+        <!-- Sous-menu de la location de voitures (17/09/2026), ouvert quand la vue est affichée. -->
+        <div class="nav-sous-menu" id="locationSousMenu" data-permission="location:manage" hidden>
+          <button type="button" data-location-aller="planning">Planning</button>
+          <button type="button" data-location-aller="reservations">Réservations</button>
+          <button type="button" data-location-aller="indisponibilites">Indisponibilités</button>
+          <button type="button" data-location-aller="reglages">Réglages</button>
         </div>
         <button data-view="messages" data-permission="leads:read"><span>✆</span> Messages</button>
         <button data-view="newsletter" data-permission="newsletter:read"><span>✉</span> Newsletter</button>
@@ -183,6 +192,18 @@
       <section class="admin-view" data-panel="activities">
         <div class="section-tools"><p>Composez les expériences, leurs visuels et leur mise en avant.</p><button class="primary" data-new="activity">＋ Ajouter une activité</button></div>
         <div class="content-table" id="activitiesTable"></div>
+      </section>
+
+      <!-- Location de voitures (17/09/2026) : fiches des véhicules (catalogue,
+           publiées par « Publier les changements ») puis exploitation (planning,
+           réservations, indisponibilités, réglages), enregistrée aussitôt. -->
+      <section class="admin-view" data-panel="vehicles">
+        <div class="section-tools"><p>Vos véhicules de location : tarifs dégressifs, formule avec ou sans chauffeur, caution, kilométrage et photos. Le planning et les réservations se gèrent dans « Location ».</p><button class="primary" data-new="vehicle">＋ Ajouter un véhicule</button></div>
+        <div class="content-table" id="vehiclesTable"></div>
+      </section>
+
+      <section class="admin-view" data-panel="location">
+        <div class="location-vue" id="locationVue"><div class="empty">Chargement de la location…</div></div>
       </section>
 
       <section class="admin-view" data-panel="leads">
@@ -306,6 +327,7 @@
 
   <div class="admin-toast" id="adminToast"></div>
   <script src="js/data.js?v=20260912a"></script>
+  <script src="js/location-voitures.js?v=20260919a"></script>
   <script src="js/admin.js?v=20260917c"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
   // où n'importe quel script tiers pourrait le récupérer.
   const state = {
     user: null,
-    content: { villas: [], terrains: [], activities: [], reviews: [], faq: [], settings: {}, facebookPosts: [] },
+    content: { villas: [], terrains: [], activities: [], vehicles: [], reviews: [], faq: [], settings: {}, facebookPosts: [] },
     // Faux tant que le contenu réel n'est pas chargé et affiché : publier l'état
     // initial vide ci-dessus a effacé tout le catalogue le 16/09/2026.
     contenuCharge: false,
@@ -13,7 +13,7 @@
     // périmé (annonce mise à jour depuis Facebook entre-temps).
     baseUpdatedAt: null,
     // Filtre d'état des listes d'annonces (décision du 17/09/2026).
-    filtreEtat: { villa: 'active', terrain: 'active', activity: 'active' },
+    filtreEtat: { villa: 'active', terrain: 'active', activity: 'active', vehicle: 'active' },
     leads: [], dashboard: null, dirty: false, leadFilter: 'all', leadSearch: '', backups: [], audit: [], facebook: null,
     users: [], roles: [], newsletter: null, subscriberFilter: 'all', subscriberSearch: ''
   };
@@ -49,6 +49,15 @@
         renderCompta();
         $('#comptaVue [data-compta-onglets]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else showView('compta');
+    });
+    $('#locationSousMenu')?.addEventListener('click', event => {
+      const bouton = event.target.closest('[data-location-aller]');
+      if (!bouton) return;
+      gestionLocation.onglet = bouton.dataset.locationAller;
+      fermerMenuMobile();
+      const vueOuverte = $('.admin-view[data-panel="location"]')?.classList.contains('active');
+      // Relu à chaque fois : de nouvelles demandes arrivent du site et de l'application.
+      if (vueOuverte) chargerLocation(); else showView('location');
     });
     $('#keyForm').addEventListener('submit', event => {
       event.preventDefault();
@@ -305,6 +314,7 @@
       villas: managed.villas?.length ? managed.villas : structuredClone(VILLAS_DATA),
       terrains: Array.isArray(managed.terrains) ? managed.terrains : [],
       activities: managed.activities?.length ? managed.activities : structuredClone(ACTIVITIES_DATA),
+      vehicles: Array.isArray(managed.vehicles) ? managed.vehicles : [],
       reviews: managed.reviews?.length ? managed.reviews : structuredClone(REVIEWS_DATA),
       faq: managed.faq?.length ? managed.faq : structuredClone(FAQ_DATA),
       settings: managed.settings || { heroTitle:'Là où vos rêves prennent vie', heroSubtitle:"Des villas d’exception entre lagune et océan, pensées pour vos plus beaux souvenirs.", phone:CONTACT_CONFIG.phone, facebookPage:CONTACT_CONFIG.facebookPage },
@@ -317,7 +327,7 @@
     state.baseUpdatedAt = managed.updatedAt || null;
     initialiserCasesFacebook();
     renderDashboard(); renderOperations();
-    if (can('content:write')) { renderVillas(); renderTerrains(); renderActivities(); renderSettings(); renderReferentiels(); }
+    if (can('content:write')) { renderVillas(); renderTerrains(); renderActivities(); renderVehicles(); renderSettings(); renderReferentiels(); }
     if (can('leads:read')) { renderLeads(); chargerMessages(); }
     if (can('facebook:read') && facebook) renderFacebook(facebook);
     if (can('users:manage')) renderUsers();
@@ -332,6 +342,7 @@
   const VIEW_TITLES = {
     dashboard:['PILOTAGE','Vue d’ensemble'], villas:['HÉBERGEMENTS','Villas'],
     terrains:['VENTE DE TERRAIN','Terrains'], activities:['EXPÉRIENCES','Activités & loisirs'],
+    vehicles:['LOCATION DE VOITURES','Voitures'], location:['LOCATION DE VOITURES','Planning & réservations'],
     referentiels:['LISTES DE CHOIX','Référentiels'],
     leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['RELATION CLIENT','Messages WhatsApp'], newsletter:['RELATION CLIENT','Newsletter'],
     facebook:['SOCIAL STUDIO','Publications'], users:['SÉCURITÉ','Utilisateurs'],
@@ -399,6 +410,9 @@
     $('#viewKicker').textContent = titles[0]; $('#viewTitle').textContent = titles[1];
     const sousMenuCompta = $('#comptaSousMenu');
     if (sousMenuCompta) sousMenuCompta.hidden = name !== 'compta';
+    const sousMenuLocation = $('#locationSousMenu');
+    if (sousMenuLocation) sousMenuLocation.hidden = name !== 'location';
+    if (name === 'location' && can('location:manage')) chargerLocation();
     // Les contacts viennent des demandes : on relit à chaque ouverture.
     if (name === 'messages' && can('leads:read')) chargerMessages();
     if (name === 'compta' && can('compta:manage')) chargerCompta();
@@ -443,11 +457,11 @@
   // effet au clic sur « Publier les changements », comme les autres réglages.
   // ---------------------------------------------------------------------
   const ETATS_ANNONCE = { active: 'En ligne', suspendue: 'Suspendue', archivee: 'Archivée' };
-  const COLLECTIONS = { villa: 'villas', terrain: 'terrains', activity: 'activities' };
+  const COLLECTIONS = { villa: 'villas', terrain: 'terrains', activity: 'activities', vehicle: 'vehicles' };
   const etatAnnonce = item => (['active', 'suspendue', 'archivee'].includes(item?.etat) ? item.etat : 'active');
 
   function renderListe(kind) {
-    if (kind === 'villa') renderVillas(); else if (kind === 'terrain') renderTerrains(); else renderActivities();
+    if (kind === 'villa') renderVillas(); else if (kind === 'terrain') renderTerrains(); else if (kind === 'vehicle') renderVehicles(); else renderActivities();
   }
 
   /** Annonces de la rubrique dans l'état choisi, et les onglets de filtre. */
@@ -551,7 +565,7 @@
   function initialiserCasesFacebook() {
     const publiees = state.facebook?.fichesPubliees;
     if (!publiees) return;
-    Object.entries(COLLECTIONS).forEach(([kind, cle]) => state.content[cle].forEach(item => {
+    Object.entries(COLLECTIONS).filter(([kind]) => kind !== 'vehicle').forEach(([kind, cle]) => state.content[cle].forEach(item => {
       if (item.facebook !== true && item.facebook !== false) item.facebook = Boolean(publiees[`${kind}:${item.id}`]);
     }));
   }
@@ -837,7 +851,7 @@
    * texte libre, affiché tel quel.
    */
   function resumeDemande(lead) {
-    const formules = { 'devis-whatsapp': 'Séjour', 'devis-activites': 'Activités', devis: 'Devis', terrain: 'Terrain', villa: 'Résidence', contact: 'Contact', newsletter: 'Newsletter' };
+    const formules = { 'devis-whatsapp': 'Séjour', 'devis-activites': 'Activités', devis: 'Devis', terrain: 'Terrain', villa: 'Résidence', contact: 'Contact', newsletter: 'Newsletter', 'location-voiture': 'Location de voiture' };
     const simulateur = lead.type === 'devis-whatsapp' || lead.type === 'devis-activites';
     const [debut, fin] = String(lead.dates || '').split('→').map(part => part.trim());
     const jour = valeur => /^\d{4}-\d{2}-\d{2}$/.test(valeur || '') ? new Date(`${valeur}T12:00:00`) : null;
@@ -906,6 +920,7 @@
       </dl>${messageLibre ? `<h3>Message</h3><p class="lead-message">${esc(messageLibre).replace(/\n/g, '<br>')}</p>` : ''}</section>
       <section class="lead-bloc"><h3>Suivi</h3><div class="form-grid"><label>Statut<select name="status">${LEAD_STATUTS.map(([value, label]) => `<option value="${value}" ${lead.status === value ? 'selected':''}>${label}</option>`).join('')}</select></label><label>Montant confirmé (FCFA)<input name="amount" type="number" min="0" step="1000" value="${Number(lead.amount || 0)}"></label></div><label>Notes internes<textarea name="adminNotes" rows="5" placeholder="Relance, préférences, informations utiles…">${esc(lead.adminNotes || '')}</textarea></label>
       <p class="lead-meta">Dernière mise à jour : ${esc(horodatage(lead.updatedAt || lead.createdAt))} · Réf. ${esc(String(lead.id || '').slice(0, 8))}</p></section>
+      ${lead.type === 'location-voiture' && can('location:manage') ? '<section class="lead-bloc"><h3>Véhicule</h3><p class="lead-meta">Cette demande a créé une réservation dans le planning. La confirmer ici confirme la réservation (dates bloquées) ; l’archiver l’annule.</p><button type="button" class="content-action" data-voir-reservation>Ouvrir la réservation dans « Location »</button></section>' : ''}
       ${can('compta:manage') ? '<section class="lead-bloc lead-paiements-bloc" data-paiements-demande><h3>Paiements</h3><p class="lead-paiements-synthese">Chargement…</p></section>' : ''}
     </div><div class="editor-actions lead-editor-actions">${can('leads:write') ? `<button type="button" data-archiver-demande>${lead.status === 'archive' ? 'Désarchiver' : 'Archiver'}</button><button type="button" class="danger" data-supprimer-demande>Supprimer la demande</button>` : ''}<button type="button" data-close-editor>Fermer</button><button class="primary" type="submit">Enregistrer le suivi</button></div></form></div>`);
     const backdrop = $('.lead-editor-backdrop');
@@ -926,11 +941,495 @@
       } catch (error) { toast(error.message); }
     });
     brancherGestionDemande(backdrop, lead, close);
+    $('[data-voir-reservation]', backdrop)?.addEventListener('click', () => {
+      close();
+      gestionLocation.onglet = 'reservations';
+      gestionLocation.ouvrirPourDemande = lead.id;
+      showView('location');
+    });
     const hotePaiements = $('[data-paiements-demande]', backdrop);
     if (hotePaiements) paiementsDemande(hotePaiements, lead);
     // Focus sur « Fermer » : la fiche s'ouvre en haut, sur le client, et
     // Échap ou Entrée la referment sans rien modifier.
     $('.editor-head [data-close-editor]', backdrop)?.focus();
+  }
+
+  // =========================================================================
+  // LOCATION DE VOITURES (17/09/2026)
+  // Rubrique « Voitures » : fiches des véhicules, annonces du catalogue comme
+  // les villas (publiées par « Publier les changements »).
+  // Rubrique « Location » : planning, réservations, indisponibilités et
+  // réglages — enregistrés aussitôt, comme la comptabilité.
+  // Tarifs et planning : js/location-voitures.js, partagé avec le site et le
+  // serveur, donc une seule façon de calculer.
+  // =========================================================================
+  const LV = window.LocationVoitures;
+  const gestionLocation = { donnees: null, onglet: 'planning', debut: '', jours: 14, filtre: 'demande', recherche: '', ouvrirPourDemande: null };
+  const optionsListe = (table, actuel) => (Array.isArray(table) ? table.map(e => [e.id, e.libelle.fr]) : Object.entries(table).map(([id, l]) => [id, l.fr]))
+    .map(([id, libelle]) => `<option value="${esc(id)}" ${actuel === id ? 'selected' : ''}>${esc(libelle)}</option>`).join('');
+  const nombreChamp = (nom, libelle, valeur, attributs = '') => `<label>${libelle}<input type="number" name="${nom}" value="${esc(valeur ?? '')}" ${attributs}></label>`;
+
+  function vehicleFields(item) {
+    const mode = item.driverMode || 'choix';
+    return `<label>Nom (marque et modèle)<input name="name" maxlength="160" required value="${esc(item.name)}" placeholder="ex. Toyota Land Cruiser Prado"></label>
+      <div class="form-grid">
+        <label>Identifiant<input name="id" pattern="[a-z0-9\\-]+" required value="${esc(item.id || `vehicule-${Date.now()}`)}"></label>
+        <label>Catégorie<select name="category">${optionsListe(LV.CATEGORIES, item.category || 'berline')}</select></label>
+        <label>Marque<input name="brand" maxlength="60" value="${esc(item.brand)}"></label>
+        <label>Modèle<input name="model" maxlength="80" value="${esc(item.model)}"></label>
+        ${nombreChamp('year', 'Année', item.year, 'min="1990" max="2100" step="1"')}
+        ${champBadge(item)}
+        <label>Boîte de vitesses<select name="transmission">${optionsListe(LV.BOITES, item.transmission || 'manuelle')}</select></label>
+        <label>Carburant<select name="fuel">${optionsListe(LV.CARBURANTS, item.fuel || 'essence')}</select></label>
+        ${nombreChamp('seats', 'Places', item.seats ?? 5, 'min="1" max="60" step="1"')}
+        ${nombreChamp('doors', 'Portes', item.doors ?? 4, 'min="0" max="6" step="1"')}
+        ${nombreChamp('luggage', 'Bagages', item.luggage ?? 2, 'min="0" max="30" step="1"')}
+      </div>
+      <div class="toggle-row"><label><input type="checkbox" name="airConditioning" value="yes" ${item.airConditioning !== false ? 'checked' : ''}> Climatisation</label><label><input type="checkbox" name="visible" value="yes" ${item.visible !== false ? 'checked' : ''}> Visible sur le site</label><label><input type="checkbox" name="featured" value="yes" ${item.featured ? 'checked' : ''}> Mise en avant</label></div>
+      <fieldset class="vehicule-bloc"><legend>Formule</legend>
+        <label>Conduite<select name="driverMode" data-mode-chauffeur>${optionsListe(LV.MODES_CHAUFFEUR, mode)}</select></label>
+        <p class="vehicule-aide" data-aide-chauffeur></p>
+        <div class="form-grid">
+          <span data-si-chauffeur>${nombreChamp('driverPricePerDay', 'Supplément chauffeur / jour (FCFA)', item.driverPricePerDay ?? 0, 'min="0" step="500"')}</span>
+          <span data-si-conducteur>${nombreChamp('deposit', 'Caution (FCFA, restituée)', item.deposit ?? 0, 'min="0" step="5000"')}</span>
+          <span data-si-conducteur>${nombreChamp('minAge', 'Âge minimum du conducteur', item.minAge || 21, 'min="18" max="35" step="1"')}</span>
+          <span data-si-conducteur>${nombreChamp('licenseYears', 'Permis depuis (années)', item.licenseYears ?? 2, 'min="0" max="15" step="1"')}</span>
+        </div>
+      </fieldset>
+      <fieldset class="vehicule-bloc"><legend>Tarifs</legend>
+        <div class="form-grid">
+          ${nombreChamp('pricePerDay', 'Prix par jour (FCFA)', item.pricePerDay ?? 0, 'min="0" step="1000" required')}
+          ${nombreChamp('pricePerDayWeek', 'Prix par jour dès 7 jours', item.pricePerDayWeek || '', 'min="0" step="1000" placeholder="vide = prix par jour"')}
+          ${nombreChamp('pricePerDayMonth', 'Prix par jour dès 30 jours', item.pricePerDayMonth || '', 'min="0" step="1000" placeholder="vide = tarif semaine"')}
+          ${nombreChamp('minDays', 'Durée minimale (jours)', item.minDays || 1, 'min="1" max="30" step="1"')}
+          ${nombreChamp('kmIncludedPerDay', 'Km inclus par jour', item.kmIncludedPerDay ?? 0, 'min="0" max="5000" step="10" placeholder="0 = illimité"')}
+          ${nombreChamp('extraKmPrice', 'Prix du km supplémentaire', item.extraKmPrice ?? 0, 'min="0" step="10"')}
+        </div>
+        <p class="vehicule-apercu" data-apercu-tarif aria-live="polite"></p>
+      </fieldset>
+      <label>Accroche<input name="tagline" maxlength="240" value="${esc(item.tagline)}" placeholder="ex. Le confort pour vos trajets Abidjan ⇄ Assinie"></label>
+      <label>Description<textarea name="description" rows="5" maxlength="8000">${esc(item.description)}</textarea></label>
+      ${mediaFields()}
+      <label>Équipements (un par ligne : GPS, Bluetooth, caméra de recul…)<textarea name="features" rows="5">${esc((item.features || []).join('\n'))}</textarea></label>
+      ${champsTraductions('vehicle', item)}`;
+  }
+
+  /** Champs affichés selon la formule, et aperçu des tarifs, pendant la saisie. */
+  function brancherFicheVehicule(racine) {
+    const form = $('.editor-drawer', racine);
+    const maj = () => {
+      const mode = form.elements.driverMode.value;
+      $$('[data-si-chauffeur]', form).forEach(el => { el.hidden = mode === 'sans'; });
+      $$('[data-si-conducteur]', form).forEach(el => { el.hidden = mode === 'avec'; });
+      $('[data-aide-chauffeur]', form).textContent = {
+        avec: 'Toujours conduit par votre chauffeur : pas de caution ni de conditions de permis. Mettez 0 au supplément si le chauffeur est compris dans le prix.',
+        sans: 'Le client conduit : caution, âge et ancienneté de permis s’appliquent. Il les atteste en réservant.',
+        choix: 'Le client choisit : avec chauffeur (supplément par jour, sans caution) ou sans chauffeur (caution et conditions de permis).'
+      }[mode];
+      const vehicule = { pricePerDay: form.elements.pricePerDay.value, pricePerDayWeek: form.elements.pricePerDayWeek.value, pricePerDayMonth: form.elements.pricePerDayMonth.value };
+      const jour = LV.tarifApplicable(vehicule, 1).tarifJour;
+      const semaine = LV.tarifApplicable(vehicule, 7);
+      const mois = LV.tarifApplicable(vehicule, 30);
+      $('[data-apercu-tarif]', form).textContent = jour
+        ? `1 jour : ${money(jour)} · 7 jours : ${money(semaine.tarifJour * 7)} (${money(semaine.tarifJour)}/j) · 30 jours : ${money(mois.tarifJour * 30)} (${money(mois.tarifJour)}/j). Site : « à partir de ${money(LV.prixAPartirDe(vehicule))} / jour ».`
+        : 'Sans prix par jour, le site affiche « tarif sur demande ».';
+    };
+    form.addEventListener('input', maj);
+    form.addEventListener('change', maj);
+    maj();
+  }
+
+  function normalizeVehicle(v, old, gallery) {
+    const n = (valeur, repli = 0) => (valeur === '' || valeur === undefined ? repli : Number(valeur) || 0);
+    return {
+      ...old, id: v.id.trim().toLowerCase(), name: v.name.trim(), brand: String(v.brand || '').trim(), model: String(v.model || '').trim(),
+      year: n(v.year, null), category: v.category, transmission: v.transmission, fuel: v.fuel,
+      seats: n(v.seats, 5), doors: n(v.doors, 4), luggage: n(v.luggage, 2), airConditioning: v.airConditioning === 'yes',
+      driverMode: v.driverMode, driverPricePerDay: n(v.driverPricePerDay), deposit: n(v.deposit), minAge: n(v.minAge, 21), licenseYears: n(v.licenseYears, 2),
+      pricePerDay: n(v.pricePerDay), pricePerDayWeek: n(v.pricePerDayWeek), pricePerDayMonth: n(v.pricePerDayMonth), minDays: n(v.minDays, 1),
+      kmIncludedPerDay: n(v.kmIncludedPerDay), extraKmPrice: n(v.extraKmPrice),
+      badgeId: v.badgeId || '', badge: libelleRef(trouverRef('badges', v.badgeId)),
+      tagline: v.tagline, description: v.description, features: lines(v.features),
+      visible: v.visible === 'yes', featured: v.featured === 'yes', images: gallery.slice(0, 12)
+    };
+  }
+
+  function renderVehicles() {
+    const hote = $('#vehiclesTable');
+    if (!hote) return;
+    const head = '<div class="table-row header"><span>Visuel</span><span>Véhicule</span><span>À partir de</span><span>Conduite</span><span>Catégorie</span><span>Action</span></div>';
+    const { onglets, items, actuel } = annoncesFiltrees('vehicle');
+    hote.innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucun véhicule en ligne. Cliquez sur « Ajouter un véhicule ».' : actuel === 'suspendue' ? 'Aucun véhicule suspendu.' : 'Aucun véhicule archivé.'}</div>`) + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden' : ''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc([LV.libelle(LV.BOITES, item.transmission, 'fr'), LV.libelle(LV.CARBURANTS, item.fuel, 'fr'), `${item.seats || 5} places`].join(' · '))}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : ''}${pastillesAnnonce('vehicle', item)}</div><div class="table-cell"><strong>${LV.prixAPartirDe(item) ? money(LV.prixAPartirDe(item)) : 'Sur demande'}</strong><small>par jour</small></div><div>${esc(LV.libelle(LV.MODES_CHAUFFEUR, item.driverMode, 'fr'))}</div><div><span class="status">${esc(LV.libelle(LV.CATEGORIES, item.category, 'fr'))}</span></div><div class="row-actions"><button title="Modifier" data-edit-vehicle="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-vehicle="${esc(item.id)}">×</button></div></div>`).join('');
+    $$('[data-edit-vehicle]', hote).forEach(button => button.addEventListener('click', () => openEditor('vehicle', button.dataset.editVehicle)));
+    $$('[data-delete-vehicle]', hote).forEach(button => button.addEventListener('click', () => supprimerAnnonce('vehicle', button.dataset.deleteVehicle)));
+    brancherListe(hote, 'vehicle');
+  }
+
+  // --- Vue « Location » ----------------------------------------------------
+  const dateHeureLisible = iso => { try { return new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }).format(new Date(iso)); } catch { return iso || '—'; } };
+  const STATUTS_LOCATION_CLASSES = { demande: 'loc-demande', confirmee: 'loc-confirmee', en_cours: 'loc-en-cours', terminee: 'loc-terminee', annulee: 'loc-annulee' };
+  const pastilleLocation = statut => `<span class="loc-statut ${STATUTS_LOCATION_CLASSES[statut] || ''}">${esc(LV.STATUTS[statut] || statut)}</span>`;
+  const ACTIONS_STATUT = { confirmee: 'Confirmer la réservation', en_cours: 'Remise des clés (démarrer)', terminee: 'Retour du véhicule (terminer)', annulee: 'Annuler', demande: 'Remettre en demande' };
+  const SOURCES_LOCATION = { site: 'Site', app: 'Application', studio: 'Studio' };
+  /** Fiche complète d'un véhicule (tarifs) : catalogue du studio, sinon résumé du planning. */
+  const vehiculeLocation = id => (state.content.vehicles || []).find(v => v.id === id) || (gestionLocation.donnees?.vehicules || []).find(v => v.id === id) || null;
+  const aujourdhuiUtc = () => new Date().toISOString().slice(0, 10);
+
+  async function chargerLocation() {
+    const hote = $('#locationVue');
+    if (!hote || !can('location:manage')) return;
+    if (!gestionLocation.debut) gestionLocation.debut = aujourdhuiUtc();
+    hote.setAttribute('aria-busy', 'true');
+    try {
+      gestionLocation.donnees = await api('/api/admin/location');
+      renderLocation();
+      // Ouverture depuis la fiche d'une demande : on montre sa réservation.
+      if (gestionLocation.ouvrirPourDemande) {
+        const reservation = gestionLocation.donnees.reservations.find(r => r.leadId === gestionLocation.ouvrirPourDemande);
+        gestionLocation.ouvrirPourDemande = null;
+        if (reservation) ouvrirReservationLocation(reservation); else toast('Aucune réservation liée à cette demande.');
+      }
+    } catch (error) {
+      hote.innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+    } finally { hote.removeAttribute('aria-busy'); }
+  }
+
+  function renderLocation() {
+    const hote = $('#locationVue');
+    const d = gestionLocation.donnees;
+    if (!hote || !d) return;
+    const maintenant = Date.now();
+    const debutMois = new Date(); debutMois.setUTCDate(1); debutMois.setUTCHours(0, 0, 0, 0);
+    const finMois = new Date(debutMois); finMois.setUTCMonth(finMois.getUTCMonth() + 1);
+    const aTraiter = d.reservations.filter(r => r.statut === 'demande');
+    const enCours = d.reservations.filter(r => r.statut === 'en_cours');
+    const aVenir = d.reservations.filter(r => r.statut === 'confirmee' && new Date(r.debut).getTime() > maintenant);
+    const chiffreMois = d.reservations.filter(r => ['confirmee', 'en_cours', 'terminee'].includes(r.statut) && new Date(r.debut) >= debutMois && new Date(r.debut) < finMois).reduce((s, r) => s + (Number(r.montant) || 0), 0);
+    const indispos = d.indisponibilites.filter(b => new Date(b.fin).getTime() > maintenant);
+    const onglets = [['planning', 'Planning', null], ['reservations', 'Réservations', aTraiter.length || null], ['indisponibilites', 'Indisponibilités', indispos.length || null], ['reglages', 'Réglages', null]];
+    hote.innerHTML = `
+      <div class="kpi-grid location-kpis">
+        <article class="kpi-card"><small>Demandes à traiter</small><strong>${aTraiter.length}</strong><em>À confirmer ou refuser</em></article>
+        <article class="kpi-card"><small>Locations en cours</small><strong>${enCours.length}</strong><em>Véhicules chez les clients</em></article>
+        <article class="kpi-card"><small>Départs à venir</small><strong>${aVenir.length}</strong><em>Réservations confirmées</em></article>
+        <article class="kpi-card"><small>Chiffre du mois</small><strong>${money(chiffreMois)}</strong><em>Locations confirmées débutant ce mois-ci</em></article>
+      </div>
+      <nav class="compta-onglets" role="tablist" aria-label="Sections de la location" data-location-onglets>${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-location-onglet="${id}" class="${gestionLocation.onglet === id ? 'active' : ''}" aria-selected="${gestionLocation.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</nav>
+      <div class="location-contenu" data-location-contenu></div>`;
+    $$('[data-location-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { gestionLocation.onglet = bouton.dataset.locationOnglet; renderLocation(); }));
+    $$('#locationSousMenu [data-location-aller]').forEach(bouton => {
+      const actif = bouton.dataset.locationAller === gestionLocation.onglet;
+      bouton.classList.toggle('active', actif);
+      if (actif) bouton.setAttribute('aria-current', 'page'); else bouton.removeAttribute('aria-current');
+    });
+    $('[data-location-onglets] .active', hote)?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const contenu = $('[data-location-contenu]', hote);
+    ({ planning: renderPlanningLocation, reservations: renderReservationsLocation, indisponibilites: renderIndisponibilitesLocation, reglages: renderReglagesLocation })[gestionLocation.onglet](contenu);
+  }
+
+  /** Planning : une ligne par véhicule, une colonne par jour (heure d'Abidjan = UTC). */
+  function renderPlanningLocation(hote) {
+    const d = gestionLocation.donnees;
+    const jours = gestionLocation.jours;
+    const debut = new Date(`${gestionLocation.debut}T00:00:00Z`);
+    const fin = new Date(debut.getTime() + jours * 86400000);
+    const vehicules = d.vehicules.filter(v => v.etat !== 'archivee');
+    const pct = date => ((new Date(date).getTime() - debut.getTime()) / (fin.getTime() - debut.getTime())) * 100;
+    const barre = (element, genre) => {
+      const a = Math.max(0, pct(element.debut));
+      const b = Math.min(100, pct(element.fin));
+      if (b <= 0 || a >= 100) return '';
+      const reservation = genre === 'reservation';
+      const texte = reservation ? (element.client?.nom || 'Client') : (d.motifs[element.motif] || element.motif);
+      const titre = `${texte} · ${dateHeureLisible(element.debut)} → ${dateHeureLisible(element.fin)}${reservation ? ` · ${LV.STATUTS[element.statut]}` : ''}`;
+      return `<button type="button" class="loc-barre ${reservation ? STATUTS_LOCATION_CLASSES[element.statut] : 'loc-indispo'}" style="left:${a}%;width:${Math.max(b - a, 1.5)}%" data-${reservation ? 'loc-reservation' : 'loc-indispo'}="${esc(element.id)}" title="${esc(titre)}">${esc(texte)}</button>`;
+    };
+    const aujourdHui = aujourdhuiUtc();
+    const colonnes = Array.from({ length: jours }, (_, i) => new Date(debut.getTime() + i * 86400000));
+    const entete = colonnes.map(jour => {
+      const iso = jour.toISOString().slice(0, 10);
+      const semaine = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', timeZone: 'UTC' }).format(jour).replace('.', '');
+      return `<div class="loc-jour ${[0, 6].includes(jour.getUTCDay()) ? 'we' : ''} ${iso === aujourdHui ? 'auj' : ''}"><small>${semaine}</small><strong>${jour.getUTCDate()}</strong></div>`;
+    }).join('');
+    const titrePeriode = `${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(debut)} → ${new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(fin.getTime() - 1))}`;
+    const lignes = vehicules.map(v => {
+      const reservations = d.reservations.filter(r => r.vehiculeId === v.id && r.statut !== 'annulee');
+      const indispos = d.indisponibilites.filter(b => b.vehiculeId === v.id);
+      return `<div class="loc-ligne"><div class="loc-vehicule"><div><strong>${esc(v.name)}</strong><small>${esc(LV.libelle(LV.CATEGORIES, v.category, 'fr'))}${v.etat !== 'active' ? ` · ${esc(ETATS_ANNONCE[v.etat] || v.etat)}` : ''}</small></div><button type="button" class="loc-ajout" data-loc-nouvelle="${esc(v.id)}" title="Nouvelle réservation pour ce véhicule" aria-label="Nouvelle réservation : ${esc(v.name)}">＋</button></div><div class="loc-piste" style="--jours:${jours}">${indispos.map(b => barre(b, 'indispo')).join('')}${reservations.map(r => barre(r, 'reservation')).join('')}</div></div>`;
+    }).join('');
+    hote.innerHTML = `
+      <div class="loc-outils">
+        <div class="loc-navigation">
+          <button type="button" data-loc-periode="-1" aria-label="Période précédente">←</button>
+          <button type="button" data-loc-aujourdhui>Aujourd’hui</button>
+          <button type="button" data-loc-periode="1" aria-label="Période suivante">→</button>
+          <strong>${esc(titrePeriode)}</strong>
+        </div>
+        <div class="loc-navigation">
+          <label class="loc-duree">Afficher<select data-loc-jours>${[7, 14, 30].map(n => `<option value="${n}" ${jours === n ? 'selected' : ''}>${n} jours</option>`).join('')}</select></label>
+          <button type="button" class="primary" data-loc-nouvelle="">＋ Réservation</button>
+          <button type="button" data-loc-nouvelle-indispo>＋ Indisponibilité</button>
+        </div>
+      </div>
+      ${vehicules.length ? `<div class="loc-planning" role="region" aria-label="Planning des véhicules" tabindex="0"><div class="loc-grille" style="--jours:${jours}"><div class="loc-ligne loc-entete"><div class="loc-vehicule"><strong>Véhicule</strong></div><div class="loc-jours" style="--jours:${jours}">${entete}</div></div>${lignes}</div></div>
+      <ul class="loc-legende"><li><i class="loc-demande"></i>Demande à traiter (ne bloque pas)</li><li><i class="loc-confirmee"></i>Confirmée</li><li><i class="loc-en-cours"></i>En cours</li><li><i class="loc-terminee"></i>Terminée</li><li><i class="loc-indispo"></i>Indisponible (entretien, panne…)</li></ul>`
+      : '<div class="empty">Aucun véhicule dans le catalogue. Ajoutez-en dans « Voitures », puis publiez.</div>'}`;
+    $$('[data-loc-periode]', hote).forEach(bouton => bouton.addEventListener('click', () => {
+      gestionLocation.debut = new Date(debut.getTime() + Number(bouton.dataset.locPeriode) * jours * 86400000).toISOString().slice(0, 10);
+      renderPlanningLocation(hote);
+    }));
+    $('[data-loc-aujourdhui]', hote).addEventListener('click', () => { gestionLocation.debut = aujourdhuiUtc(); renderPlanningLocation(hote); });
+    $('[data-loc-jours]', hote).addEventListener('change', event => { gestionLocation.jours = Number(event.target.value); renderPlanningLocation(hote); });
+    $$('[data-loc-nouvelle]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirReservationLocation(null, { vehiculeId: bouton.dataset.locNouvelle || '' })));
+    $('[data-loc-nouvelle-indispo]', hote)?.addEventListener('click', () => ouvrirIndisponibiliteLocation(null));
+    $$('[data-loc-reservation]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirReservationLocation(d.reservations.find(r => r.id === bouton.dataset.locReservation))));
+    $$('[data-loc-indispo]', hote).forEach(bouton => bouton.addEventListener('click', () => ouvrirIndisponibiliteLocation(d.indisponibilites.find(b => b.id === bouton.dataset.locIndispo))));
+  }
+
+  function renderReservationsLocation(hote) {
+    const d = gestionLocation.donnees;
+    const filtres = [['demande', 'À traiter'], ['confirmee', 'Confirmées'], ['en_cours', 'En cours'], ['terminee', 'Terminées'], ['annulee', 'Annulées'], ['toutes', 'Toutes']];
+    hote.innerHTML = `<div class="compta-filtres">
+        <div class="filter-pills">${filtres.map(([id, libelle]) => `<button type="button" data-loc-filtre="${id}" class="${gestionLocation.filtre === id ? 'active' : ''}">${libelle} <span>${id === 'toutes' ? d.reservations.length : d.reservations.filter(r => r.statut === id).length}</span></button>`).join('')}</div>
+        <label class="admin-search"><span>Rechercher</span><input type="search" data-loc-recherche value="${esc(gestionLocation.recherche)}" placeholder="Client, téléphone, véhicule…"></label>
+        <button type="button" class="primary" data-loc-nouvelle="">＋ Réservation</button>
+      </div><div class="content-table loc-reservations" data-loc-liste></div>`;
+    const lister = () => {
+      const requete = gestionLocation.recherche.trim().toLocaleLowerCase('fr');
+      const lignes = d.reservations
+        .filter(r => gestionLocation.filtre === 'toutes' || r.statut === gestionLocation.filtre)
+        .filter(r => !requete || [r.client?.nom, r.client?.telephone, r.client?.email, r.vehiculeNom].some(v => String(v || '').toLocaleLowerCase('fr').includes(requete)))
+        .sort((a, b) => (['terminee', 'annulee', 'toutes'].includes(gestionLocation.filtre) ? -1 : 1) * (new Date(a.debut) - new Date(b.debut)));
+      const liste = $('[data-loc-liste]', hote);
+      liste.innerHTML = lignes.length ? lignes.map(r => `<div class="table-row loc-ligne-reservation" role="button" tabindex="0" data-loc-reservation="${esc(r.id)}"><div class="table-title"><strong>${esc(r.client?.nom || '—')}</strong><small>${esc(r.client?.telephone || '')}</small></div><div class="table-title"><strong>${esc(vehiculeLocation(r.vehiculeId)?.name || r.vehiculeNom || r.vehiculeId)}</strong><small>${r.chauffeur ? 'Avec chauffeur' : 'Sans chauffeur'}</small></div><div class="table-title"><strong>${esc(dateHeureLisible(r.debut))}</strong><small>→ ${esc(dateHeureLisible(r.fin))} · ${r.jours} j</small></div><div class="table-cell"><strong>${money(r.montant)}</strong>${r.caution ? `<small>caution ${money(r.caution)}</small>` : ''}</div><div>${pastilleLocation(r.statut)}<small class="loc-source">${esc(SOURCES_LOCATION[r.source] || r.source)}</small></div></div>`).join('')
+        : '<div class="empty">Aucune réservation dans cette liste.</div>';
+      $$('[data-loc-reservation]', liste).forEach(ligne => {
+        const ouvrir = () => ouvrirReservationLocation(d.reservations.find(r => r.id === ligne.dataset.locReservation));
+        ligne.addEventListener('click', ouvrir);
+        ligne.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ouvrir(); } });
+      });
+    };
+    $$('[data-loc-filtre]', hote).forEach(bouton => bouton.addEventListener('click', () => {
+      gestionLocation.filtre = bouton.dataset.locFiltre;
+      $$('[data-loc-filtre]', hote).forEach(b => b.classList.toggle('active', b === bouton));
+      lister();
+    }));
+    $('[data-loc-recherche]', hote).addEventListener('input', event => { gestionLocation.recherche = event.target.value; lister(); });
+    $('[data-loc-nouvelle]', hote).addEventListener('click', () => ouvrirReservationLocation(null));
+    lister();
+  }
+
+  function renderIndisponibilitesLocation(hote) {
+    const d = gestionLocation.donnees;
+    const maintenant = Date.now();
+    const lignes = [...d.indisponibilites].sort((a, b) => new Date(b.debut) - new Date(a.debut));
+    hote.innerHTML = `<p class="compta-aide">Entretien, panne, usage interne… Une indisponibilité bloque le véhicule sur le site et dans l’application pour la période. Les réservations confirmées qui tombent dessus sont signalées.</p>
+      <div class="compta-filtres"><button type="button" class="primary" data-loc-nouvelle-indispo>＋ Indisponibilité</button></div>
+      <div class="content-table">${lignes.length ? lignes.map(b => `<div class="table-row loc-ligne-reservation ${new Date(b.fin).getTime() < maintenant ? 'is-hidden' : ''}" role="button" tabindex="0" data-loc-indispo="${esc(b.id)}"><div class="table-title"><strong>${esc(vehiculeLocation(b.vehiculeId)?.name || b.vehiculeId)}</strong><small>${esc(d.motifs[b.motif] || b.motif)}</small></div><div class="table-title"><strong>${esc(dateHeureLisible(b.debut))}</strong><small>→ ${esc(dateHeureLisible(b.fin))}</small></div><div class="table-title"><small>${esc(b.notes || '')}</small></div><div>${new Date(b.fin).getTime() < maintenant ? '<span class="loc-statut loc-terminee">Passée</span>' : '<span class="loc-statut loc-indispo">Bloque les dates</span>'}</div></div>`).join('') : '<div class="empty">Aucune indisponibilité enregistrée.</div>'}</div>`;
+    $('[data-loc-nouvelle-indispo]', hote).addEventListener('click', () => ouvrirIndisponibiliteLocation(null));
+    $$('[data-loc-indispo]', hote).forEach(ligne => {
+      const ouvrir = () => ouvrirIndisponibiliteLocation(d.indisponibilites.find(b => b.id === ligne.dataset.locIndispo));
+      ligne.addEventListener('click', ouvrir);
+      ligne.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ouvrir(); } });
+    });
+  }
+
+  function renderReglagesLocation(hote) {
+    const r = gestionLocation.donnees.reglages;
+    const ligneLieu = (l = {}) => `<div class="loc-reglage-ligne" data-lieu><input name="nom" maxlength="120" required value="${esc(l.nom || '')}" placeholder="ex. Aéroport FHB" aria-label="Nom du lieu"><label class="loc-montant">Frais (FCFA)<input type="number" name="frais" min="0" step="500" value="${Number(l.frais) || 0}"></label><label class="loc-actif"><input type="checkbox" name="actif" ${l.actif !== false ? 'checked' : ''}> Proposé</label><input type="hidden" name="id" value="${esc(l.id || '')}"><button type="button" class="danger" data-retirer-ligne aria-label="Retirer ce lieu">×</button></div>`;
+    const ligneOption = (o = {}) => `<div class="loc-reglage-ligne" data-option><input name="nom" maxlength="120" required value="${esc(o.nom || '')}" placeholder="ex. Siège bébé" aria-label="Nom de l’option"><label class="loc-montant">Prix (FCFA)<input type="number" name="prix" min="0" step="500" value="${Number(o.prix) || 0}"></label><select name="unite" aria-label="Facturation"><option value="jour" ${o.unite !== 'location' ? 'selected' : ''}>par jour</option><option value="location" ${o.unite === 'location' ? 'selected' : ''}>par location</option></select><label class="loc-actif"><input type="checkbox" name="actif" ${o.actif !== false ? 'checked' : ''}> Proposée</label><input type="hidden" name="id" value="${esc(o.id || '')}"><button type="button" class="danger" data-retirer-ligne aria-label="Retirer cette option">×</button></div>`;
+    hote.innerHTML = `<form class="loc-reglages" novalidate>
+      <section class="panel"><h3>Lieux de prise en charge et de retour</h3><p class="compta-aide">Les frais s’ajoutent au départ et au retour du lieu choisi (livraison, aéroport…). Un lieu décoché n’est plus proposé.</p><div data-liste-lieux>${r.lieux.map(ligneLieu).join('')}</div><button type="button" data-ajouter-lieu>＋ Ajouter un lieu</button></section>
+      <section class="panel"><h3>Options</h3><p class="compta-aide">Facturées par jour de location ou une fois par location. Décochez pour ne plus les proposer.</p><div data-liste-options>${r.options.map(ligneOption).join('')}</div><button type="button" data-ajouter-option>＋ Ajouter une option</button></section>
+      <section class="panel"><h3>Horaires et planning</h3><div class="form-grid">
+        <label>Prise en charge et retour à partir de<input type="time" name="heureOuverture" value="${esc(r.heureOuverture)}"></label>
+        <label>Jusqu’à<input type="time" name="heureFermeture" value="${esc(r.heureFermeture)}"></label>
+        <label>Réserver au moins (heures à l’avance)<input type="number" name="delaiMinHeures" min="0" max="168" value="${r.delaiMinHeures}"></label>
+        <label>Préparation entre deux locations (heures)<input type="number" name="battementHeures" min="0" max="48" value="${r.battementHeures}"></label>
+      </div></section>
+      <section class="panel"><h3>Conditions de location</h3><p class="compta-aide">Affichées sur le site et dans l’application, avant l’envoi de la demande.</p>
+        <label>Français<textarea name="conditionsFr" rows="4" maxlength="3000">${esc(r.conditions.fr)}</textarea></label>
+        <label>Anglais (facultatif)<textarea name="conditionsEn" rows="3" maxlength="3000">${esc(r.conditions.en)}</textarea></label>
+        <label>Espagnol (facultatif)<textarea name="conditionsEs" rows="3" maxlength="3000">${esc(r.conditions.es)}</textarea></label>
+      </section>
+      <div class="editor-actions"><button class="primary" type="submit">Enregistrer les réglages</button></div>
+    </form>`;
+    const form = $('form', hote);
+    form.addEventListener('click', event => {
+      if (event.target.closest('[data-retirer-ligne]')) event.target.closest('.loc-reglage-ligne').remove();
+      if (event.target.closest('[data-ajouter-lieu]')) { $('[data-liste-lieux]', form).insertAdjacentHTML('beforeend', ligneLieu()); $('[data-liste-lieux] .loc-reglage-ligne:last-child input', form).focus(); }
+      if (event.target.closest('[data-ajouter-option]')) { $('[data-liste-options]', form).insertAdjacentHTML('beforeend', ligneOption({ actif: true })); $('[data-liste-options] .loc-reglage-ligne:last-child input', form).focus(); }
+    });
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const lire = ligne => Object.fromEntries([...ligne.querySelectorAll('input, select')].map(champ => [champ.name, champ.type === 'checkbox' ? champ.checked : champ.value]));
+      const corps = {
+        lieux: $$('[data-lieu]', form).map(lire).map(l => ({ ...l, frais: Number(l.frais) || 0 })),
+        options: $$('[data-option]', form).map(lire).map(o => ({ ...o, prix: Number(o.prix) || 0 })),
+        heureOuverture: form.elements.heureOuverture.value, heureFermeture: form.elements.heureFermeture.value,
+        delaiMinHeures: Number(form.elements.delaiMinHeures.value), battementHeures: Number(form.elements.battementHeures.value),
+        conditions: { fr: form.elements.conditionsFr.value, en: form.elements.conditionsEn.value, es: form.elements.conditionsEs.value }
+      };
+      const bouton = $('button[type="submit"]', form);
+      bouton.disabled = true;
+      try {
+        const reponse = await api('/api/admin/location/reglages', { method: 'PUT', body: JSON.stringify(corps) });
+        gestionLocation.donnees.reglages = reponse.reglages;
+        toast('Réglages de location enregistrés : le site et l’application les utilisent aussitôt');
+        renderLocation();
+      } catch (error) { toast(error.message); bouton.disabled = false; }
+    });
+  }
+
+  /** Tiroir d'édition de la location (enregistrement immédiat, puis rechargement). */
+  function ouvrirTiroirLocation({ surtitre, titre, champs, supprimable, actions = '', apresOuverture, enregistrer, supprimer }) {
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop location-backdrop"><form class="editor-drawer location-fiche" novalidate><div class="editor-head"><div><span class="eyebrow">${esc(surtitre)}</span><h2>${esc(titre)}</h2></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">${champs}</div><div class="editor-actions">${actions}${supprimable ? '<button type="button" class="danger" data-location-supprimer>Supprimer</button>' : ''}<button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
+    const fond = document.body.lastElementChild;
+    const formulaire = $('form', fond);
+    const fermer = () => { document.removeEventListener('keydown', echap); fond.remove(); };
+    const echap = event => { if (event.key === 'Escape') fermer(); };
+    $$('[data-close-editor]', fond).forEach(bouton => bouton.addEventListener('click', fermer));
+    fond.addEventListener('click', event => { if (event.target === fond) fermer(); });
+    document.addEventListener('keydown', echap);
+    apresOuverture?.(formulaire, fermer);
+    formulaire.addEventListener('submit', async event => {
+      event.preventDefault();
+      const bouton = $('button[type="submit"]', formulaire);
+      bouton.disabled = true;
+      try { if (await enregistrer(formulaire) !== false) { fermer(); await chargerLocation(); } else bouton.disabled = false; }
+      catch (error) { toast(error.message); bouton.disabled = false; }
+    });
+    $('[data-location-supprimer]', fond)?.addEventListener('click', async () => {
+      try { if (await supprimer()) { fermer(); await chargerLocation(); } }
+      catch (error) { toast(error.message); }
+    });
+    $('input:not([type=hidden]), select', formulaire)?.focus();
+    return { fermer };
+  }
+
+  const optionsVehicules = actuel => (gestionLocation.donnees?.vehicules || []).filter(v => v.etat !== 'archivee' || v.id === actuel)
+    .map(v => `<option value="${esc(v.id)}" ${actuel === v.id ? 'selected' : ''}>${esc(v.name)}${v.etat !== 'active' ? ` (${esc(ETATS_ANNONCE[v.etat] || v.etat)})` : ''}</option>`).join('');
+
+  function ouvrirReservationLocation(reservation, preremplissage = {}) {
+    const d = gestionLocation.donnees;
+    const r = reservation || { statut: 'demande', chauffeur: false, options: [], client: {}, lieuPrise: d.reglages.lieux.find(l => l.actif)?.id || '', lieuRetour: d.reglages.lieux.find(l => l.actif)?.id || '', ...preremplissage };
+    const lieux = actuel => d.reglages.lieux.filter(l => l.actif || l.id === actuel).map(l => `<option value="${esc(l.id)}" ${actuel === l.id ? 'selected' : ''}>${esc(l.nom)}${l.frais ? ` (+${money(l.frais)})` : ''}</option>`).join('');
+    const transitions = reservation ? (d.transitions[r.statut] || []) : [];
+    const lead = r.leadId ? state.leads.find(l => l.id === r.leadId) : null;
+    const wa = lienWhatsApp(r.client?.telephone);
+    const actions = transitions.map(cible => `<button type="button" class="${cible === 'annulee' ? 'danger' : ''} loc-transition" data-loc-transition="${cible}">${esc(ACTIONS_STATUT[cible] || cible)}</button>`).join('');
+    ouvrirTiroirLocation({
+      surtitre: reservation ? `LOCATION · ${(LV.STATUTS[r.statut] || r.statut).toUpperCase()}` : 'LOCATION · NOUVELLE RÉSERVATION',
+      titre: reservation ? (r.client?.nom || 'Réservation') : 'Nouvelle réservation',
+      supprimable: Boolean(reservation),
+      actions,
+      champs: `${reservation ? `<div class="loc-resume">${pastilleLocation(r.statut)} <small>${esc(SOURCES_LOCATION[r.source] || r.source)} · reçue ${esc(formatDateTime(r.creeLe))}${r.creePar ? ` · saisie par ${esc(r.creePar)}` : ''}${r.modifiePar ? ` · modifiée par ${esc(r.modifiePar)}` : ''}</small>${wa || lead ? `<div class="lead-actions">${wa ? `<a class="lead-action whatsapp" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${lead && can('leads:read') ? '<button type="button" class="lead-action" data-voir-demande>Voir la demande</button>' : ''}</div>` : ''}</div>` : ''}
+        <div class="form-grid">
+          <label>Véhicule<select name="vehiculeId" required>${optionsVehicules(r.vehiculeId)}</select></label>
+          <label class="loc-case-chauffeur"><span>Chauffeur</span><span><input type="checkbox" name="chauffeur" ${r.chauffeur ? 'checked' : ''}> Avec chauffeur</span><small data-aide-mode></small></label>
+          <label>Prise en charge (heure d’Abidjan)<input type="datetime-local" name="debut" required value="${esc(LV.versSaisie(r.debut))}"></label>
+          <label>Retour<input type="datetime-local" name="fin" required value="${esc(LV.versSaisie(r.fin))}"></label>
+          <label>Lieu de prise en charge<select name="lieuPrise"><option value="">—</option>${lieux(r.lieuPrise)}</select></label>
+          <label>Lieu de retour<select name="lieuRetour"><option value="">—</option>${lieux(r.lieuRetour)}</select></label>
+        </div>
+        ${d.reglages.options.some(o => o.actif || (r.options || []).includes(o.id)) ? `<fieldset class="vehicule-bloc"><legend>Options</legend><div class="toggle-row">${d.reglages.options.filter(o => o.actif || (r.options || []).includes(o.id)).map(o => `<label><input type="checkbox" name="options" value="${esc(o.id)}" ${(r.options || []).includes(o.id) ? 'checked' : ''}> ${esc(o.nom)} (${money(o.prix)} ${o.unite === 'jour' ? '/ jour' : '/ location'})</label>`).join('')}</div></fieldset>` : ''}
+        <div class="loc-estimation" data-estimation aria-live="polite"></div>
+        <div class="form-grid">
+          <label>Client<input name="clientNom" maxlength="120" required value="${esc(r.client?.nom || '')}"></label>
+          <label>Téléphone<input name="clientTelephone" maxlength="40" value="${esc(r.client?.telephone || '')}"></label>
+          <label>E-mail<input name="clientEmail" type="email" maxlength="180" value="${esc(r.client?.email || '')}"></label>
+          <label>Montant retenu (FCFA)<input name="montant" type="number" min="0" step="500" value="${reservation ? Number(r.montant) || 0 : ''}" placeholder="vide = montant calculé"></label>
+        </div>
+        <label>Notes<textarea name="notes" rows="3" maxlength="1000">${esc(r.notes || '')}</textarea></label>`,
+      apresOuverture: (form, fermer) => {
+        const estimer = () => {
+          const vehicule = vehiculeLocation(form.elements.vehiculeId.value);
+          const mode = vehicule?.driverMode || 'choix';
+          const caseChauffeur = form.elements.chauffeur;
+          if (mode !== 'choix') caseChauffeur.checked = mode === 'avec';
+          caseChauffeur.disabled = mode !== 'choix';
+          $('[data-aide-mode]', form).textContent = mode === 'choix' ? 'Au choix du client' : mode === 'avec' ? 'Imposé : toujours avec chauffeur' : 'Imposé : le client conduit';
+          const devis = LV.devis(vehicule, d.reglages, {
+            debut: form.elements.debut.value, fin: form.elements.fin.value, chauffeur: caseChauffeur.checked,
+            lieuPrise: form.elements.lieuPrise.value, lieuRetour: form.elements.lieuRetour.value,
+            options: $$('[name="options"]:checked', form).map(c => c.value)
+          }, { controlerDelai: false });
+          const bloquantes = devis.erreurs.filter(e => ['dates', 'ordre', 'duree', 'tarif'].includes(e.code));
+          const occupees = vehicule ? LV.occupations(vehicule.id, d.reservations, d.indisponibilites, { battementHeures: d.reglages.battementHeures, ignorer: reservation?.id }) : [];
+          const gene = devis.debut && devis.fin ? LV.conflit(occupees, devis.debut, devis.fin) : null;
+          $('[data-estimation]', form).innerHTML = bloquantes.length
+            ? `<p class="loc-alerte">${esc(bloquantes[0].message)}</p>`
+            : `<p><strong>${money(devis.total)}</strong> calculés pour ${devis.jours} jour${devis.jours > 1 ? 's' : ''} (tarif ${devis.palier}, ${money(devis.tarifJour)}/j)${devis.caution ? ` · caution ${money(devis.caution)}` : ''}${devis.kmInclus ? ` · ${devis.kmInclus} km inclus` : ' · kilométrage illimité'}</p>${gene ? `<p class="loc-alerte">Chevauche ${gene.type === 'indisponibilite' ? 'une indisponibilité' : 'une réservation confirmée'} (${esc(dateHeureLisible(gene.debut))} → ${esc(dateHeureLisible(gene.fin))}, préparation comprise) : la confirmation sera refusée.</p>` : ''}${devis.erreurs.filter(e => ['horaires', 'minimum', 'lieu'].includes(e.code)).map(e => `<p class="loc-note">${esc(e.message)} (règle du site ; libre au studio)</p>`).join('')}`;
+        };
+        form.addEventListener('input', estimer);
+        form.addEventListener('change', estimer);
+        estimer();
+        $$('[data-loc-transition]', form.parentElement).forEach(bouton => bouton.addEventListener('click', async () => {
+          const cible = bouton.dataset.locTransition;
+          if (cible === 'annulee' && !confirm('Annuler cette réservation ? Les dates seront libérées et la demande liée archivée.')) return;
+          bouton.disabled = true;
+          try {
+            await api(`/api/admin/location/reservations/${encodeURIComponent(reservation.id)}`, { method: 'PATCH', body: JSON.stringify({ statut: cible }) });
+            toast({ confirmee: 'Réservation confirmée : dates bloquées, demande confirmée', en_cours: 'Location démarrée', terminee: 'Location terminée', annulee: 'Réservation annulée', demande: 'Réservation remise en demande' }[cible] || 'Statut mis à jour');
+            fermer(); await chargerLocation();
+            if (can('leads:read')) { state.leads = (await api('/api/admin/leads').catch(() => ({ leads: state.leads }))).leads || state.leads; renderLeads(); }
+          } catch (error) { toast(error.message); bouton.disabled = false; }
+        }));
+        $('[data-voir-demande]', form)?.addEventListener('click', () => { fermer(); showView('leads'); openLeadEditor(r.leadId); });
+      },
+      enregistrer: async form => {
+        const valeurs = Object.fromEntries(new FormData(form));
+        const corps = {
+          vehiculeId: valeurs.vehiculeId, debut: valeurs.debut, fin: valeurs.fin, chauffeur: form.elements.chauffeur.checked,
+          lieuPrise: valeurs.lieuPrise, lieuRetour: valeurs.lieuRetour, options: $$('[name="options"]:checked', form).map(c => c.value),
+          client: { nom: valeurs.clientNom, telephone: valeurs.clientTelephone, email: valeurs.clientEmail },
+          montant: valeurs.montant === '' ? null : Number(valeurs.montant), notes: valeurs.notes
+        };
+        await api(reservation ? `/api/admin/location/reservations/${encodeURIComponent(reservation.id)}` : '/api/admin/location/reservations', { method: reservation ? 'PATCH' : 'POST', body: JSON.stringify(corps) });
+        toast(reservation ? 'Réservation mise à jour' : 'Réservation enregistrée (à confirmer pour bloquer les dates)');
+      },
+      supprimer: async () => {
+        if (!confirm('Supprimer définitivement cette réservation ? La demande liée reste dans « Demandes ».')) return false;
+        await api(`/api/admin/location/reservations/${encodeURIComponent(reservation.id)}`, { method: 'DELETE' });
+        toast('Réservation supprimée');
+        return true;
+      }
+    });
+  }
+
+  function ouvrirIndisponibiliteLocation(indispo, preremplissage = {}) {
+    const d = gestionLocation.donnees;
+    const b = indispo || { motif: 'entretien', ...preremplissage };
+    const envoyer = async (form, forcer = false) => {
+      const valeurs = Object.fromEntries(new FormData(form));
+      const url = indispo ? `/api/admin/location/indisponibilites/${encodeURIComponent(indispo.id)}` : '/api/admin/location/indisponibilites';
+      const reponse = await fetch(url, { method: indispo ? 'PATCH' : 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...valeurs, forcer }) });
+      const corps = await reponse.json().catch(() => ({}));
+      if (reponse.status === 409 && corps.conflit && !forcer) {
+        if (!confirm(`${corps.error}\n\nEnregistrer quand même l’indisponibilité ? Pensez à prévenir le client.`)) return false;
+        return envoyer(form, true);
+      }
+      if (!reponse.ok) throw new Error(corps.error || 'Enregistrement impossible');
+      toast(indispo ? 'Indisponibilité mise à jour' : 'Indisponibilité enregistrée : les dates sont bloquées');
+      return true;
+    };
+    ouvrirTiroirLocation({
+      surtitre: 'LOCATION · INDISPONIBILITÉ', titre: indispo ? 'Indisponibilité' : 'Nouvelle indisponibilité', supprimable: Boolean(indispo),
+      champs: `<div class="form-grid">
+          <label>Véhicule<select name="vehiculeId" required>${optionsVehicules(b.vehiculeId)}</select></label>
+          <label>Motif<select name="motif">${Object.entries(d.motifs).map(([id, libelle]) => `<option value="${id}" ${b.motif === id ? 'selected' : ''}>${esc(libelle)}</option>`).join('')}</select></label>
+          <label>Début<input type="datetime-local" name="debut" required value="${esc(LV.versSaisie(b.debut))}"></label>
+          <label>Fin<input type="datetime-local" name="fin" required value="${esc(LV.versSaisie(b.fin))}"></label>
+        </div>
+        <label>Notes<textarea name="notes" rows="3" maxlength="500">${esc(b.notes || '')}</textarea></label>`,
+      enregistrer: form => envoyer(form),
+      supprimer: async () => {
+        if (!confirm('Supprimer cette indisponibilité ? Les dates redeviennent réservables.')) return false;
+        await api(`/api/admin/location/indisponibilites/${encodeURIComponent(indispo.id)}`, { method: 'DELETE' });
+        toast('Indisponibilité supprimée');
+        return true;
+      }
+    });
   }
 
   // =========================================================================
@@ -1092,7 +1591,7 @@
   }
 
   const STATUTS_VENTE = { a_encaisser: 'À encaisser', partiel: 'Partiellement payée', solde: 'Soldée' };
-  const FORMULES_VENTE = { 'devis-whatsapp': 'Séjour', 'devis-activites': 'Activités', devis: 'Devis', terrain: 'Terrain', villa: 'Résidence', contact: 'Contact' };
+  const FORMULES_VENTE = { 'devis-whatsapp': 'Séjour', 'devis-activites': 'Activités', devis: 'Devis', terrain: 'Terrain', villa: 'Résidence', contact: 'Contact', 'location-voiture': 'Voiture' };
 
   function renderVentes(hote) {
     const ventes = compta.donnees.ventes;
@@ -1859,14 +2358,15 @@
   function openEditor(type, id) {
     const isVilla = type === 'villa';
     const isTerrain = type === 'terrain';
-    const list = isVilla ? state.content.villas : isTerrain ? state.content.terrains : state.content.activities;
+    const isVehicle = type === 'vehicle';
+    const list = isVilla ? state.content.villas : isTerrain ? state.content.terrains : isVehicle ? state.content.vehicles : state.content.activities;
     const source = list.find(item => item.id === id) || {};
     const data = structuredClone(source);
-    let gallery = ((isVilla || isTerrain)
+    let gallery = ((isVilla || isTerrain || isVehicle)
       ? (Array.isArray(data.images) ? data.images : [])
       : (Array.isArray(data.images) && data.images.length ? data.images : [data.image])).filter(Boolean);
-    const heading = isVilla ? 'Villa' : isTerrain ? 'Terrain' : 'Activité';
-    const fields = isVilla ? villaFields(data) : isTerrain ? terrainFields(data) : activityFields(data);
+    const heading = isVilla ? 'Villa' : isTerrain ? 'Terrain' : isVehicle ? 'Véhicule' : 'Activité';
+    const fields = isVilla ? villaFields(data) : isTerrain ? terrainFields(data) : isVehicle ? vehicleFields(data) : activityFields(data);
     document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div>${id && list.some(item => item.id === id) ? barreGestionAnnonce(source) : ''}<div class="editor-fields">${fields}${id && list.some(item => item.id === id) ? '<section class="avis-studio" data-avis-studio aria-live="polite"><h3>Avis des visiteurs</h3><p class="avis-studio-vide">Chargement…</p></section>' : ''}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
     const backdrop = $('.editor-backdrop');
     const close = () => { document.removeEventListener('keydown', onKeydown); backdrop.remove(); };
@@ -1917,7 +2417,8 @@
     // euro pendant la saisie. Ce calcul est purement indicatif : c'est toujours
     // le serveur qui recalcule et fait foi à la publication.
     brancherTraductions(backdrop);
-    if (!isVilla && !isTerrain) {
+    if (isVehicle) brancherFicheVehicule(backdrop);
+    if (type === 'activity') {
       const apercu = $('[data-tarif-apercu]', backdrop);
       const champsTarif = ['priceAmount', 'priceUnit', 'pricePrefix', 'priceSuffix', 'groupPriceAmount', 'groupSize'];
       const majTarif = () => {
@@ -1964,13 +2465,14 @@
       const utilities = isTerrain ? $$('[name="utilities"]:checked', form).map(input => input.value) : [];
       const item = isVilla ? normalizeVilla(values, data, gallery)
         : isTerrain ? normalizeTerrain(values, data, gallery, utilities)
+        : isVehicle ? normalizeVehicle(values, data, gallery)
         : normalizeActivity(values, data, gallery);
-      item.translations = lireTraductions(form, isVilla ? 'villa' : isTerrain ? 'terrain' : 'activity');
-      if (!isVilla && !isTerrain) item.price = texteTarifActivite(item);
+      item.translations = lireTraductions(form, type);
+      if (type === 'activity') item.price = texteTarifActivite(item);
       const index = list.findIndex(existing => existing.id === id);
       if (index >= 0) list[index] = item; else list.unshift(item);
       dirty();
-      if (isVilla) renderVillas(); else if (isTerrain) renderTerrains(); else renderActivities();
+      renderListe(type);
       close(); toast('Contenu prêt à être publié');
     });
   }
@@ -2179,7 +2681,8 @@
       ['features', 'Détails des équipements (un par ligne)', 'liste', 160], ['highlights', 'Points forts (un par ligne)', 'liste', 160]],
     terrain: [['title', 'Titre', 'ligne', 160], ['description', 'Description', 'texte', 8000], ['highlights', 'Atouts (un par ligne)', 'liste', 160]],
     activity: [['title', 'Titre', 'ligne', 160], ['subtitle', 'Sous-titre', 'ligne', 240], ['duration', 'Durée', 'ligne', 80],
-      ['description', 'Description', 'texte', 8000], ['pricePrefix', 'Mention avant le prix', 'ligne', 80], ['priceSuffix', 'Précision après le prix', 'ligne', 80]]
+      ['description', 'Description', 'texte', 8000], ['pricePrefix', 'Mention avant le prix', 'ligne', 80], ['priceSuffix', 'Précision après le prix', 'ligne', 80]],
+    vehicle: [['tagline', 'Accroche', 'ligne', 240], ['description', 'Description', 'texte', 8000], ['features', 'Équipements (un par ligne)', 'liste', 160]]
   };
   const LANGUES_TRADUCTION = [['en', 'Anglais', 'EN'], ['es', 'Espagnol', 'ES']];
 
