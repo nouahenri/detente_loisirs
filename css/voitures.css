@@ -66,15 +66,26 @@
 
 /* --- Fiche en fenêtre --- */
 .vehicule-fenetre { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 1.5rem; background: rgba(14, 16, 38, .62); overflow-y: auto; }
-.vehicule-fiche { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); width: min(1120px, 100%); max-height: calc(100vh - 3rem); overflow: hidden; border-radius: 24px; background: #fff; box-shadow: 0 30px 80px rgba(0, 0, 0, .35); }
+/* `grid-template-rows: minmax(0, 1fr)` (19/09/2026) : sans cette ligne bornée,
+   la rangée prenait la hauteur du formulaire de droite (2 644 px relevés en
+   production) ; la colonne photo s'étirait d'autant et la photo, agrandie 3,7
+   fois par `object-fit: cover`, devenait floue et ne montrait plus qu'une bande
+   de 12 % de sa largeur. La fiche reste haute d'un écran, le contenu défile. */
+.vehicule-fiche { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); width: min(1120px, 100%); max-height: calc(100vh - 3rem); overflow: hidden; border-radius: 24px; background: #fff; box-shadow: 0 30px 80px rgba(0, 0, 0, .35); }
 .vehicule-fermer { position: absolute; top: .9rem; right: .9rem; z-index: 2; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .92); color: var(--bleu-nuit, #151837); font-size: 1.6rem; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
 .vehicule-galerie { display: flex; flex-direction: column; min-height: 0; background: var(--bleu-nuit-fonce, #0e1026); }
-.vehicule-galerie-principale { flex: 1; width: 100%; min-height: 0; object-fit: cover; }
+/* `contain` et non `cover` : une photo de voiture ne se recadre pas sans
+   couper le véhicule, et l'agrandissement rendait l'image floue. La voiture
+   est montrée entière, jamais au-delà de sa taille réelle, sur le fond sombre
+   de la colonne. */
+.vehicule-galerie-principale { flex: 1; width: 100%; min-height: 0; padding: .8rem; object-fit: scale-down; }
 .vehicule-galerie-vide { display: grid; flex: 1; place-items: center; font-size: 4rem; }
 .vehicule-galerie-vignettes { display: flex; gap: .4rem; padding: .6rem; overflow-x: auto; }
 .vehicule-galerie-vignettes button { flex: 0 0 64px; height: 48px; border: 2px solid transparent; border-radius: 8px; background-size: cover; background-position: center; cursor: pointer; opacity: .7; }
 .vehicule-galerie-vignettes button.active { border-color: var(--or, #e8b904); opacity: 1; }
-.vehicule-contenu { overflow-y: auto; padding: 1.8rem 1.8rem 2rem; }
+/* `min-height: 0` : sans lui, un élément de grille ne descend pas sous la
+   hauteur de son contenu et `overflow-y` ne défile jamais. */
+.vehicule-contenu { min-height: 0; overflow-y: auto; padding: 1.8rem 1.8rem 2rem; }
 .vehicule-categorie { color: var(--or-texte, #7f6300); font-size: .76rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .vehicule-contenu h2 { margin: .3rem 3rem .4rem 0; color: var(--bleu-nuit, #151837); font-size: 1.7rem; line-height: 1.2; }
 .vehicule-accroche { margin: 0 0 .8rem; color: var(--texte-doux, #5a5f6b); }
@@ -133,7 +144,8 @@
   .voitures-etapes { grid-template-columns: 1fr; }
   /* Bloc et non grille : la fiche prend la hauteur de son contenu, la fenêtre défile. */
   .vehicule-fenetre { display: block; padding: 0; }
-  .vehicule-fiche { grid-template-columns: 1fr; max-height: none; min-height: 100%; border-radius: 0; overflow: visible; }
+  /* `grid-template-rows: none` : les deux blocs s'empilent, chacun à sa hauteur. */
+  .vehicule-fiche { grid-template-columns: 1fr; grid-template-rows: none; max-height: none; min-height: 100%; border-radius: 0; overflow: visible; }
   .vehicule-galerie { max-height: none; }
   /* Pas de hauteur de rangée sur mobile : la photo a sa propre hauteur. */
   .vehicule-galerie-principale { flex: none; height: 34vh; min-height: 200px; }
