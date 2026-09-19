@@ -357,6 +357,55 @@
     settings:['SITE PUBLIC','Réglages']
   };
 
+  /* =====================================================================
+   * ONGLETS DU STUDIO (19/09/2026)
+   * Une seule barre d'onglets pour tout le studio : icône au-dessus,
+   * libellé dessous, cellules de largeur égale et trait de couleur sous
+   * l'onglet ouvert. Comptabilité, Location, Messages, Utilisateurs et
+   * Référentiels passent tous par `barreOnglets()` : un seul endroit à
+   * corriger le jour où le modèle change.
+   * ===================================================================== */
+  const ICONES_ONGLET = {
+    journal: '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8.5h8M8 12.5h8M8 16.5h5"/>',
+    carte: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10.2h18"/>',
+    equipe: '<circle cx="9.2" cy="8" r="3.2"/><path d="M3.6 19.4a5.6 5.6 0 0 1 11.2 0"/><path d="M16.2 5.7a3.2 3.2 0 0 1 0 5.6M17.8 14.3a5.6 5.6 0 0 1 2.8 5.1"/>',
+    recurrent: '<path d="M4 12a8 8 0 0 1 13.6-5.7"/><path d="M18 3.4V7h-3.6"/><path d="M20 12a8 8 0 0 1-13.6 5.7"/><path d="M6 20.6V17h3.6"/>',
+    graphique: '<path d="M4 3.8v16.4h16"/><rect x="7.4" y="11.2" width="3.3" height="5.8" rx="1.1"/><rect x="13.2" y="7.4" width="3.3" height="9.6" rx="1.1"/>',
+    reglages: '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 5V2.9M12 19v2.1M19 12h2.1M5 12H2.9M16.95 7.05l1.5-1.5M7.05 16.95l-1.5 1.5M16.95 16.95l1.5 1.5M7.05 7.05 5.55 5.55"/>',
+    calendrier: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3.2v3.6M16 3.2v3.6"/>',
+    liste: '<path d="M9.4 6.6h10.6M9.4 12h10.6M9.4 17.4h10.6"/><path d="m4 6.3 1.3 1.3L7.4 5M4 11.7 5.3 13l2.1-2.5M4 17.1l1.3 1.3 2.1-2.5"/>',
+    interdit: '<circle cx="12" cy="12" r="8.2"/><path d="m6.2 6.2 11.6 11.6"/>',
+    bulle: '<path d="M20.5 11.6c0 4-3.8 7.3-8.5 7.3-1 0-2-.15-2.9-.42L4 19.9l1.5-3.5c-1.2-1.3-2-3-2-4.8 0-4 3.8-7.3 8.5-7.3s8.5 3.3 8.5 7.3z"/>',
+    cloche: '<path d="M18 9.2a6 6 0 1 0-12 0c0 4.8-2 6.3-2 6.3h16s-2-1.5-2-6.3z"/><path d="M10.3 18.8a2 2 0 0 0 3.4 0"/>',
+    carnet: '<rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><circle cx="12" cy="10" r="2.4"/><path d="M8.2 17.2a4.2 4.2 0 0 1 7.6 0"/>',
+    bouclier: '<path d="M12 3.2 20 6v6c0 4.4-3.3 7.6-8 8.8C7.3 19.6 4 16.4 4 12V6z"/><path d="m9 12.2 2 2 4-4"/>',
+    epingle: '<path d="M12 20.8s7-5.5 7-10.8a7 7 0 1 0-14 0c0 5.3 7 10.8 7 10.8z"/><circle cx="12" cy="10" r="2.6"/>',
+    etiquette: '<path d="M11.2 3.5H20v8.8l-8.9 8.9a1.8 1.8 0 0 1-2.5 0L3.4 15.5a1.8 1.8 0 0 1 0-2.5z"/><circle cx="16.2" cy="7.7" r="1.3"/>',
+    grille: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
+    etoile: '<path d="m12 3.6 2.6 5.3 5.9.85-4.25 4.15 1 5.85L12 16.95 6.75 19.7l1-5.85L3.5 9.75l5.9-.85z"/>',
+    drapeau: '<path d="M5.5 21V3.6"/><path d="M5.5 4.8h11l-1.8 3.6 1.8 3.6h-11"/>',
+    entree: '<circle cx="12" cy="12" r="8.2"/><path d="M12 8.2v7.6M8.2 12h7.6"/>',
+    sortie: '<circle cx="12" cy="12" r="8.2"/><path d="M8.2 12h7.6"/>',
+    defaut: '<circle cx="12" cy="12" r="8.2"/>'
+  };
+
+  /** Une icône d'onglet (trait fin, reprend la couleur du texte). */
+  const icoOnglet = nom => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONES_ONGLET[nom] || ICONES_ONGLET.defaut}</svg>`;
+
+  /**
+   * Fabrique la barre d'onglets commune.
+   * @param {string} attribut  attribut `data-*` qui porte l'identifiant (ex. `data-compta-onglet`).
+   * @param {Array}  onglets   `[id, libellé, icône, nombre|null]` — nombre à `null` : pas de pastille.
+   * @param {string} actif     identifiant de l'onglet ouvert.
+   * @param {Object} options   `label` (aria-label de la barre), `classe` (classe en plus), `attrs` (attributs de la balise).
+   */
+  const boutonsOnglets = (attribut, onglets, actif) => onglets.map(([id, libelle, icone, nombre = null]) => `<button type="button" role="tab" ${attribut}="${esc(id)}" class="${actif === id ? 'active' : ''}" aria-selected="${actif === id}">`
+    + `<span class="onglet-ico">${icoOnglet(icone)}${nombre === null || nombre === undefined ? '' : `<span class="onglet-compte">${Number(nombre) > 99 ? '99+' : nombre}</span>`}</span>`
+    + `<span class="onglet-texte">${esc(libelle)}</span></button>`).join('');
+
+  const barreOnglets = (attribut, onglets, actif, options = {}) =>
+    `<nav class="onglets-nav${options.classe ? ` ${options.classe}` : ''}" role="tablist" aria-label="${esc(options.label || 'Sections')}"${options.attrs ? ` ${options.attrs}` : ''}>${boutonsOnglets(attribut, onglets, actif)}</nav>`;
+
   /**
    * Menu burger du studio sur mobile (≤ 760 px).
    * Demande du 13/09/2026 : il remplace la barre d'onglets fixée en bas
@@ -649,6 +698,7 @@
       const actif = bouton.dataset.refType === type;
       bouton.classList.toggle('active', actif);
       bouton.setAttribute('aria-pressed', String(actif));
+      bouton.setAttribute('aria-selected', String(actif));
     });
     $('#refAide').textContent = AIDES_REFERENTIELS[type];
     $('#refNouveauBtn').hidden = type === 'statuts';
@@ -1116,7 +1166,7 @@
     const aVenir = d.reservations.filter(r => r.statut === 'confirmee' && new Date(r.debut).getTime() > maintenant);
     const chiffreMois = d.reservations.filter(r => ['confirmee', 'en_cours', 'terminee'].includes(r.statut) && new Date(r.debut) >= debutMois && new Date(r.debut) < finMois).reduce((s, r) => s + (Number(r.montant) || 0), 0);
     const indispos = d.indisponibilites.filter(b => new Date(b.fin).getTime() > maintenant);
-    const onglets = [['planning', 'Planning', null], ['reservations', 'Réservations', aTraiter.length || null], ['indisponibilites', 'Indisponibilités', indispos.length || null], ['reglages', 'Réglages', null]];
+    const onglets = [['planning', 'Planning', 'calendrier', null], ['reservations', 'Réservations', 'liste', aTraiter.length || null], ['indisponibilites', 'Indisponibilités', 'interdit', indispos.length || null], ['reglages', 'Réglages', 'reglages', null]];
     hote.innerHTML = `
       <div class="kpi-grid location-kpis">
         <article class="kpi-card"><small>Demandes à traiter</small><strong>${aTraiter.length}</strong><em>À confirmer ou refuser</em></article>
@@ -1124,7 +1174,7 @@
         <article class="kpi-card"><small>Départs à venir</small><strong>${aVenir.length}</strong><em>Réservations confirmées</em></article>
         <article class="kpi-card"><small>Chiffre du mois</small><strong>${money(chiffreMois)}</strong><em>Locations confirmées débutant ce mois-ci</em></article>
       </div>
-      <nav class="compta-onglets" role="tablist" aria-label="Sections de la location" data-location-onglets>${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-location-onglet="${id}" class="${gestionLocation.onglet === id ? 'active' : ''}" aria-selected="${gestionLocation.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</nav>
+      ${barreOnglets('data-location-onglet', onglets, gestionLocation.onglet, { label: 'Sections de la location', attrs: 'data-location-onglets' })}
       <div class="location-contenu" data-location-contenu></div>`;
     $$('[data-location-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { gestionLocation.onglet = bouton.dataset.locationOnglet; renderLocation(); }));
     $$('#locationSousMenu [data-location-aller]').forEach(bouton => {
@@ -1494,7 +1544,7 @@
     const r = d.rapport;
     const aEncaisser = d.ventes.filter(v => v.reste > 0);
     const periodes = [['mois', 'Ce mois'], ['mois-precedent', 'Mois précédent'], ['annee', 'Cette année'], ['annee-precedente', 'Année précédente'], ['perso', 'Personnalisée']];
-    const onglets = [['journal', 'Journal', d.ecritures.length], ['ventes', 'Ventes à encaisser', aEncaisser.length], ['salaires', 'Salaires', d.employes.filter(e => e.actif).length], ['charges', 'Charges récurrentes', d.charges.filter(c => c.actif).length], ['rapport', 'Rapport', null], ['parametres', 'Paramètres', null]];
+    const onglets = [['journal', 'Journal', 'journal', d.ecritures.length], ['ventes', 'Ventes à encaisser', 'carte', aEncaisser.length], ['salaires', 'Salaires', 'equipe', d.employes.filter(e => e.actif).length], ['charges', 'Charges récurrentes', 'recurrent', d.charges.filter(c => c.actif).length], ['rapport', 'Rapport', 'graphique', null], ['parametres', 'Paramètres', 'reglages', null]];
     hote.innerHTML = `
       <div class="compta-outils">
         <label>Période<select data-compta-periode>${periodes.map(([valeur, libelle]) => `<option value="${valeur}" ${compta.periode === valeur ? 'selected' : ''}>${libelle}</option>`).join('')}</select></label>
@@ -1513,7 +1563,7 @@
         <article class="kpi-card"><small>Reste à encaisser</small><strong>${money(r.resteAEncaisser)}</strong><em>${aEncaisser.length} vente${aEncaisser.length > 1 ? 's' : ''} confirmée${aEncaisser.length > 1 ? 's' : ''} non soldée${aEncaisser.length > 1 ? 's' : ''}</em></article>
         <article class="kpi-card"><small>Dépenses à payer</small><strong>${money(r.aPayer)}</strong><em>Dépenses en attente de règlement</em></article>
       </div>
-      <nav class="compta-onglets" role="tablist" aria-label="Sections de la comptabilité" data-compta-onglets>${onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-compta-onglet="${id}" class="${compta.onglet === id ? 'active' : ''}" aria-selected="${compta.onglet === id}">${libelle}${nombre !== null ? ` <span>${nombre}</span>` : ''}</button>`).join('')}</nav>
+      ${barreOnglets('data-compta-onglet', onglets, compta.onglet, { label: 'Sections de la comptabilité', attrs: 'data-compta-onglets' })}
       <div class="compta-contenu" data-compta-contenu></div>`;
 
     $('[data-compta-periode]', hote).addEventListener('change', event => {
@@ -1769,13 +1819,13 @@
       </section>`;
     // Une liste à la fois, choisie par des onglets (demande du 17/09/2026).
     const sections = {
-      entrees: ['Catégories des entrées', () => bloc('categories', 'Catégories des entrées', 'Recettes : locations, ventes, commissions…', d.categories.filter(c => c.sens === 'entree'), () => 'Entrée'), d.categories.filter(c => c.sens === 'entree').length],
-      sorties: ['Catégories des sorties', () => bloc('categories', 'Catégories des sorties', 'Dépenses : salaires, charges, entretien…', d.categories.filter(c => c.sens === 'sortie'), () => 'Sortie'), d.categories.filter(c => c.sens === 'sortie').length],
-      modes: ['Modes de paiement', () => bloc('modes', 'Modes de paiement', 'Espèces, Mobile Money, virement…', d.modes, () => ''), d.modes.length],
-      statuts: ['Statuts', () => bloc('statuts', 'Statuts', 'L’effet d’un statut décide de ce qui compte dans le solde et dans les montants à payer ou à recevoir.', d.statuts, p => EFFETS_STATUT[p.effet]?.[0] || p.effet), d.statuts.length]
+      entrees: ['Catégories des entrées', () => bloc('categories', 'Catégories des entrées', 'Recettes : locations, ventes, commissions…', d.categories.filter(c => c.sens === 'entree'), () => 'Entrée'), d.categories.filter(c => c.sens === 'entree').length, 'entree'],
+      sorties: ['Catégories des sorties', () => bloc('categories', 'Catégories des sorties', 'Dépenses : salaires, charges, entretien…', d.categories.filter(c => c.sens === 'sortie'), () => 'Sortie'), d.categories.filter(c => c.sens === 'sortie').length, 'sortie'],
+      modes: ['Modes de paiement', () => bloc('modes', 'Modes de paiement', 'Espèces, Mobile Money, virement…', d.modes, () => ''), d.modes.length, 'carte'],
+      statuts: ['Statuts', () => bloc('statuts', 'Statuts', 'L’effet d’un statut décide de ce qui compte dans le solde et dans les montants à payer ou à recevoir.', d.statuts, p => EFFETS_STATUT[p.effet]?.[0] || p.effet), d.statuts.length, 'drapeau']
     };
     if (!sections[compta.ongletParametres]) compta.ongletParametres = 'entrees';
-    hote.innerHTML = `<div class="compta-sous-onglets" role="tablist" aria-label="Paramètres de la comptabilité">${Object.entries(sections).map(([id, [libelle, , nombre]]) => `<button type="button" role="tab" data-parametres-onglet="${id}" class="${compta.ongletParametres === id ? 'active' : ''}" aria-selected="${compta.ongletParametres === id}">${libelle} <span>${nombre}</span></button>`).join('')}</div>
+    hote.innerHTML = `${barreOnglets('data-parametres-onglet', Object.entries(sections).map(([id, [libelle, , nombre, icone]]) => [id, libelle, icone, nombre]), compta.ongletParametres, { label: 'Paramètres de la comptabilité', classe: 'onglets-nav-compact' })}
       <p class="compta-aide">Les listes proposées dans les écritures et les charges. Un élément déjà utilisé ne peut pas être supprimé : désactivez-le pour ne plus le proposer, il reste lisible sur les écritures existantes.</p>
       ${sections[compta.ongletParametres][1]()}`;
     $$('[data-parametres-onglet]', hote).forEach(bouton => bouton.addEventListener('click', () => { compta.ongletParametres = bouton.dataset.parametresOnglet; renderParametres(hote); }));
@@ -2105,7 +2155,7 @@
   let chargementMessages = null;
   // ---- Messages : WhatsApp, notifications de l'app, propriétaires (19/09/2026) ----
   const gestionMessages = { onglet: 'whatsapp', donnees: null, chargement: null };
-  const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read'], ['notifications', 'Notifications de l’app', 'notifications:manage'], ['proprietaires', 'Propriétaires', 'notifications:manage']];
+  const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read', 'bulle'], ['notifications', 'Notifications de l’app', 'notifications:manage', 'cloche'], ['proprietaires', 'Propriétaires', 'notifications:manage', 'carnet']];
   const TYPES_ANNONCE_PROPRIETAIRE = { villa: 'Résidences', vehicle: 'Véhicules', activity: 'Activités', terrain: 'Terrains' };
   const dateHeureCourte = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(valeur)); } catch { return ''; } };
   const nomComplet = p => [p.prenom, p.nom].filter(Boolean).join(' ');
@@ -2118,7 +2168,7 @@
     const onglets = $('#messagesOnglets');
     if (onglets) {
       onglets.hidden = permises.length < 2;
-      onglets.innerHTML = permises.map(([id, libelle]) => `<button type="button" role="tab" data-messages-onglet="${id}" class="${gestionMessages.onglet === id ? 'active' : ''}" aria-selected="${gestionMessages.onglet === id}">${libelle}</button>`).join('');
+      onglets.innerHTML = boutonsOnglets('data-messages-onglet', permises.map(([id, libelle, , icone]) => [id, libelle, icone, null]), gestionMessages.onglet);
       $$('[data-messages-onglet]', onglets).forEach(bouton => bouton.addEventListener('click', () => { gestionMessages.onglet = bouton.dataset.messagesOnglet; ouvrirSectionMessages(); }));
     }
     $$('[data-messages-section]').forEach(section => { section.hidden = section.dataset.messagesSection !== gestionMessages.onglet; });
@@ -3524,8 +3574,8 @@ function dirty() { state.dirty = true; $('#saveState').textContent = 'Modificati
   function renderOngletsUtilisateurs() {
     const nav = $('#usersOnglets');
     if (!nav) return;
-    const onglets = [['utilisateurs', 'Utilisateurs', state.users.length], ['roles', 'Rôles et permissions', state.roles.length]];
-    nav.innerHTML = onglets.map(([id, libelle, nombre]) => `<button type="button" role="tab" data-users-onglet="${id}" class="${ongletUtilisateurs === id ? 'active' : ''}" aria-selected="${ongletUtilisateurs === id}">${libelle} <span>${nombre}</span></button>`).join('');
+    const onglets = [['utilisateurs', 'Utilisateurs', 'equipe', state.users.length], ['roles', 'Rôles et permissions', 'bouclier', state.roles.length]];
+    nav.innerHTML = boutonsOnglets('data-users-onglet', onglets, ongletUtilisateurs);
     $$('[data-users-panneau]').forEach(panneau => { panneau.hidden = panneau.dataset.usersPanneau !== ongletUtilisateurs; });
     $$('[data-users-onglet]', nav).forEach(bouton => bouton.addEventListener('click', () => { ongletUtilisateurs = bouton.dataset.usersOnglet; renderOngletsUtilisateurs(); }));
   }

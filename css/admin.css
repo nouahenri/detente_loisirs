@@ -718,8 +718,8 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 /* ==========================================================================
    RÉFÉRENTIELS (13/09/2026) — vue du studio et champs des formulaires
    ========================================================================== */
-.ref-onglets { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
-.ref-onglets button.active { color: #fff; background: var(--ink); border-color: var(--ink); }
+/* Les onglets des référentiels suivent le modèle commun du studio
+   (.onglets-nav, 19/09/2026) : plus rien de spécifique ici. */
 .ref-aide { margin: 0 0 1rem; color: var(--muted); font-size: .8rem; line-height: 1.5; }
 
 /* Vue compacte (demande du 13/09/2026) : une entrée de référentiel est une
@@ -1158,23 +1158,48 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .compta-parametres .compta-section-tete { margin-top:.6rem; }
 
 /* =====================================================================
-   Navigation de la comptabilité (17/09/2026) : onglets soulignés dans la
-   page (premier niveau), sous-onglets plus discrets (Paramètres), et
-   sous-menu dans la colonne latérale.
+   ONGLETS DU STUDIO (19/09/2026) — un seul modèle pour tout le studio.
+   Barre en carte, cellules de largeur égale séparées par un filet, icône
+   au-dessus du libellé, onglet ouvert sur fond blanc (texte et icône en
+   bleu marine) avec un trait or en bas. Remplace les onglets soulignés
+   du 17/09. Servi par js/admin.js → barreOnglets() pour la comptabilité,
+   ses paramètres, la location, les messages et les utilisateurs ; écrit
+   en dur dans admin.html pour les référentiels.
    ===================================================================== */
-.onglets-nav, .compta-onglets, .compta-sous-onglets { display:flex; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; border-bottom:1px solid var(--line); }
+.onglets-nav { display:flex; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:.6rem 0 1.2rem;
+  border:1px solid var(--line); border-radius:14px; background:#f4f5f9; box-shadow:0 1px 2px rgba(21,24,55,.05); }
 /* Défilement au doigt ou au clavier sur écran étroit, sans barre visible. */
-.onglets-nav::-webkit-scrollbar, .compta-onglets::-webkit-scrollbar, .compta-sous-onglets::-webkit-scrollbar { display:none; }
-.onglets-nav, .compta-onglets { gap:0 1.6rem; margin:.6rem 0 1.2rem; }
-.compta-sous-onglets { gap:0 1.2rem; margin:0 0 .8rem; }
-.onglets-nav button, .compta-onglets button, .compta-sous-onglets button { flex:0 0 auto; display:inline-flex; align-items:center; gap:.4rem; border:0; border-bottom:3px solid transparent; border-radius:0; background:none; color:var(--muted); white-space:nowrap; }
-.onglets-nav button, .compta-onglets button { padding:.85rem .1rem .7rem; font-size:.86rem; font-weight:800; }
-.compta-sous-onglets button { padding:.6rem .05rem .5rem; font-size:.76rem; font-weight:700; }
-.onglets-nav button:hover, .compta-onglets button:hover, .compta-sous-onglets button:hover { color:var(--ink); }
-.onglets-nav button.active, .compta-onglets button.active, .compta-sous-onglets button.active { color:var(--ink); border-bottom-color:var(--gold); }
-.onglets-nav button:focus-visible, .compta-onglets button:focus-visible, .compta-sous-onglets button:focus-visible { outline:3px solid rgba(232,185,4,.45); outline-offset:-3px; }
-.onglets-nav button span, .compta-onglets button span, .compta-sous-onglets button span { display:inline-grid; place-items:center; min-width:1.35rem; height:1.35rem; padding:0 .3rem; border-radius:99px; background:rgba(21,24,55,.08); font-size:.62rem; }
-.onglets-nav button.active span, .compta-onglets button.active span, .compta-sous-onglets button.active span { background:#fef8e2; }
+.onglets-nav::-webkit-scrollbar { display:none; }
+.onglets-nav button { position:relative; flex:1 1 0; min-width:106px; display:flex; flex-direction:column; align-items:center; gap:.45rem;
+  padding:.85rem .6rem .95rem; border:0; border-right:1px solid var(--line); border-radius:0; background:none;
+  color:var(--muted); font-size:.78rem; font-weight:700; line-height:1.25; text-align:center; }
+.onglets-nav button:last-child { border-right:0; }
+/* Le trait du bas : toujours présent, coloré seulement sur l'onglet ouvert. */
+.onglets-nav button::after { content:""; position:absolute; left:0; right:0; bottom:0; height:3px; background:transparent; }
+.onglets-nav button:hover { color:var(--ink); background:rgba(255,255,255,.6); }
+.onglets-nav button.active { color:var(--ink); background:var(--paper); font-weight:800; }
+.onglets-nav button.active::after { background:var(--gold); }
+.onglets-nav button:focus-visible { outline:3px solid rgba(232,185,4,.45); outline-offset:-3px; }
+.onglets-nav .onglet-ico { position:relative; display:grid; place-items:center; color:inherit; }
+.onglets-nav .onglet-ico svg { display:block; width:22px; height:22px; }
+.onglets-nav button.active .onglet-ico { color:var(--ink); }
+.onglets-nav .onglet-texte { display:block; }
+/* Compteur : pastille posée sur le coin de l'icône, comme une notification. */
+.onglets-nav .onglet-compte { position:absolute; top:-7px; left:calc(100% - 7px); display:grid; place-items:center;
+  min-width:1.2rem; height:1.2rem; padding:0 .3rem; border-radius:99px; background:rgba(21,24,55,.1); color:var(--ink);
+  font-size:.6rem; font-weight:800; line-height:1; }
+.onglets-nav button.active .onglet-compte { background:#fdf0bd; }
+/* Sous-onglets (Paramètres de la comptabilité) : même modèle, en plus petit. */
+.onglets-nav-compact { margin:0 0 .9rem; }
+.onglets-nav-compact button { min-width:96px; padding:.65rem .55rem .75rem; font-size:.72rem; }
+.onglets-nav-compact .onglet-ico svg { width:19px; height:19px; }
+
+@media (max-width:760px) {
+  /* Écran étroit : cellules un peu plus serrées, la barre défile au doigt. */
+  .onglets-nav button { min-width:92px; padding:.75rem .45rem .85rem; font-size:.72rem; }
+  .onglets-nav .onglet-ico svg { width:20px; height:20px; }
+  .onglets-nav-compact button { min-width:84px; font-size:.68rem; }
+}
 
 .admin-sidebar nav .nav-sous-menu { display:grid; gap:.1rem; margin:-.2rem 0 .3rem 1.45rem; padding-left:.7rem; border-left:1px solid rgba(255,255,255,.14); }
 .admin-sidebar nav .nav-sous-menu[hidden] { display:none; }
