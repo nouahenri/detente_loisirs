@@ -16,7 +16,7 @@ const fr = {
   'onglet.accueil': 'Accueil', 'onglet.explorer': 'Explorer', 'onglet.devis': 'Devis', 'onglet.favoris': 'Favoris', 'onglet.contact': 'Contact',
 
   'accueil.lieu': 'Assinie · Côte d’Ivoire',
-  'accueil.titre': 'Où séjourner à Assinie ?',
+  'accueil.titre': 'Où souhaitez-vous séjourner ?',
   'accueil.recherche': 'Villa, terrain, activité…',
   'accueil.appeler': 'Appeler la conciergerie',
   'recherche.localisation': 'Localisation', 'recherche.emplacement': 'Emplacement', 'recherche.type': 'Type de résidence',
@@ -264,7 +264,7 @@ export type CleTexte = keyof typeof fr;
 
 const en: Record<CleTexte, string> = {
   'onglet.accueil': 'Home', 'onglet.explorer': 'Explore', 'onglet.devis': 'Quote', 'onglet.favoris': 'Favourites', 'onglet.contact': 'Contact',
-  'accueil.lieu': 'Assinie · Côte d’Ivoire', 'accueil.titre': 'Where to stay in Assinie?', 'accueil.recherche': 'Villa, plot, activity…', 'accueil.appeler': 'Call the concierge',
+  'accueil.lieu': 'Assinie · Côte d’Ivoire', 'accueil.titre': 'Where would you like to stay?', 'accueil.recherche': 'Villa, plot, activity…', 'accueil.appeler': 'Call the concierge',
   'recherche.localisation': 'Location', 'recherche.emplacement': 'Setting', 'recherche.type': 'Residence type',
   'recherche.budget': 'Budget / night', 'recherche.voyageurs': 'Guests', 'recherche.arrivee': 'Check-in date', 'recherche.depart': 'Check-out date',
   'recherche.bouton': 'Search', 'recherche.plus': 'More criteria',
@@ -490,7 +490,7 @@ const en: Record<CleTexte, string> = {
 
 const es: Record<CleTexte, string> = {
   'onglet.accueil': 'Inicio', 'onglet.explorer': 'Explorar', 'onglet.devis': 'Presupuesto', 'onglet.favoris': 'Favoritos', 'onglet.contact': 'Contacto',
-  'accueil.lieu': 'Assinie · Costa de Marfil', 'accueil.titre': '¿Dónde alojarse en Assinie?', 'accueil.recherche': 'Villa, terreno, actividad…', 'accueil.appeler': 'Llamar a la conserjería',
+  'accueil.lieu': 'Assinie · Costa de Marfil', 'accueil.titre': '¿Dónde le gustaría alojarse?', 'accueil.recherche': 'Villa, terreno, actividad…', 'accueil.appeler': 'Llamar a la conserjería',
   'recherche.localisation': 'Localidad', 'recherche.emplacement': 'Ubicación', 'recherche.type': 'Tipo de residencia',
   'recherche.budget': 'Presupuesto / noche', 'recherche.voyageurs': 'Viajeros', 'recherche.arrivee': 'Fecha de llegada', 'recherche.depart': 'Fecha de salida',
   'recherche.bouton': 'Buscar', 'recherche.plus': 'Más criterios',
