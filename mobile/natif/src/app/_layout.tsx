@@ -56,6 +56,7 @@ function Navigation() {
           <Stack.Screen name="filtres" options={feuilleNative(0.92)} />
           <Stack.Screen name="tri" options={feuilleNative(0.5)} />
           <Stack.Screen name="envoye" options={feuilleNative(0.62)} />
+          <Stack.Screen name="donner-avis" options={feuilleNative(0.92)} />
           <Stack.Screen name="visionneuse" options={{ presentation: 'fullScreenModal', animation: 'fade', contentStyle: { backgroundColor: '#000' } }} />
           <Stack.Screen name="profil" options={{ ...enTeteNatif, title: t('profil.titre') }} />
           <Stack.Screen name="demandes" options={{ ...enTeteNatif, title: t('demandes.titre') }} />

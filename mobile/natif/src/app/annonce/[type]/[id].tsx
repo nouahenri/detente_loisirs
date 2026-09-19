@@ -4,10 +4,11 @@
  */
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AvisAnnonce } from '@/composants/AvisAnnonce';
 import { couleurFoncier } from '@/composants/carteHtml';
 import { CarteTerrains } from '@/composants/CarteTerrains';
 import { Galerie } from '@/composants/Galerie';
@@ -24,7 +25,7 @@ import {
   tarifActivite, titrePublication, uniteActivite, VIABILISATION,
 } from '@/donnees/regles';
 import { creerStyles, type Palette } from '@/donnees/theme';
-import type { TypeAnnonce } from '@/donnees/types';
+import type { ResumeAvis, TypeAnnonce } from '@/donnees/types';
 
 const ICONES_VIABILISATION: Record<string, NomIcone> = {
   eau: 'water-outline', electricite: 'flash-outline', 'voie-bitumee': 'trail-sign-outline',
@@ -32,7 +33,7 @@ const ICONES_VIABILISATION: Record<string, NomIcone> = {
 };
 
 type Contenu = {
-  titre: string; images: string[]; etiquettes: ReactNode; accroche?: string; lieu?: string;
+  titre: string; images: string[]; avis?: ResumeAvis; etiquettes: ReactNode; accroche?: string; lieu?: string;
   specs: [NomIcone, string, string][]; corps: ReactNode; partage?: { titre: string; texte: string; url: string } | null;
   prix?: { montant: string; detail?: string } | null;
   actions: ReactNode;
@@ -41,7 +42,8 @@ type Contenu = {
 const specs = (liste: ([NomIcone, string, string] | null)[]) => liste.filter((x): x is [NomIcone, string, string] => Boolean(x));
 
 export default function Annonce() {
-  const { type, id } = useLocalSearchParams<{ type: TypeAnnonce; id: string }>();
+  // `avis=1` : ouverte depuis le lien « N avis » d'une carte, la fiche descend jusqu'aux avis.
+  const { type, id, avis: versAvis } = useLocalSearchParams<{ type: TypeAnnonce; id: string; avis?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -49,6 +51,8 @@ export default function Annonce() {
   const { C, t, langue } = usePreferences();
   const s = feuille(C);
   const [barrePleine, setBarrePleine] = useState(false);
+  const defilement = useRef<ScrollView>(null);
+  const ancreFaite = useRef(false);
   const hauteurGalerie = Math.round(Math.min(height * 0.48, 440));
   const cle = `${type}:${id}`;
   const favori = favoris.includes(cle);
@@ -72,7 +76,7 @@ export default function Annonce() {
       const equipements = (v.equipements || []).map(code => libelle(refs, 'equipements', code, '', langue)).filter(Boolean);
       const couchages = fiche(v, 'beds', langue);
       contenu = {
-        titre: v.name, images: v.images, accroche: fiche(v, 'tagline', langue), lieu: v.location,
+        titre: v.name, images: v.images, avis: v.avis, accroche: fiche(v, 'tagline', langue), lieu: v.location,
         etiquettes: <>
           {indispo ? <Etiquette texte={t('ligne.indisponible')} ton="gris" /> : <Etiquette texte={v.badge ? libelle(refs, 'badges', v.badgeId, v.badge, langue) : ''} ton="or" />}
           <Etiquette texte={t(`cadre.${cadreVilla(v)}` as 'cadre.terre')} ton="gris" />
@@ -106,7 +110,7 @@ export default function Annonce() {
       const coordonnees = estNombre(te.latitude) && estNombre(te.longitude);
       const titre = fiche(te, 'title', langue);
       contenu = {
-        titre, images: te.images, accroche: te.district, lieu: te.location,
+        titre, images: te.images, avis: te.avis, accroche: te.district, lieu: te.location,
         etiquettes: <>
           <Etiquette texte={libelle(refs, 'statuts', `terrain:${te.status}`, t(`terrain.${te.status}` as 'terrain.disponible'), langue)} ton={te.status === 'disponible' ? 'vert' : 'or'} />
           <Etiquette texte={te.badge ? libelle(refs, 'badges', te.badgeId, te.badge, langue) : ''} ton="or" />
@@ -153,7 +157,7 @@ export default function Annonce() {
       const montant = Math.round(Number(a.priceAmount) || 0);
       const titre = fiche(a, 'title', langue);
       contenu = {
-        titre, images: a.images, accroche: fiche(a, 'subtitle', langue),
+        titre, images: a.images, avis: a.avis, accroche: fiche(a, 'subtitle', langue),
         etiquettes: <Etiquette texte={a.badge ? libelle(refs, 'badges', a.badgeId, a.badge, langue) : ''} ton="or" />,
         specs: a.duration ? [['time-outline', String(fiche(a, 'duration', langue)), t('fiche.duree')]] : [],
         corps: <>
@@ -229,6 +233,7 @@ export default function Annonce() {
       {/* Texte clair sur la photo ; sombre sur la barre blanche du mode clair. */}
       <StatusBar style={barrePleine && !C.sombre ? 'dark' : 'light'} />
       <ScrollView
+        ref={defilement}
         contentInsetAdjustmentBehavior="never"
         scrollEventThrottle={32}
         onScroll={e => {
@@ -254,6 +259,18 @@ export default function Annonce() {
             </View>
           ) : null}
           {contenu.corps}
+          <AvisAnnonce
+            type={type}
+            id={id}
+            titre={contenu.titre}
+            resume={contenu.avis}
+            onPosition={y => {
+              if (versAvis !== '1' || ancreFaite.current) return;
+              ancreFaite.current = true;
+              // Position dans la fiche + hauteur de la galerie, moins la barre du haut.
+              setTimeout(() => defilement.current?.scrollTo({ y: Math.max(0, hauteurGalerie - 20 + y - insets.top - 64), animated: true }), 250);
+            }}
+          />
         </View>
       </ScrollView>
 

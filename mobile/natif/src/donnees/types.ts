@@ -1,6 +1,8 @@
 /** Formes des données de /api/content (champs utilisés par l'app). */
 
 export type Libelles = { fr?: string; en?: string; es?: string };
+/** Avis des visiteurs (ajouté par le site à chaque annonce) : J'aime, moyenne des notes, nombre d'avis. */
+export type ResumeAvis = { likes: number; note: number | null; nombre: number };
 /** Traductions saisies dans le studio : { en: { title: '…' }, es: { … } }. */
 export type Traductions = Record<string, Record<string, unknown>>;
 export type EntreeReferentiel = { id: string; nom?: string; libelle?: Libelles; ordre?: number; actif?: boolean; cible?: string; code?: string };
@@ -19,7 +21,7 @@ export type Villa = {
   capacity: number; bedrooms: number; bathrooms: number; beds?: string; status?: string;
   visible?: boolean; featured?: boolean; rating: number; reviewsCount: number;
   images: string[]; features: string[]; highlights: string[];
-  translations?: Traductions;
+  translations?: Traductions; avis?: ResumeAvis;
 };
 
 export type Terrain = {
@@ -28,7 +30,7 @@ export type Terrain = {
   landStatus: string; landStatusLabel: string; utilities: string[]; status: string;
   description?: string; images: string[]; highlights: string[]; visible?: boolean; featured?: boolean;
   badge?: string; badgeId?: string; latitude?: number | null; longitude?: number | null;
-  translations?: Traductions;
+  translations?: Traductions; avis?: ResumeAvis;
 };
 
 export type Activite = {
@@ -36,7 +38,7 @@ export type Activite = {
   duration?: string; price?: string; priceAmount?: number; groupPriceAmount?: number; groupSize?: number;
   priceUnit?: string; pricePrefix?: string; priceSuffix?: string; badge?: string; badgeId?: string;
   visible?: boolean; featured?: boolean;
-  translations?: Traductions;
+  translations?: Traductions; avis?: ResumeAvis;
 };
 
 export type FichePublication = {

@@ -15,7 +15,8 @@ import {
   photosPublication, tarifActivite, titrePublication, uniteActivite,
 } from '@/donnees/regles';
 import { creerStyles } from '@/donnees/theme';
-import type { Activite, Publication, Referentiels, Terrain, TypeAnnonce, Villa } from '@/donnees/types';
+import type { Activite, Publication, Referentiels, ResumeAvis, Terrain, TypeAnnonce, Villa } from '@/donnees/types';
+import { nombreAvis, noteAffichee } from './AvisAnnonce';
 import { ImageSite } from './ImageSite';
 import { vibrerSelection } from './outils';
 import { Etiquette, Icone, type NomIcone } from './ui';
@@ -25,6 +26,8 @@ export type Modele = {
   etiquette?: { texte?: string; ton: 'blanc' | 'or' | 'vert' | 'gris' | 'fb' };
   surtitre?: string; titre: string; lieu?: string; faits: [NomIcone, string][];
   prix?: { montant: string; unite?: string } | { texte: string };
+  /** Avis des visiteurs : « ★ 4,5 · 12 avis » et « ♥ 8 » sur la carte. */
+  avis?: ResumeAvis;
   /** Valeurs de tri : prix affiché et « taille » (capacité ou superficie). */
   valeurPrix: number | null; valeurTaille: number | null;
 };
@@ -32,11 +35,14 @@ export type Modele = {
 function LigneBase({ modele, rang = 0 }: { modele: Modele; rang?: number }) {
   const router = useRouter();
   const { favoris, basculerFavori } = useMagasin();
-  const { C, t } = usePreferences();
+  const { C, t, langue } = usePreferences();
   const s = feuille(C);
   const cle = `${modele.type}:${modele.id}`;
+  const avis = modele.avis;
   const favori = favoris.includes(cle);
   const ouvrir = () => router.push({ pathname: '/annonce/[type]/[id]', params: { type: modele.type, id: modele.id } });
+  // Comme « N avis » sur les cartes du site : la fiche s'ouvre directement sur les avis.
+  const ouvrirAvis = () => { vibrerSelection(); router.push({ pathname: '/annonce/[type]/[id]', params: { type: modele.type, id: modele.id, avis: '1' } }); };
 
   return (
     <Animated.View entering={FadeInDown.duration(320).delay(Math.min(rang, 8) * 40)}>
@@ -59,6 +65,22 @@ function LigneBase({ modele, rang = 0 }: { modele: Modele; rang?: number }) {
               {modele.faits.map(([icone, texte]) => (
                 <View key={texte} style={s.fait}><Icone nom={icone} taille={13} couleur={C.texte3} /><Text style={s.faitTexte}>{texte}</Text></View>
               ))}
+            </View>
+          ) : null}
+          {avis && (avis.nombre > 0 || avis.likes > 0) ? (
+            <View style={s.avis}>
+              {avis.nombre > 0 && avis.note !== null ? (
+                <Pressable onPress={ouvrirAvis} hitSlop={6} accessibilityRole="link" accessibilityLabel={`${t('avisV.titre')} : ${nombreAvis(avis.nombre, t)}`} style={s.avisLien}>
+                  <Icone nom="star" taille={12} couleur={C.or} />
+                  <Text style={s.avisTexte}>{noteAffichee(avis.note, langue)} · {nombreAvis(avis.nombre, t)}</Text>
+                </Pressable>
+              ) : null}
+              {avis.likes > 0 ? (
+                <View style={s.avisJaime} accessibilityLabel={`${t('avisV.jaime')} : ${avis.likes}`}>
+                  <Icone nom="heart" taille={11} couleur="#e0245e" />
+                  <Text style={s.avisTexte}>{avis.likes}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
           <View style={s.pied}>
@@ -101,7 +123,7 @@ const faits = (liste: ([NomIcone, string] | null)[]) => liste.filter((f): f is [
 export function modeleVilla(v: Villa, { refs, t, langue }: Contexte): Modele {
   const theme = v.category && !CRITERES_HORS_THEME.includes(v.category) ? libelle(refs, 'categories', v.category, v.categoryLabel, langue) : '';
   return {
-    type: 'villa', id: v.id, image: v.images[0], iconeVide: 'home-outline', nbPhotos: v.images.length,
+    type: 'villa', id: v.id, avis: v.avis, image: v.images[0], iconeVide: 'home-outline', nbPhotos: v.images.length,
     etiquette: estIndisponible(v) ? { texte: t('ligne.indisponible'), ton: 'gris' } : { texte: v.badge ? libelle(refs, 'badges', v.badgeId, v.badge, langue) : '', ton: 'or' },
     surtitre: theme || t(`cadre.${cadreVilla(v)}` as 'cadre.terre'),
     titre: v.name, lieu: v.location,
@@ -122,7 +144,7 @@ export const libelleFoncier = (terrain: Terrain, t: Traduire) => {
 
 export function modeleTerrain(te: Terrain, { refs, t, langue }: Contexte): Modele {
   return {
-    type: 'terrain', id: te.id, image: te.images[0], iconeVide: 'map-outline', nbPhotos: te.images.length,
+    type: 'terrain', id: te.id, avis: te.avis, image: te.images[0], iconeVide: 'map-outline', nbPhotos: te.images.length,
     etiquette: { texte: libelle(refs, 'statuts', `terrain:${te.status}`, t(`terrain.${te.status}` as 'terrain.disponible'), langue), ton: te.status === 'disponible' ? 'vert' : 'or' },
     surtitre: te.reference ? t('ligne.terrainRef', { ref: te.reference }) : t('ligne.terrainVente'),
     titre: fiche(te, 'title', langue), lieu: te.location,
@@ -139,7 +161,7 @@ export function modeleActivite(a: Activite, { refs, t, langue }: Contexte): Mode
   const montant = Math.round(Number(a.priceAmount) || 0);
   const prefixe = String(fiche(a, 'pricePrefix', langue) || '');
   return {
-    type: 'activite', id: a.id, image: a.image, iconeVide: 'boat-outline',
+    type: 'activite', id: a.id, avis: a.avis, image: a.image, iconeVide: 'boat-outline',
     etiquette: { texte: a.badge ? libelle(refs, 'badges', a.badgeId, a.badge, langue) : '', ton: 'or' },
     surtitre: fiche(a, 'subtitle', langue) || t('ligne.activite'),
     titre: fiche(a, 'title', langue),
@@ -184,6 +206,10 @@ const feuille = creerStyles(C => ({
   faits: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2 },
   fait: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   faitTexte: { fontSize: 12, color: C.texte2 },
+  avis: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 1 },
+  avisLien: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 2, paddingHorizontal: 7, borderRadius: 999, backgroundColor: C.orPale },
+  avisJaime: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  avisTexte: { fontSize: 11.5, fontWeight: '700', color: C.texte2 },
   pied: { marginTop: 'auto', paddingTop: 6, flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   prix: { fontSize: 15, fontWeight: '800', color: C.marque },
   unite: { fontSize: 11, fontWeight: '600', color: C.texte3 },

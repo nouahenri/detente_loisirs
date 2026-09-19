@@ -6,13 +6,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { oublierVisiteur } from './avis';
 import { API } from './config';
 import { afficherNotification } from './notifications';
 import { executerVeille } from './veille';
 import {
   criteresTerrainsVides, criteresVides, devisVide, lireContenu, preparerDevis, type Devis, type Tri,
 } from './regles';
-import type { Criteres, CriteresTerrains, Donnees, Manifeste, Segment } from './types';
+import type { Criteres, CriteresTerrains, Donnees, Manifeste, ResumeAvis, Segment, TypeAnnonce } from './types';
 
 const CLES = {
   contenu: 'dl:contenu:v1',
@@ -56,6 +57,8 @@ type Magasin = {
   /** Demande au site le statut à jour des demandes enregistrées. */
   actualiserStatuts: () => Promise<boolean>;
   effacerDonneesPersonnelles: () => void;
+  /** Après un « J'aime » ou un avis : les cartes de la liste affichent aussitôt les nouveaux compteurs. */
+  majResumeAvis: (type: TypeAnnonce, id: string, resume: ResumeAvis) => void;
 };
 
 const Contexte = createContext<Magasin | null>(null);
@@ -223,14 +226,26 @@ export function FournisseurMagasin({ children }: { children: ReactNode }) {
     setCoordonnees(COORDONNEES_VIDES);
     setDevis(actuel => ({ ...actuel, ...COORDONNEES_VIDES, optin: false }));
     AsyncStorage.multiRemove([CLES.favoris, CLES.historique, CLES.coordonnees]).catch(() => {});
+    oublierVisiteur();
+  }, []);
+
+  const majResumeAvis = useCallback((type: TypeAnnonce, id: string, resume: ResumeAvis) => {
+    const rubrique = ({ villa: 'villas', terrain: 'terrains', activite: 'activites' } as const)[type as 'villa'];
+    if (!rubrique) return;
+    setDonnees(actuelles => {
+      if (!actuelles) return actuelles;
+      const liste = actuelles[rubrique] as { id: string; avis?: ResumeAvis }[];
+      if (!liste.some(item => item.id === id)) return actuelles;
+      return { ...actuelles, [rubrique]: liste.map(item => (item.id === id ? { ...item, avis: resume } : item)) } as Donnees;
+    });
   }, []);
 
   const valeur = useMemo<Magasin>(() => ({
     donnees, manifeste, horsLigne, majLe, actualisation, demarre, actualiser,
     favoris, basculerFavori, recherche, majRecherche, devis, majDevis,
-    coordonnees, enregistrerCoordonnees, memoriserCoordonnees, historique, ajouterDemande, actualiserStatuts, effacerDonneesPersonnelles,
+    coordonnees, enregistrerCoordonnees, memoriserCoordonnees, historique, ajouterDemande, actualiserStatuts, effacerDonneesPersonnelles, majResumeAvis,
   }), [donnees, manifeste, horsLigne, majLe, actualisation, demarre, actualiser, favoris, basculerFavori, recherche, majRecherche, devis, majDevis,
-    coordonnees, enregistrerCoordonnees, memoriserCoordonnees, historique, ajouterDemande, actualiserStatuts, effacerDonneesPersonnelles]);
+    coordonnees, enregistrerCoordonnees, memoriserCoordonnees, historique, ajouterDemande, actualiserStatuts, effacerDonneesPersonnelles, majResumeAvis]);
 
   return <Contexte.Provider value={valeur}>{children}</Contexte.Provider>;
 }
