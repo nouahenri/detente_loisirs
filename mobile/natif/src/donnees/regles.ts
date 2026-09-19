@@ -6,8 +6,9 @@
 import { TAUX_EUR, WHATSAPP } from './config';
 import type { Langue, Traduire } from './i18n';
 import type {
-  Activite, Criteres, CriteresTerrains, Donnees, FichePublication, Publication, Referentiels, Segment, Terrain, Villa,
+  Activite, Vehicule, Criteres, CriteresTerrains, Donnees, FichePublication, Publication, Referentiels, Segment, Terrain, Villa,
 } from './types';
+import { categorieVehicule, normaliserReglages } from './location';
 
 // ---------------------------------------------------------------------------
 // Formatage
@@ -42,6 +43,20 @@ export const VIABILISATION: Record<string, string> = {
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+function normaliserVehicule(item: any): Vehicule {
+  const mode = ['avec', 'sans', 'choix'].includes(item.driverMode) ? item.driverMode : 'choix';
+  return {
+    ...item,
+    id: String(item.id), name: String(item.name || ''), category: String(item.category || 'berline'),
+    transmission: String(item.transmission || 'manuelle'), fuel: String(item.fuel || 'essence'),
+    seats: nombreOu(item.seats, 5), doors: nombreOu(item.doors, 4), luggage: nombreOu(item.luggage, 2), airConditioning: item.airConditioning !== false,
+    driverMode: mode, pricePerDay: nombreOu(item.pricePerDay), pricePerDayWeek: nombreOu(item.pricePerDayWeek), pricePerDayMonth: nombreOu(item.pricePerDayMonth),
+    driverPricePerDay: nombreOu(item.driverPricePerDay), deposit: nombreOu(item.deposit), minAge: nombreOu(item.minAge), licenseYears: nombreOu(item.licenseYears),
+    kmIncludedPerDay: nombreOu(item.kmIncludedPerDay), extraKmPrice: nombreOu(item.extraKmPrice), minDays: nombreOu(item.minDays, 1),
+    features: textes(item.features), images: textes(item.images),
+  };
+}
+
 function normaliserVilla(item: any): Villa {
   const images = textes(item.images);
   return {
@@ -94,6 +109,9 @@ export function lireContenu(contenu: any): Donnees {
     // Un terrain vendu n'est plus une annonce (règle du site, 13/09/2026).
     terrains: visibles(contenu.terrains).map(normaliserTerrain).filter(t => t.status !== 'vendu'),
     activites: visibles(contenu.activities).map(normaliserActivite),
+    // Location de voitures (17/09/2026).
+    vehicules: visibles(contenu.vehicles).map(normaliserVehicule),
+    location: normaliserReglages(contenu.location),
     publications: (Array.isArray(contenu.facebookPosts) ? contenu.facebookPosts : [])
       .filter((p: any) => p && (p.message || p.full_picture))
       .map((p: any) => ({ ...p, id: String(p.id) })),
@@ -227,6 +245,7 @@ export function rechercher(d: Donnees, criteres: Criteres, terrains: CriteresTer
     terrains: d.terrains.filter(t => (terrains.ville === 'all' || t.localisationId === terrains.ville)
       && (terrains.foncier === 'all' || t.landStatus === terrains.foncier) && contient(texteTerrain(t))),
     activites: d.activites.filter(a => contient(texteActivite(a))),
+    voitures: d.vehicules.filter(v => contient(sansAccents([v.name, v.brand, v.model, categorieVehicule(v.category, 'fr'), v.tagline].filter(Boolean).join(' ')))),
     // Publications : filtrées par les critères seulement quand il y en a (règle du catalogue).
     publications: d.publications.filter(p => (!criteresActifs || correspondRecherche(criteresPublication(p), criteres)) && contient(textePublication(p))),
   };

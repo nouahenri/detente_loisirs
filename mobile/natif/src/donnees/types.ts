@@ -41,6 +41,24 @@ export type Activite = {
   translations?: Traductions; avis?: ResumeAvis;
 };
 
+/** Véhicule de location (17/09/2026) : mêmes champs que le studio et le site. */
+export type Vehicule = {
+  id: string; name: string; brand?: string; model?: string; year?: number | null; category: string;
+  transmission: string; fuel: string; seats: number; doors: number; luggage: number; airConditioning: boolean;
+  driverMode: 'avec' | 'sans' | 'choix'; pricePerDay: number; pricePerDayWeek: number; pricePerDayMonth: number;
+  driverPricePerDay: number; deposit: number; minAge: number; licenseYears: number;
+  kmIncludedPerDay: number; extraKmPrice: number; minDays: number;
+  tagline?: string; description?: string; features: string[]; images: string[];
+  badge?: string; badgeId?: string; visible?: boolean; featured?: boolean;
+  translations?: Traductions; avis?: ResumeAvis;
+};
+export type LieuLocation = { id: string; nom: string; frais: number; actif: boolean };
+export type OptionLocation = { id: string; nom: string; prix: number; unite: 'jour' | 'location'; actif: boolean };
+export type ReglagesLocation = {
+  lieux: LieuLocation[]; options: OptionLocation[]; heureOuverture: string; heureFermeture: string;
+  delaiMinHeures: number; battementHeures: number; conditions: { fr: string; en: string; es: string };
+};
+
 export type FichePublication = {
   name?: string; tagline?: string; category?: string; categoryLabel?: string; environment?: string; location?: string;
   pricePerNight?: number | null; capacity?: number | null; bedrooms?: number | null; bathrooms?: number | null;
@@ -60,6 +78,9 @@ export type Donnees = {
   villas: Villa[];
   terrains: Terrain[];
   activites: Activite[];
+  vehicules: Vehicule[];
+  /** Lieux de prise en charge, options, horaires et conditions de la location de voitures. */
+  location: ReglagesLocation;
   publications: Publication[];
   avis: Avis[];
   faq: Faq[];
@@ -67,10 +88,10 @@ export type Donnees = {
   reglages: Reglages;
 };
 
-export type TypeAnnonce = 'villa' | 'terrain' | 'activite' | 'publication';
+export type TypeAnnonce = 'villa' | 'terrain' | 'activite' | 'vehicule' | 'publication';
 
 export type Criteres = { cat: string; ville: string; location: string; budget: string; guests: string; equip: string; chambres: string };
 export type CriteresTerrains = { ville: string; foncier: string };
-export type Segment = 'tout' | 'villas' | 'terrains' | 'activites' | 'publications';
+export type Segment = 'tout' | 'villas' | 'terrains' | 'activites' | 'voitures' | 'publications';
 
 export type Manifeste = Record<string, { webp?: Record<string, string>; width?: number; height?: number }>;

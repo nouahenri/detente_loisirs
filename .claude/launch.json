@@ -1,8 +1,54 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "detente-loisirs", "runtimeExecutable": "node", "runtimeArgs": ["app.js"], "port": 3456, "autoPort": true },
-    { "name": "relais-api-mobile", "runtimeExecutable": "node", "runtimeArgs": ["mobile/natif/scripts/relais-dev.js"], "port": 5175 },
-    { "name": "app-mobile-web", "runtimeExecutable": "node", "runtimeArgs": ["mobile/natif/node_modules/expo/bin/cli", "start", "mobile/natif", "--web", "--port", "8081"], "port": 8081 }
+    {
+      "name": "detente-loisirs",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "app.js"
+      ],
+      "port": 3456,
+      "autoPort": true
+    },
+    {
+      "name": "relais-api-mobile",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "mobile/natif/scripts/relais-dev.js"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "banc-studio",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "C:/Users/NOUAMA/AppData/Local/Temp/claude/C--Users-NOUAMA-Desktop-Detente-Loisirs/552fb548-acfb-41c1-a972-0bddf229631f/scratchpad/banc/app.js"
+      ],
+      "port": 3460,
+      "autoPort": true
+    },
+    {
+      "name": "app-mobile-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "mobile/natif/node_modules/expo/bin/cli",
+        "start",
+        "mobile/natif",
+        "--web",
+        "--port",
+        "8081"
+      ],
+      "port": 8081
+    },
+    {
+      "name": "relais-api-mobile-banc",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "mobile/natif/scripts/relais-dev.js",
+        "--site",
+        "http://localhost:3460"
+      ],
+      "port": 5175
+    }
   ]
 }

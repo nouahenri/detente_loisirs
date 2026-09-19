@@ -15,6 +15,7 @@ import { ImageSite } from '@/composants/ImageSite';
 import { ouvrirLien, vibrerErreur, vibrerImpact, vibrerSelection } from '@/composants/outils';
 import { Squelettes } from '@/composants/Squelettes';
 import { EnTete } from '@/composants/EnTete';
+import { FormulaireLocation } from '@/composants/FormulaireLocation';
 import { Bouton, Carte, EtatVide, Icone, Puce, type NomIcone } from '@/composants/ui';
 import { API } from '@/donnees/config';
 import { useMagasin } from '@/donnees/magasin';
@@ -41,6 +42,8 @@ export default function Devis() {
   const [envoi, setEnvoi] = useState(false);
   // Tirer vers le bas pour recharger villas, activités et tarifs (étapes 1 et 3).
   const [tire, setTire] = useState(false);
+  // Formule « Location de voiture » (17/09/2026) : son propre formulaire, dans le même onglet.
+  const [formuleVoiture, setFormuleVoiture] = useState(false);
 
   if (!donnees || !devis.pret) {
     return (
@@ -151,6 +154,11 @@ export default function Devis() {
           <Choix C={C} icone="home-outline" titre={t('devis.sejour')} detail={t('devis.sejourDetail')} actif={devis.mode === 'sejour'} desactive={!donnees.villas.length} onPress={() => { setErreur(null); majDevis({ mode: 'sejour' }); }} />
           <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={devis.mode === 'activites'} onPress={() => majDevis({ mode: 'activites' })} />
         </View>
+        {donnees.vehicules.length ? (
+          <View style={[s.modes, { marginTop: 10 }]}>
+            <Choix C={C} icone="car-sport-outline" titre={t('devis.voiture')} detail={t('devis.voitureDetail')} actif={false} onPress={() => setFormuleVoiture(true)} />
+          </View>
+        ) : null}
         {devis.mode === 'activites' ? (
           <>
             <Text style={s.h3}>{t('devis.choisirActivites')}</Text>
@@ -291,6 +299,31 @@ export default function Devis() {
         </Carte>
         <Text style={s.mention}>{t('devis.mention')}</Text>
       </>
+    );
+  }
+
+  if (formuleVoiture) {
+    const revenir = (mode: 'sejour' | 'activites') => { setFormuleVoiture(false); majDevis({ mode, etape: 1 }); };
+    return (
+      <View style={s.ecran}>
+        <EnTete titre={t('devis.titre')} sousTitre={t('devis.voiture')} retour={() => setFormuleVoiture(false)} />
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
+          <ScrollView contentContainerStyle={s.contenu} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+            <Text style={s.h2}>{t('devis.quoi')}</Text>
+            <View style={s.modes}>
+              <Choix C={C} icone="home-outline" titre={t('devis.sejour')} detail={t('devis.sejourDetail')} actif={false} desactive={!donnees.villas.length} onPress={() => revenir('sejour')} />
+              <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={false} onPress={() => revenir('activites')} />
+            </View>
+            <View style={[s.modes, { marginTop: 10, marginBottom: 16 }]}>
+              <Choix C={C} icone="car-sport-outline" titre={t('devis.voiture')} detail={t('devis.voitureDetail')} actif onPress={() => {}} />
+            </View>
+            <FormulaireLocation onEnvoye={({ total, lien }) => {
+              setFormuleVoiture(false);
+              router.push({ pathname: '/envoye', params: { enregistree: '1', total, lien } });
+            }} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
     );
   }
 

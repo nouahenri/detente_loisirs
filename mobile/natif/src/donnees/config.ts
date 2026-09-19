@@ -20,4 +20,5 @@ export const lienPartage = (type: string, id: string) => ({
   villa: `${SITE}/residences.html#${encodeURIComponent(id)}`,
   terrain: `${SITE}/terrains.html#${encodeURIComponent(id)}`,
   activite: `${SITE}/loisirs.html#${encodeURIComponent(id)}`,
+  vehicule: `${SITE}/voitures.html#${encodeURIComponent(id)}`,
 } as Record<string, string>)[type] || `${SITE}/`;

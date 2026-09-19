@@ -44,6 +44,7 @@ export default function Accueil() {
     { segment: 'villas', icone: 'home-outline', nom: t('rubrique.villas'), nb: donnees.villas.length },
     { segment: 'terrains', icone: 'map-outline', nom: t('rubrique.terrains'), nb: donnees.terrains.length },
     { segment: 'activites', icone: 'boat-outline', nom: t('rubrique.activites'), nb: donnees.activites.length },
+    { segment: 'voitures', icone: 'car-sport-outline', nom: t('rubrique.voitures'), nb: donnees.vehicules.length },
     { segment: 'publications', icone: 'logo-facebook', nom: t('rubrique.publications'), nb: donnees.publications.length },
   ] : [];
 
@@ -153,7 +154,7 @@ export default function Accueil() {
               {rubriques.map(r => (
                 <Pressable key={r.segment} onPress={() => allerExplorer(r.segment)} style={({ pressed }) => [s.rubrique, pressed && { transform: [{ scale: 0.95 }] }]} accessibilityRole="button">
                   <View style={s.rubriqueIcone}><Icone nom={r.icone} taille={22} couleur={C.marque} /></View>
-                  <Text style={s.rubriqueNom} numberOfLines={1}>{r.nom}</Text>
+                  <Text style={s.rubriqueNom} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{r.nom}</Text>
                   <Text style={s.rubriqueNb}>{r.nb}</Text>
                 </Pressable>
               ))}
@@ -189,9 +190,10 @@ const feuille = creerStyles(C => ({
   rechercher: { flex: 1, height: 50, borderRadius: 999, backgroundColor: C.or, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   rechercherTexte: { fontSize: 15.5, fontWeight: '800', color: '#151837', letterSpacing: 0.3, textTransform: 'uppercase' },
   plus: { width: 50, height: 50, borderRadius: 14, borderWidth: 1.5, borderColor: C.bord, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
-  rubriques: { flexDirection: 'row', gap: 8, marginTop: 18 },
-  rubrique: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 16, backgroundColor: C.carte, boxShadow: C.ombre },
-  rubriqueIcone: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  rubriqueNom: { fontSize: 12, fontWeight: '700', color: C.texte },
+  // Cinq rubriques depuis la location de voitures (17/09/2026) : tuiles un peu plus serrées.
+  rubriques: { flexDirection: 'row', gap: 6, marginTop: 18 },
+  rubrique: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 11, paddingHorizontal: 2, borderRadius: 16, backgroundColor: C.carte, boxShadow: C.ombre },
+  rubriqueIcone: { width: 40, height: 40, borderRadius: 13, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  rubriqueNom: { fontSize: 11.5, fontWeight: '700', color: C.texte },
   rubriqueNb: { fontSize: 11, fontWeight: '600', color: C.texte3 },
 }));

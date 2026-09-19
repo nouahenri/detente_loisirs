@@ -16,6 +16,7 @@ import { libelleFoncier } from '@/composants/Ligne';
 import { ouvrirLien, partager, revenir, vibrerImpact, vibrerSelection } from '@/composants/outils';
 import { Bouton, BoutonRond, Carte, EtatVide, Etiquette, Icone, type NomIcone } from '@/composants/ui';
 import { lienPartage, TAUX_EUR, TELEPHONE } from '@/donnees/config';
+import { boiteVehicule, carburantVehicule, categorieVehicule, modeChauffeur, prixAPartirDe } from '@/donnees/location';
 import { dateLongue } from '@/donnees/i18n';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
@@ -169,6 +170,58 @@ export default function Annonce() {
         actions: <>
           <Bouton texte={t('fiche.devis')} variante="contour" onPress={() => allerAuDevis({ mode: 'activites', activites: [a.id], etape: 1 })} />
           <Bouton texte={t('fiche.reserver')} icone="logo-whatsapp" variante="wa" onPress={() => lien(lienWhatsApp(messageActivite(a)))} />
+        </>,
+      };
+    }
+  } else if (donnees && type === 'vehicule') {
+    // Location de voitures (17/09/2026) : formule, tarifs dégressifs, conditions, réservation.
+    const v = donnees.vehicules.find(x => x.id === id);
+    if (v) {
+      const aPartir = prixAPartirDe(v);
+      const conditions = donnees.location.conditions[langue] || donnees.location.conditions.fr;
+      const tarifs: [string, number][] = [
+        [t('fiche.tarifJour'), v.pricePerDay],
+        [t('fiche.tarifSemaine'), v.pricePerDayWeek || v.pricePerDay],
+        [t('fiche.tarifMois'), v.pricePerDayMonth || v.pricePerDayWeek || v.pricePerDay],
+      ];
+      const ligneTarif = (libelleTarif: string, valeur: string) => (
+        <View key={libelleTarif} style={s.tarifLigne}><Text style={s.tarifLibelle}>{libelleTarif}</Text><Text style={s.tarifValeur}>{valeur}</Text></View>
+      );
+      contenu = {
+        titre: v.name, images: v.images, avis: v.avis, accroche: fiche(v, 'tagline', langue),
+        etiquettes: <>
+          <Etiquette texte={v.badge ? libelle(refs, 'badges', v.badgeId, v.badge, langue) : ''} ton="or" />
+          <Etiquette texte={categorieVehicule(v.category, langue) + (v.year ? ` · ${v.year}` : '')} ton="gris" />
+          <Etiquette texte={modeChauffeur(v.driverMode, langue)} ton="gris" />
+        </>,
+        specs: specs([
+          ['people-outline', String(v.seats || 5), t('fiche.places')],
+          ['settings-outline', boiteVehicule(v.transmission, langue), t('fiche.boite')],
+          ['water-outline', carburantVehicule(v.fuel, langue), t('fiche.carburant')],
+        ]),
+        corps: <>
+          <Carte titre={t('fiche.formule')}>
+            <Text style={s.texte}>{t(v.driverMode === 'avec' ? 'fiche.modeAvec' : v.driverMode === 'sans' ? 'fiche.modeSans' : 'fiche.modeChoix')}</Text>
+            {v.driverMode !== 'avec' ? <Text style={[s.texte, { marginTop: 6 }]}>{t('fiche.conducteur', { age: v.minAge || 21, n: v.licenseYears || 0 })}</Text> : null}
+          </Carte>
+          {v.pricePerDay > 0 ? (
+            <Carte titre={t('fiche.tarifs')}>
+              {tarifs.map(([periode, prix]) => ligneTarif(periode, `${fcfa(prix)} ${t('louer.parJour')}`))}
+              {v.driverMode !== 'sans' ? ligneTarif(t('fiche.chauffeurJour'), v.driverPricePerDay ? fcfa(v.driverPricePerDay) : t('fiche.inclus')) : null}
+              {v.driverMode !== 'avec' && v.deposit ? ligneTarif(t('fiche.caution'), fcfa(v.deposit)) : null}
+              {ligneTarif(t('fiche.km'), v.kmIncludedPerDay ? t('fiche.kmInclus', { n: v.kmIncludedPerDay, x: fcfa(v.extraKmPrice) }) : t('fiche.kmIllimite'))}
+              {v.minDays > 1 ? <Text style={[s.texte, { marginTop: 6 }]}>{t('fiche.minJours', { n: v.minDays })}</Text> : null}
+            </Carte>
+          ) : null}
+          <TexteLong titre={t('fiche.description')} texte={fiche(v, 'description', langue)} C={C} />
+          <ListeCoches titre={t('fiche.equipements')} elements={[...(v.airConditioning ? [t('fiche.clim')] : []), ...(fiche(v, 'features', langue) || [])]} C={C} />
+          {conditions ? <TexteLong titre={t('louer.conditions')} texte={conditions} C={C} /> : null}
+        </>,
+        partage: { titre: v.name, texte: t('fiche.partageVoiture', { x: v.name }), url: lienPartage('vehicule', v.id) },
+        prix: aPartir > 0 ? { montant: t('ligne.des', { x: fcfa(aPartir) }), detail: t('ligne.parJour') } : null,
+        actions: <>
+          <BoutonRond icone="logo-whatsapp" variante="clair" label="WhatsApp" taille={50} onPress={() => lien(lienWhatsApp(`Bonjour Henri & Philippe, je souhaite louer « ${v.name} ».`))} />
+          <Bouton texte={t('fiche.louer')} icone="car-sport-outline" onPress={() => { vibrerImpact(); router.push({ pathname: '/louer-voiture', params: { id: v.id } }); }} />
         </>,
       };
     }
@@ -342,6 +395,9 @@ const feuille = creerStyles(C => ({
   coche: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
   cocheTexte: { flex: 1, fontSize: 14.5, color: C.texte, lineHeight: 20 },
   miniCarte: { height: 170, borderRadius: 12 },
+  tarifLigne: { flexDirection: 'row', justifyContent: 'space-between', gap: 12, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.bord },
+  tarifLibelle: { flex: 1, fontSize: 14, color: C.texte2 },
+  tarifValeur: { fontSize: 14, fontWeight: '800', color: C.texte, textAlign: 'right', flexShrink: 1 },
   barreHaut: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
   barreHautPleine: { backgroundColor: C.entete, boxShadow: '0px 2px 12px rgba(0,0,0,0.12)' },
   barreTitre: { position: 'absolute', left: 64, right: 110, bottom: 18, color: C.enteteTexte, fontSize: 16.5, fontWeight: '700', textAlign: 'center' },

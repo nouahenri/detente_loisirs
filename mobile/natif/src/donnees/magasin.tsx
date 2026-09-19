@@ -230,7 +230,7 @@ export function FournisseurMagasin({ children }: { children: ReactNode }) {
   }, []);
 
   const majResumeAvis = useCallback((type: TypeAnnonce, id: string, resume: ResumeAvis) => {
-    const rubrique = ({ villa: 'villas', terrain: 'terrains', activite: 'activites' } as const)[type as 'villa'];
+    const rubrique = ({ villa: 'villas', terrain: 'terrains', activite: 'activites', vehicule: 'vehicules' } as const)[type as 'villa'];
     if (!rubrique) return;
     setDonnees(actuelles => {
       if (!actuelles) return actuelles;

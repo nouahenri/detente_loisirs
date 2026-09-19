@@ -63,6 +63,7 @@ function Navigation() {
           <Stack.Screen name="carte" options={{ ...enTeteNatif, title: t('carte.titre') }} />
           <Stack.Screen name="faq" options={{ ...enTeteNatif, title: t('faq.titre') }} />
           <Stack.Screen name="avis" options={{ ...enTeteNatif, title: t('avis.titre') }} />
+          <Stack.Screen name="louer-voiture" options={{ ...enTeteNatif, title: t('louer.titre') }} />
         </Stack>
         {/* Écran de démarrage animé, puis l'accueil (route initiale). */}
         <SplashAnime pret={demarre && pretes} onAffiche={() => { SplashScreen.hideAsync().catch(() => {}); }} />

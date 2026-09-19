@@ -19,9 +19,10 @@ const CLE_VISITEUR = 'dl:visiteur';
 const DELAI_MS = 12000;
 
 /** Type d'annonce attendu par le site ; null quand l'annonce n'accepte pas d'avis. */
-export function typeAvis(type: TypeAnnonce | string | undefined): 'villa' | 'terrain' | 'activity' | null {
+export function typeAvis(type: TypeAnnonce | string | undefined): 'villa' | 'terrain' | 'activity' | 'vehicle' | null {
   if (type === 'villa' || type === 'terrain') return type;
   if (type === 'activite') return 'activity';
+  if (type === 'vehicule') return 'vehicle';
   return null;
 }
 

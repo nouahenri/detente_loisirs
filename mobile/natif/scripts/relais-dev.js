@@ -12,13 +12,19 @@
  *     « J'aime » et les commentaires : rien n'est publié sur le site.
  *
  *   node scripts/relais-dev.js   → http://localhost:5175
+ *   node scripts/relais-dev.js --site http://localhost:3460   (banc d'essai local)
+ *
+ * Location de voitures : disponibilités lues sur le site, demandes SIMULÉES.
  */
 const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 
 const PORT = 5175;
-const SITE = 'https://henri-philippe.com';
+// Site lu : henri-philippe.com, ou un banc d'essai local (--site http://localhost:3460).
+const indexSite = process.argv.indexOf('--site');
+const SITE = indexSite > 0 && process.argv[indexSite + 1] ? process.argv[indexSite + 1].replace(/\/+$/, '') : 'https://henri-philippe.com';
+const client = SITE.startsWith('https:') ? https : http;
 const ENTETES = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Accept',
@@ -33,7 +39,7 @@ const avisDe = cle => {
   return avisSimules.get(cle);
 };
 const lireSite = chemin => new Promise(resolve => {
-  https.get(SITE + chemin, { headers: { 'User-Agent': 'DetenteLoisirsApp-dev', Accept: 'application/json' } }, amont => {
+  client.get(SITE + chemin, { headers: { 'User-Agent': 'DetenteLoisirsApp-dev', Accept: 'application/json' } }, amont => {
     let corps = '';
     amont.on('data', morceau => { corps += morceau; });
     amont.on('end', () => { try { resolve(JSON.parse(corps)); } catch { resolve(null); } });
@@ -119,8 +125,24 @@ http.createServer(async (req, res) => {
     return repondre(res, 201, { ...(await avisFusionnes(corps.kind, corps.id, corps.visiteur)), commentaire });
   }
 
+  if (req.method === 'GET' && chemin === '/api/location/disponibilites') {
+    const donnees = await lireSite(req.url);
+    return repondre(res, 200, donnees || { ok: true, occupations: [] });
+  }
+
+  if (req.method === 'POST' && chemin === '/api/location/demande') {
+    const corps = await lireCorps(req);
+    if (String(corps.nom || '').trim().length < 2 || String(corps.telephone || '').replace(/D/g, '').length < 8) {
+      return repondre(res, 422, { ok: false, error: 'Indiquez votre nom et un numéro de téléphone joignable.' });
+    }
+    const id = crypto.randomUUID();
+    demandesSimulees.set(id, Date.now());
+    console.log('[location simulée]', id, JSON.stringify(corps));
+    return repondre(res, 201, { ok: true, simulee: true, lead: { id, status: 'nouveau' } });
+  }
+
   if (req.method === 'GET' && (chemin === '/api/content' || chemin.startsWith('/data/'))) {
-    https.get(SITE + req.url, { headers: { 'User-Agent': 'DetenteLoisirsApp-dev', Accept: 'application/json' } }, amont => {
+    client.get(SITE + req.url, { headers: { 'User-Agent': 'DetenteLoisirsApp-dev', Accept: 'application/json' } }, amont => {
       res.writeHead(amont.statusCode || 502, { ...ENTETES, 'Content-Type': amont.headers['content-type'] || 'application/json' });
       amont.pipe(res);
     }).on('error', () => { res.writeHead(502, ENTETES); res.end('{"ok":false}'); });

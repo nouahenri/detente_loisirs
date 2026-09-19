@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { FlatList, View } from 'react-native';
 
-import { Ligne, modeleActivite, modelePublication, modeleTerrain, modeleVilla } from '@/composants/Ligne';
+import { Ligne, modeleActivite, modelePublication, modeleTerrain, modeleVehicule, modeleVilla } from '@/composants/Ligne';
 import { EnTete } from '@/composants/EnTete';
 import { Bouton, EtatVide } from '@/composants/ui';
 import { useMagasin } from '@/donnees/magasin';
@@ -23,6 +23,7 @@ export default function Favoris() {
       if (type === 'villa') { const v = donnees.villas.find(x => x.id === id); return v ? modeleVilla(v, ctx) : null; }
       if (type === 'terrain') { const x = donnees.terrains.find(y => y.id === id); return x ? modeleTerrain(x, ctx) : null; }
       if (type === 'activite') { const a = donnees.activites.find(x => x.id === id); return a ? modeleActivite(a, ctx) : null; }
+      if (type === 'vehicule') { const v = donnees.vehicules.find(x => x.id === id); return v ? modeleVehicule(v, ctx) : null; }
       if (type === 'publication') { const p = donnees.publications.find(x => x.id === id); return p ? modelePublication(p, ctx) : null; }
       return null;
     }).filter((m): m is NonNullable<typeof m> => Boolean(m));

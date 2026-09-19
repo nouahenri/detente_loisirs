@@ -15,7 +15,8 @@ import {
   photosPublication, tarifActivite, titrePublication, uniteActivite,
 } from '@/donnees/regles';
 import { creerStyles } from '@/donnees/theme';
-import type { Activite, Publication, Referentiels, ResumeAvis, Terrain, TypeAnnonce, Villa } from '@/donnees/types';
+import { boiteVehicule, carburantVehicule, categorieVehicule, prixAPartirDe } from '@/donnees/location';
+import type { Activite, Publication, Referentiels, ResumeAvis, Terrain, TypeAnnonce, Vehicule, Villa } from '@/donnees/types';
 import { nombreAvis, noteAffichee } from './AvisAnnonce';
 import { ImageSite } from './ImageSite';
 import { vibrerSelection } from './outils';
@@ -170,6 +171,24 @@ export function modeleActivite(a: Activite, { refs, t, langue }: Contexte): Mode
       ? { montant: /partir|dès|from|desde/i.test(prefixe) ? t('ligne.des', { x: fcfa(montant) }) : fcfa(montant), unite: t(`unite.${uniteActivite(a)}`) }
       : { texte: tarifActivite(a, langue) || t('ligne.surDemande') },
     valeurPrix: montant || null, valeurTaille: null,
+  };
+}
+
+/** Véhicule de location (17/09/2026) : places, boîte, carburant, prix « dès … par jour ». */
+export function modeleVehicule(v: Vehicule, { refs, t, langue }: Contexte): Modele {
+  const aPartir = prixAPartirDe(v);
+  return {
+    type: 'vehicule', id: v.id, avis: v.avis, image: v.images[0], iconeVide: 'car-sport-outline', nbPhotos: v.images.length,
+    etiquette: { texte: v.badge ? libelle(refs, 'badges', v.badgeId, v.badge, langue) : '', ton: 'or' },
+    surtitre: categorieVehicule(v.category, langue) + (v.year ? ` · ${v.year}` : ''),
+    titre: v.name,
+    faits: [
+      ['people-outline', t('ligne.places', { n: v.seats || 5 })],
+      ['settings-outline', boiteVehicule(v.transmission, langue)],
+      ['water-outline', carburantVehicule(v.fuel, langue)],
+    ],
+    prix: aPartir > 0 ? { montant: t('ligne.des', { x: fcfa(aPartir) }), unite: t('ligne.parJour') } : { texte: t('ligne.surDemande') },
+    valeurPrix: aPartir || null, valeurTaille: v.seats || null,
   };
 }
 
