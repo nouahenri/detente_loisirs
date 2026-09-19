@@ -1800,8 +1800,14 @@ function initSimulator(villaParam, activityParam) {
   const labelDepart = document.querySelector('label[for="simCheckout"]');
   const modeActuel = () => (modeRadios.find(r => r.checked) || {}).value || "sejour";
 
+  const colonneFormulaire = document.querySelector(".simulator-form-col");
   function appliquerMode() {
-    const activitesSeules = modeActuel() === "activites";
+    // Voiture seule (19/09/2026) : ni résidence, ni dates de séjour, ni
+    // voyageurs, ni activités — la voiture a ses propres dates.
+    const voitureSeule = modeActuel() === "voiture";
+    const activitesSeules = modeActuel() !== "sejour";
+    if (colonneFormulaire) colonneFormulaire.classList.toggle("sim-voiture-seule", voitureSeule);
+    if (window.DevisVoiture) window.DevisVoiture.definirMode(modeActuel());
     // Le choix de la résidence n'a plus de sens sans hébergement : on le retire
     // du flux ET de la navigation clavier, au lieu de le laisser grisé.
     if (villaField) {
@@ -1830,8 +1836,10 @@ function initSimulator(villaParam, activityParam) {
   checkoutInput.min = nextFriday.toISOString().split("T")[0];
 
   function calculateTotal() {
-    // « Activités uniquement » : aucune résidence retenue, le séjour vaut zéro.
-    const sansResidence = modeActuel() === "activites";
+    // « Activités uniquement » et « Voiture seule » : aucune résidence retenue,
+    // le séjour vaut zéro.
+    const voitureSeule = modeActuel() === "voiture";
+    const sansResidence = modeActuel() !== "sejour";
     const selectedVilla = sansResidence
       ? null
       : (VILLAS_DATA.find(v => v.id === villaSelect.value) || VILLAS_DATA[0]);
@@ -1859,7 +1867,7 @@ function initSimulator(villaParam, activityParam) {
     afficherAlerteCapacite(selectedVilla, guests);
     const detailLignes = [];
     activityAddons.forEach(({ item, prix, input }) => {
-      if (!input || !input.checked) return;
+      if (voitureSeule || !input || !input.checked) return;
       if (prix.montant <= 0) {
         selectedAddonsList.push(`${item.title} (sur devis)`);
         detailLignes.push({ libelle: item.title, calcul: "sur devis", montant: null });
@@ -1882,11 +1890,30 @@ function initSimulator(villaParam, activityParam) {
       }
     });
 
-    const grandTotal = villaSubtotal + addonsTotal;
+    // Voiture facultative ou seule (js/devis-voiture.js) : elle reprend les
+    // dates du séjour tant que le visiteur ne les change pas.
+    const DV = window.DevisVoiture;
+    if (DV) DV.definirSejour(voitureSeule ? null : { arrivee: checkinInput.value, depart: checkoutInput.value });
+    const voiture = DV ? DV.etat() : null;
+    const montantVoiture = voiture && voiture.devis.ok ? voiture.devis.total : 0;
+    if (voiture) {
+      detailLignes.push({
+        libelle: `Voiture · ${voiture.vehicule.name}`,
+        calcul: `${voiture.devis.jours} j · ${DV.libelleFormule(voiture)}`,
+        montant: voiture.devis.ok ? montantVoiture : null
+      });
+    }
+    const grandTotal = villaSubtotal + addonsTotal + montantVoiture;
     const euroTotal = grandTotal / 655.957; // Taux officiel 1 EUR = 655.957 FCFA
 
     // Mise à jour de l'UI
-    resVillaName.textContent = sansResidence ? "Activités uniquement" : selectedVilla.name;
+    resVillaName.textContent = voitureSeule ? "Location de voiture" : sansResidence ? "Activités uniquement" : selectedVilla.name;
+    document.querySelectorAll(".summary-row[data-sejour]").forEach(ligne => { ligne.hidden = voitureSeule; });
+    const ligneVoiture = document.getElementById("summaryVoitureRow");
+    if (ligneVoiture) {
+      ligneVoiture.hidden = !voiture;
+      document.getElementById("summaryVoitureTotal").textContent = voiture ? (voiture.devis.ok ? formatFCFA(montantVoiture) : "Sur devis") : "-";
+    }
     resNightlyRate.textContent = sansResidence ? "Sans hébergement" : `${formatFCFA(selectedVilla.pricePerNight)} / nuit`;
     resNights.textContent = sansResidence
       ? `${diffDays} journée${diffDays > 1 ? "s" : ""} d’activités`
@@ -1914,17 +1941,28 @@ function initSimulator(villaParam, activityParam) {
     }
 
     // Préparation du message WhatsApp
-    const entete = sansResidence
-      ? "✨ Demande d’Activités - Détente & Loisirs à Assinie ✨"
-      : "✨ Demande de Réservation - Détente & Loisirs à Assinie ✨";
+    const entete = voitureSeule
+      ? "✨ Demande de Location de Voiture - Détente & Loisirs à Assinie ✨"
+      : sansResidence
+        ? "✨ Demande d’Activités - Détente & Loisirs à Assinie ✨"
+        : "✨ Demande de Réservation - Détente & Loisirs à Assinie ✨";
     const ligneSejour = sansResidence
       ? `🎯 Formule : Activités uniquement (sans hébergement)
 📅 Dates : Du ${checkinInput.value} au ${checkoutInput.value} (${diffDays} journée${diffDays > 1 ? "s" : ""})`
       : `📍 Résidence : ${selectedVilla.name}
 📅 Dates : Du ${checkinInput.value} au ${checkoutInput.value} (${diffDays} nuit${diffDays > 1 ? "s" : ""})`;
-    const cloture = sansResidence
-      ? "Pouvez-vous me confirmer la disponibilité de ces activités ? Merci !"
-      : "Pouvez-vous me confirmer la disponibilité pour ces dates ? Merci !";
+    const cloture = voitureSeule
+      ? "Pouvez-vous me confirmer la disponibilité du véhicule ? Merci !"
+      : sansResidence
+        ? "Pouvez-vous me confirmer la disponibilité de ces activités ? Merci !"
+        : "Pouvez-vous me confirmer la disponibilité pour ces dates ? Merci !";
+    const lignesSejour = voitureSeule ? "" : `${ligneSejour}
+👥 Voyageurs : ${guestsSelect.value} personnes
+🎁 Options choisies : ${selectedAddonsList.length > 0 ? selectedAddonsList.join(", ") : "Aucune"}
+`;
+    const ligneVoitureWa = voiture ? `🚗 Voiture : ${voiture.vehicule.name}, ${DV.libelleFormule(voiture)}
+🗓️ Du ${voiture.saisie.debutJour} ${voiture.saisie.debutHeure} au ${voiture.saisie.finJour} ${voiture.saisie.finHeure} (${voiture.devis.jours} jour${voiture.devis.jours > 1 ? "s" : ""}) : ${voiture.devis.ok ? formatFCFA(montantVoiture) : "à préciser"}
+` : "";
 
     // Coordonnées saisies dans le récapitulatif : lignes omises si vides.
     const nom = nomInput ? nomInput.value.trim() : "";
@@ -1939,25 +1977,27 @@ function initSimulator(villaParam, activityParam) {
 
     const message = `${entete}
 ━━━━━━━━━━━━━━━━━━━━━
-${lignesContact}${ligneSejour}
-👥 Voyageurs : ${guestsSelect.value} personnes
-🎁 Options choisies : ${selectedAddonsList.length > 0 ? selectedAddonsList.join(", ") : "Aucune"}
-💰 Estimation Totale : ${formatFCFA(grandTotal)} (${formatEUR(euroTotal)})
+${lignesContact}${lignesSejour}${ligneVoitureWa}💰 Estimation Totale : ${formatFCFA(grandTotal)} (${formatEUR(euroTotal)})
 ━━━━━━━━━━━━━━━━━━━━━
 ${cloture}`;
 
     submitBtn.href = `https://wa.me/2250767696318?text=${encodeURIComponent(message)}`;
     latestEstimate = {
-      type: sansResidence ? "devis-activites" : "devis-whatsapp",
+      type: voitureSeule ? "location-voiture" : sansResidence ? "devis-activites" : "devis-whatsapp",
       name: nom,
       phone: tel,
       email: emailValide ? email : "",
       // Case d'accord présente (simulateur à jour) : choix explicite oui/non.
       ...(optinInput ? { whatsappOptIn: optinInput.checked } : {}),
-      villa: sansResidence ? "Activités uniquement" : selectedVilla.name,
-      dates: `${checkinInput.value} → ${checkoutInput.value}`,
+      villa: voitureSeule ? "" : sansResidence ? "Activités uniquement" : selectedVilla.name,
+      dates: voitureSeule && voiture
+        ? `${voiture.saisie.debutJour} ${voiture.saisie.debutHeure} → ${voiture.saisie.finJour} ${voiture.saisie.finHeure}`
+        : `${checkinInput.value} → ${checkoutInput.value}`,
       amount: grandTotal,
-      message: `${guestsSelect.value} voyageur(s) · ${selectedAddonsList.join(", ") || "Sans option"}`
+      message: voitureSeule ? "" : `${guestsSelect.value} voyageur(s) · ${selectedAddonsList.join(", ") || "Sans option"}`,
+      source: "site",
+      // Voiture jointe : le serveur recalcule son prix et crée sa réservation.
+      ...(voiture && DV ? { location: DV.location() } : {})
     };
   }
 
@@ -1989,6 +2029,8 @@ ${cloture}`;
     calculateTotal();
   }));
   appliquerMode();
+  // Voiture choisie ou modifiée (js/devis-voiture.js) : total recalculé.
+  document.addEventListener("dl:devis-voiture", calculateTotal);
 
   // Changement de filtre : on régénère la liste des résidences et on recalcule.
   if (villaFilter) {
@@ -2028,6 +2070,11 @@ ${cloture}`;
     // toujours d'événement, le lien doit porter le nom et le téléphone affichés.
     // L'écouteur passe avant la navigation : le href mis à jour est bien suivi.
     calculateTotal();
+    // Voiture incomplète ou indisponible : on reste sur la page pour corriger.
+    if (window.DevisVoiture && window.DevisVoiture.verifier()) {
+      event.preventDefault();
+      return;
+    }
     const enDefaut = champContactEnDefaut();
     if (enDefaut) {
       // Ni WhatsApp ni demande enregistrée sans coordonnées.
@@ -2036,11 +2083,21 @@ ${cloture}`;
       return;
     }
     if (!latestEstimate) return;
+    const alerteEnvoi = document.getElementById("simEnvoiAlerte");
+    if (alerteEnvoi) alerteEnvoi.hidden = true;
     fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(latestEstimate),
       keepalive: true
+    }).then(async reponse => {
+      // Refus explicite du site (voiture devenue indisponible entre-temps…) :
+      // le visiteur le voit en revenant sur l'onglet.
+      if (reponse.ok || !alerteEnvoi || (reponse.status !== 409 && reponse.status !== 422)) return;
+      const corps = await reponse.json().catch(() => ({}));
+      if (!corps.error) return;
+      alerteEnvoi.textContent = `${T("js.demandeRefusee")} ${corps.error}`;
+      alerteEnvoi.hidden = false;
     }).catch(() => {});
   });
 

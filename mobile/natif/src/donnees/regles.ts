@@ -8,7 +8,9 @@ import type { Langue, Traduire } from './i18n';
 import type {
   Activite, Vehicule, Criteres, CriteresTerrains, Donnees, FichePublication, Publication, Referentiels, Segment, Terrain, Villa,
 } from './types';
-import { categorieVehicule, normaliserReglages } from './location';
+import {
+  categorieVehicule, demandeDeSaisie, devisLocation, normaliserReglages, saisieAvecSejour, saisieVoitureInitiale, type SaisieVoiture,
+} from './location';
 
 // ---------------------------------------------------------------------------
 // Formatage
@@ -334,14 +336,16 @@ export const messagePublication = (p: Publication) => [
 export const VOYAGEURS = ['2', '4', '6', '8', '10', '12', '15+'];
 
 export type Devis = {
-  pret: boolean; etape: number; mode: 'sejour' | 'activites'; filtre: string; villaId: string;
+  pret: boolean; etape: number; mode: 'sejour' | 'activites' | 'voiture'; filtre: string; villaId: string;
   arrivee: string; depart: string; voyageurs: string; activites: string[];
+  /** Voiture facultative (séjour, activités) ou seule (formule « voiture »), 19/09/2026. */
+  voiture: SaisieVoiture;
   nom: string; tel: string; email: string; optin: boolean; suiviNotif: boolean;
 };
 
 export const devisVide = (): Devis => ({
   pret: false, etape: 1, mode: 'sejour', filtre: 'all', villaId: '', arrivee: '', depart: '', voyageurs: '8',
-  activites: [], nom: '', tel: '', email: '', optin: false, suiviNotif: true,
+  activites: [], nom: '', tel: '', email: '', optin: false, suiviNotif: true, voiture: saisieVoitureInitiale(undefined),
 });
 
 export const estIndisponible = (v: Villa) => String(v.status || '').toLowerCase() === 'indisponible';
@@ -380,7 +384,9 @@ export function preparerDevis(d: Donnees, actuel: Devis, coordonnees: { nom?: st
     depart: actuel.depart || dateISO(dimanche),
     activites: actuel.activites.length ? actuel.activites : d.activites.some(a => a.id === 'balade-bateau') ? ['balade-bateau'] : [],
     villaId: actuel.villaId || (d.villas.find(v => !estIndisponible(v)) || { id: '' }).id,
-    mode: d.villas.length ? actuel.mode : 'activites',
+    mode: d.villas.length || actuel.mode === 'voiture' ? actuel.mode : 'activites',
+    // Horaires, délai et lieux de la location connus : dates et lieu par défaut.
+    voiture: { ...saisieVoitureInitiale(d.location), vehiculeId: actuel.voiture.vehiculeId, chauffeur: actuel.voiture.chauffeur },
     nom: actuel.nom || coordonnees.nom || '',
     tel: actuel.tel || coordonnees.tel || '',
     email: actuel.email || coordonnees.email || '',
@@ -423,13 +429,28 @@ function coutParPersonne(prix: Prix, personnes: number, t?: Traduire) {
 }
 
 /**
+ * Voiture du devis : véhicule choisi, saisie (dates du séjour reprises tant
+ * qu'elles n'ont pas été changées à la main) et estimation.
+ */
+export function voitureDuDevis(d: Donnees, devis: Devis) {
+  const vehicule = d.vehicules.find(v => v.id === devis.voiture.vehiculeId) || null;
+  const saisie = saisieAvecSejour(devis.voiture, devis.mode === 'voiture' ? null : { arrivee: devis.arrivee, depart: devis.depart });
+  const estimation = vehicule ? devisLocation(vehicule, d.location, demandeDeSaisie(saisie)) : null;
+  return { vehicule, saisie, estimation };
+}
+
+/**
  * `t` et `langue` ne servent qu'au récapitulatif affiché. Le message WhatsApp
  * et la demande enregistrée restent en français, comme ceux du site.
  * `appareil` : jeton de notification, joint quand le client veut être prévenu du suivi.
+ * Formules (19/09/2026) : séjour (+ activités, + voiture), activités (+ voiture),
+ * voiture seule. UNE seule demande : la voiture y est jointe (`location`), le
+ * serveur recalcule son prix et crée sa réservation dans le planning.
  */
 export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; langue?: Langue; appareil?: string | null } = {}) {
   const { t, langue = 'fr', appareil } = reglages;
-  const sansResidence = devis.mode === 'activites';
+  const voitureSeule = devis.mode === 'voiture';
+  const sansResidence = devis.mode !== 'sejour';
   const villa = sansResidence ? null : (d.villas.find(v => v.id === devis.villaId) || d.villas[0] || null);
   let jours = Math.ceil((new Date(devis.depart).getTime() - new Date(devis.arrivee).getTime()) / 86400000);
   if (Number.isNaN(jours) || jours < 1) jours = 1;
@@ -440,7 +461,7 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
   const options: string[] = [];
   const lignes: { libelle: string; calcul: string; montant: number | null }[] = [];
   d.activites.forEach(item => {
-    if (!devis.activites.includes(item.id)) return;
+    if (voitureSeule || !devis.activites.includes(item.id)) return;
     const prix = prixActivite(item);
     const titre = fiche(item, 'title', langue);
     if (prix.montant <= 0) {
@@ -463,7 +484,10 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
     }
   });
 
-  const total = sousTotalVilla + totalActivites;
+  const { vehicule, saisie, estimation } = voitureDuDevis(d, devis);
+  const avecVoiture = Boolean(vehicule && estimation);
+  const montantVoiture = estimation?.ok ? estimation.total : 0;
+  const total = sousTotalVilla + totalActivites + montantVoiture;
   const totalEuro = total / TAUX_EUR;
   const nom = devis.nom.trim();
   const tel = devis.tel.trim();
@@ -471,36 +495,53 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
   const emailValide = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const lignesContact = [nom ? `👤 Nom : ${nom}` : '', tel ? `📞 WhatsApp : ${tel}` : '', email ? `✉️ E-mail : ${email}` : '']
     .filter(Boolean).map(l => `${l}\n`).join('');
-  const entete = sansResidence
-    ? '✨ Demande d’Activités - Détente & Loisirs à Assinie ✨'
-    : '✨ Demande de Réservation - Détente & Loisirs à Assinie ✨';
-  const ligneSejour = sansResidence
-    ? `🎯 Formule : Activités uniquement (sans hébergement)\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} journée${jours > 1 ? 's' : ''})`
-    : `📍 Résidence : ${villa ? villa.name : ''}\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} nuit${jours > 1 ? 's' : ''})`;
-  const cloture = sansResidence
-    ? 'Pouvez-vous me confirmer la disponibilité de ces activités ? Merci !'
-    : 'Pouvez-vous me confirmer la disponibilité pour ces dates ? Merci !';
+  const joursVoiture = estimation?.jours || 0;
+  const periodeVoiture = `Du ${saisie.debutJour} ${saisie.debutHeure} au ${saisie.finJour} ${saisie.finHeure} (${joursVoiture} jour${joursVoiture > 1 ? 's' : ''})`;
+  const formuleVoiture = estimation?.chauffeur ? 'avec chauffeur' : 'sans chauffeur';
+  const ligneVoiture = vehicule && estimation
+    ? `🚗 Voiture : ${vehicule.name}, ${formuleVoiture}\n🗓️ ${periodeVoiture} : ${estimation.ok ? fcfa(estimation.total) : 'à préciser'}\n`
+    : '';
+  const entete = voitureSeule
+    ? '✨ Demande de Location de Voiture - Détente & Loisirs à Assinie ✨'
+    : sansResidence
+      ? '✨ Demande d’Activités - Détente & Loisirs à Assinie ✨'
+      : '✨ Demande de Réservation - Détente & Loisirs à Assinie ✨';
+  const ligneSejour = voitureSeule
+    ? ''
+    : sansResidence
+      ? `🎯 Formule : Activités uniquement (sans hébergement)\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} journée${jours > 1 ? 's' : ''})\n`
+      : `📍 Résidence : ${villa ? villa.name : ''}\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} nuit${jours > 1 ? 's' : ''})\n`;
+  const cloture = voitureSeule
+    ? 'Pouvez-vous me confirmer la disponibilité du véhicule ? Merci !'
+    : sansResidence
+      ? 'Pouvez-vous me confirmer la disponibilité de ces activités ? Merci !'
+      : 'Pouvez-vous me confirmer la disponibilité pour ces dates ? Merci !';
+  const lignesSejour = voitureSeule ? '' : `👥 Voyageurs : ${devis.voyageurs} personnes
+🎁 Options choisies : ${options.length > 0 ? options.join(', ') : 'Aucune'}
+`;
   const message = `${entete}
 ━━━━━━━━━━━━━━━━━━━━━
-${lignesContact}${ligneSejour}
-👥 Voyageurs : ${devis.voyageurs} personnes
-🎁 Options choisies : ${options.length > 0 ? options.join(', ') : 'Aucune'}
-💰 Estimation Totale : ${fcfa(total)} (${euro(totalEuro)})
+${lignesContact}${ligneSejour}${lignesSejour}${ligneVoiture}💰 Estimation Totale : ${fcfa(total)} (${euro(totalEuro)})
 ━━━━━━━━━━━━━━━━━━━━━
 ${cloture}`;
 
   return {
-    sansResidence, villa, jours, personnes, sousTotalVilla, totalActivites, lignes, total, totalEuro,
+    voitureSeule, sansResidence, villa, jours, personnes, sousTotalVilla, totalActivites, lignes, total, totalEuro,
+    voiture: avecVoiture && vehicule && estimation ? { vehicule, saisie, estimation, montant: montantVoiture } : null,
     lien: lienWhatsApp(message),
     // Même contenu que la demande du simulateur du site (POST /api/leads).
     lead: {
-      type: sansResidence ? 'devis-activites' : 'devis-whatsapp',
+      type: voitureSeule ? 'location-voiture' : sansResidence ? 'devis-activites' : 'devis-whatsapp',
       name: nom, phone: tel, email: emailValide ? email : '',
       whatsappOptIn: devis.optin,
-      villa: sansResidence ? 'Activités uniquement' : (villa ? villa.name : ''),
-      dates: `${devis.arrivee} → ${devis.depart}`,
+      villa: voitureSeule ? '' : sansResidence ? 'Activités uniquement' : (villa ? villa.name : ''),
+      dates: voitureSeule ? `${saisie.debutJour} ${saisie.debutHeure} → ${saisie.finJour} ${saisie.finHeure}` : `${devis.arrivee} → ${devis.depart}`,
       amount: total,
-      message: `${devis.voyageurs} voyageur(s) · ${options.join(', ') || 'Sans option'}`,
+      message: voitureSeule ? '' : `${devis.voyageurs} voyageur(s) · ${options.join(', ') || 'Sans option'}`,
+      source: 'app',
+      ...(vehicule ? {
+        location: { vehicule: vehicule.id, ...demandeDeSaisie(saisie), conditionsConducteur: saisie.attestation, montant: montantVoiture },
+      } : {}),
       ...(appareil ? { appareil, langue } : {}),
     },
   };

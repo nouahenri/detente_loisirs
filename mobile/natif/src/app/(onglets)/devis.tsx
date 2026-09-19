@@ -1,8 +1,12 @@
 /**
  * Demande de devis. Même calcul, même message WhatsApp et même demande
  * enregistrée (POST /api/leads) que le simulateur du site.
- *   · Séjour en résidence : Projet (résidence) → Dates & voyageurs → Activités → Coordonnées ;
- *   · Activités uniquement : Projet (activités) → Dates & voyageurs → Coordonnées.
+ *   · Séjour en résidence : Projet (résidence) → Dates & voyageurs → Activités → Voiture → Coordonnées ;
+ *   · Activités uniquement : Projet (activités) → Dates & voyageurs → Voiture → Coordonnées ;
+ *   · Voiture seule : Projet → Voiture → Coordonnées.
+ * L'étape « Voiture » (19/09/2026) est facultative (« Sans voiture » par défaut)
+ * et n'existe que si des véhicules sont publiés. La voiture reprend les dates
+ * du séjour, modifiables. Une seule demande part au site, voiture comprise.
  */
 import { useRouter } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
@@ -15,21 +19,25 @@ import { ImageSite } from '@/composants/ImageSite';
 import { ouvrirLien, vibrerErreur, vibrerImpact, vibrerSelection } from '@/composants/outils';
 import { Squelettes } from '@/composants/Squelettes';
 import { EnTete } from '@/composants/EnTete';
-import { FormulaireLocation } from '@/composants/FormulaireLocation';
+import { DetailsVoiture, etatVoiture, ListeVehicules, messageErreurLocation, saisiePourVehicule, useOccupations } from '@/composants/EtapeVoiture';
 import { Bouton, Carte, EtatVide, Icone, Puce, type NomIcone } from '@/composants/ui';
 import { API } from '@/donnees/config';
+import { modeChauffeur, type SaisieVoiture } from '@/donnees/location';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
 import {
-  calculDevis, champEnDefaut, dateISO, estIndisponible, euro, fcfa, fiche, FILTRES_VILLA, nombre, prixActivite, villasFiltrees, VOYAGEURS,
+  calculDevis, champEnDefaut, dateISO, estIndisponible, euro, fcfa, fiche, FILTRES_VILLA, nombre, prixActivite, villasFiltrees, voitureDuDevis, VOYAGEURS,
 } from '@/donnees/regles';
 import { creerStyles, type Palette } from '@/donnees/theme';
 
-type Etape = 'projet' | 'dates' | 'activites' | 'coordonnees';
-const PARCOURS: Record<'sejour' | 'activites', Etape[]> = {
-  sejour: ['projet', 'dates', 'activites', 'coordonnees'],
-  activites: ['projet', 'dates', 'coordonnees'],
-};
+type Etape = 'projet' | 'dates' | 'activites' | 'voiture' | 'coordonnees';
+type ErreurDevis = 'nom' | 'tel' | 'activite' | 'voiture' | 'estimation' | 'occupe' | 'attestation' | 'serveur';
+
+function parcoursDe(mode: 'sejour' | 'activites' | 'voiture', avecVehicules: boolean): Etape[] {
+  if (mode === 'voiture') return ['projet', 'voiture', 'coordonnees'];
+  const voiture: Etape[] = avecVehicules ? ['voiture'] : [];
+  return mode === 'sejour' ? ['projet', 'dates', 'activites', ...voiture, 'coordonnees'] : ['projet', 'dates', ...voiture, 'coordonnees'];
+}
 
 export default function Devis() {
   const router = useRouter();
@@ -38,12 +46,13 @@ export default function Devis() {
   const s = feuille(C);
   const defil = useRef<ScrollView>(null);
   const [sens, setSens] = useState(1);
-  const [erreur, setErreur] = useState<'nom' | 'tel' | 'activite' | null>(null);
+  const [erreur, setErreur] = useState<ErreurDevis | null>(null);
+  const [erreurServeur, setErreurServeur] = useState('');
   const [envoi, setEnvoi] = useState(false);
   // Tirer vers le bas pour recharger villas, activités et tarifs (étapes 1 et 3).
   const [tire, setTire] = useState(false);
-  // Formule « Location de voiture » (17/09/2026) : son propre formulaire, dans le même onglet.
-  const [formuleVoiture, setFormuleVoiture] = useState(false);
+  // Dates déjà prises du véhicule choisi (étape « Voiture »).
+  const occupations = useOccupations(devis.voiture.vehiculeId);
 
   if (!donnees || !devis.pret) {
     return (
@@ -55,12 +64,29 @@ export default function Devis() {
   }
 
   const c = calculDevis(donnees, devis, { t, langue });
-  const parcours = PARCOURS[devis.mode];
+  const avecVehicules = donnees.vehicules.length > 0;
+  const parcours = parcoursDe(devis.mode === 'voiture' && !avecVehicules ? 'activites' : devis.mode, avecVehicules);
   const nbEtapes = parcours.length;
   const etape = Math.max(1, Math.min(nbEtapes, devis.etape));
   const cleEtape = parcours[etape - 1];
   const aujourdhui = dateISO(new Date());
-  const titresEtapes: Record<Etape, string> = { projet: t('devis.etape1'), dates: t('devis.etape2'), activites: t('devis.etape3'), coordonnees: t('devis.etape4') };
+  const titresEtapes: Record<Etape, string> = { projet: t('devis.etape1'), dates: t('devis.etape2'), activites: t('devis.etape3'), voiture: t('devis.etapeVoiture'), coordonnees: t('devis.etape4') };
+  const { vehicule, saisie: saisieVoiture } = voitureDuDevis(donnees, devis);
+  const etatDeLaVoiture = vehicule ? etatVoiture(vehicule, donnees.location, saisieVoiture, occupations) : null;
+  // Modifications de la voiture : appliquées à la saisie effective (dates du séjour reprises).
+  const majVoiture = (modif: Partial<SaisieVoiture>) => {
+    if (erreur && ['voiture', 'estimation', 'occupe', 'attestation', 'serveur'].includes(erreur)) setErreur(null);
+    majDevis(d => ({ voiture: { ...voitureDuDevis(donnees, d).saisie, ...modif } }));
+  };
+  /** Voiture incomplète : véhicule manquant (voiture seule), estimation impossible, dates prises, attestation. */
+  const voitureEnDefaut = (): ErreurDevis | null => {
+    if (!vehicule) return devis.mode === 'voiture' ? 'voiture' : null;
+    if (!etatDeLaVoiture) return null;
+    if (!etatDeLaVoiture.devis.ok) return 'estimation';
+    if (etatDeLaVoiture.gene) return 'occupe';
+    if (etatDeLaVoiture.attestationRequise && !saisieVoiture.attestation) return 'attestation';
+    return null;
+  };
   const suiviPossible = notifications !== 'indisponible' && notifications !== 'nonConfigure';
 
   const changerEtape = (delta: number) => {
@@ -68,6 +94,14 @@ export default function Devis() {
     if (delta > 0 && cleEtape === 'projet' && devis.mode === 'activites' && !devis.activites.length) {
       setErreur('activite');
       vibrerErreur();
+      return;
+    }
+    // Étape « Voiture » : une voiture choisie doit pouvoir être estimée et réservée.
+    const defautVoiture = delta > 0 && cleEtape === 'voiture' ? voitureEnDefaut() : null;
+    if (defautVoiture) {
+      setErreur(defautVoiture);
+      vibrerErreur();
+      setTimeout(() => defil.current?.scrollToEnd({ animated: true }), 50);
       return;
     }
     vibrerSelection();
@@ -99,6 +133,15 @@ export default function Devis() {
   }) : <EtatVide icone="boat-outline" titre={t('devis.aucuneActivite')} />;
 
   const envoyer = async () => {
+    setErreurServeur('');
+    const defautVoiture = voitureEnDefaut();
+    if (defautVoiture && parcours.includes('voiture')) {
+      // Retour à l'étape « Voiture » pour corriger.
+      setErreur(defautVoiture);
+      vibrerErreur();
+      majDevis({ etape: parcours.indexOf('voiture') + 1 });
+      return;
+    }
     const defaut = champEnDefaut(devis);
     if (defaut) {
       setErreur(defaut);
@@ -119,7 +162,16 @@ export default function Devis() {
       ]);
       enregistree = reponse.ok;
       // Identifiant de la demande : permet d'afficher son statut dans « Mes demandes ».
-      const corps = (await reponse.json().catch(() => null)) as { lead?: { id?: string; status?: string } } | null;
+      const corps = (await reponse.json().catch(() => null)) as { error?: string; lead?: { id?: string; status?: string } } | null;
+      // Voiture refusée par le site (dates prises entre-temps, attestation…) : on corrige avant d'envoyer.
+      if ((reponse.status === 409 || reponse.status === 422) && corps?.error) {
+        setEnvoi(false);
+        vibrerErreur();
+        setErreur('serveur');
+        setErreurServeur(corps.error);
+        setTimeout(() => defil.current?.scrollToEnd({ animated: true }), 50);
+        return;
+      }
       idDemande = corps?.lead?.id;
       statut = corps?.lead?.status;
     } catch { /* hors ligne : le message WhatsApp contient toute la demande */ }
@@ -127,9 +179,10 @@ export default function Devis() {
     memoriserCoordonnees();
     ajouterDemande({
       le: new Date().toISOString(),
-      objet: demande.sansResidence ? t('devis.activitesSeules') : demande.villa?.name || '',
-      dates: `${devis.arrivee} → ${devis.depart}`,
-      voyageurs: t('devis.personnes', { n: devis.voyageurs }),
+      objet: [demande.voitureSeule ? '' : demande.sansResidence ? t('devis.activitesSeules') : demande.villa?.name || '', demande.voiture ? demande.voiture.vehicule.name : '']
+        .filter(Boolean).join(' + '),
+      dates: demande.voitureSeule ? demande.lead.dates : `${devis.arrivee} → ${devis.depart}`,
+      voyageurs: demande.voitureSeule && demande.voiture ? modeChauffeur(demande.voiture.estimation.chauffeur ? 'avec' : 'sans', langue) : t('devis.personnes', { n: devis.voyageurs }),
       total: fcfa(demande.total),
       enregistree,
       lien: demande.lien,
@@ -152,11 +205,17 @@ export default function Devis() {
         <Text style={s.aide}>{t('devis.aideEstimation')}</Text>
         <View style={s.modes}>
           <Choix C={C} icone="home-outline" titre={t('devis.sejour')} detail={t('devis.sejourDetail')} actif={devis.mode === 'sejour'} desactive={!donnees.villas.length} onPress={() => { setErreur(null); majDevis({ mode: 'sejour' }); }} />
-          <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={devis.mode === 'activites'} onPress={() => majDevis({ mode: 'activites' })} />
+          <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={devis.mode === 'activites'} onPress={() => { setErreur(null); majDevis({ mode: 'activites' }); }} />
         </View>
-        {donnees.vehicules.length ? (
+        {avecVehicules ? (
           <View style={[s.modes, { marginTop: 10 }]}>
-            <Choix C={C} icone="car-sport-outline" titre={t('devis.voiture')} detail={t('devis.voitureDetail')} actif={false} onPress={() => setFormuleVoiture(true)} />
+            <Choix C={C} icone="car-sport-outline" titre={t('devis.voitureSeule')} detail={t('devis.voitureSeuleDetail')} actif={devis.mode === 'voiture'} onPress={() => { setErreur(null); majDevis({ mode: 'voiture' }); }} />
+          </View>
+        ) : null}
+        {devis.mode === 'voiture' ? (
+          <View style={[s.info, { marginTop: 16 }]}>
+            <Icone nom="information-circle-outline" taille={18} couleur={C.marque} />
+            <Text style={[s.infoTexte, { fontWeight: '500' }]}>{t('devis.voitureSeuleAide')}</Text>
           </View>
         ) : null}
         {devis.mode === 'activites' ? (
@@ -248,6 +307,31 @@ export default function Devis() {
         ) : null}
       </>
     );
+  } else if (cleEtape === 'voiture') {
+    const seule = devis.mode === 'voiture';
+    const messageVoiture = erreur === 'voiture' ? t('devis.erreurVoiture')
+      : erreur === 'estimation' && etatDeLaVoiture ? messageErreurLocation(etatDeLaVoiture.devis.erreurs[0], t, vehicule, donnees.location)
+        : erreur === 'occupe' ? t('louer.occupe')
+          : erreur === 'attestation' ? t('louer.attestationRequise') : '';
+    contenu = (
+      <>
+        <Text style={s.h2}>{seule ? t('devis.voitureSeuleTitre') : t('devis.voitureTitre')}</Text>
+        <Text style={s.aide}>{seule ? t('devis.voitureDetail') : t('devis.voitureAide')}</Text>
+        {vehicule ? (
+          <DetailsVoiture vehicule={vehicule} reglages={donnees.location} saisie={saisieVoiture} maj={majVoiture} occupations={occupations}
+            sejour={seule ? null : { arrivee: devis.arrivee, depart: devis.depart }} onChanger={() => majVoiture({ vehiculeId: '' })} />
+        ) : (
+          <ListeVehicules vehicules={donnees.vehicules} choisi="" sansVoiture={!seule}
+            onChoisir={v => { if (v) majVoiture(saisiePourVehicule(saisieVoiture, v)); }} />
+        )}
+        {messageVoiture ? (
+          <View style={[s.alerte, { backgroundColor: C.dangerPale }]}>
+            <Icone nom="alert-circle-outline" taille={18} couleur={C.danger} />
+            <Text style={[s.alerteTexte, { color: C.danger }]}>{messageVoiture}</Text>
+          </View>
+        ) : null}
+      </>
+    );
   } else if (cleEtape === 'activites') {
     contenu = (
       <>
@@ -278,17 +362,31 @@ export default function Devis() {
           </View>
         ) : null}
 
+        {erreur === 'serveur' && erreurServeur ? (
+          <View style={[s.alerte, { backgroundColor: C.dangerPale }]}>
+            <Icone nom="alert-circle-outline" taille={18} couleur={C.danger} />
+            <Text style={[s.alerteTexte, { color: C.danger }]}>{erreurServeur}</Text>
+          </View>
+        ) : null}
+
         <Text style={s.h3}>{t('devis.recap')}</Text>
         <Carte style={{ marginTop: 0 }}>
-          <LigneRecap
-            C={C}
-            libelle={c.sansResidence ? t('devis.activitesSeules') : c.villa?.name || ''}
-            detail={c.sansResidence
-              ? t('devis.joursPers', { jours: t(c.jours > 1 ? 'devis.journees' : 'devis.journee', { n: c.jours }), n: devis.voyageurs })
-              : t('devis.nuitsPers', { x: fcfa(c.villa?.pricePerNight || 0), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs })}
-            montant={fcfa(c.sousTotalVilla)}
-          />
+          {c.voitureSeule ? null : (
+            <LigneRecap
+              C={C}
+              libelle={c.sansResidence ? t('devis.activitesSeules') : c.villa?.name || ''}
+              detail={c.sansResidence
+                ? t('devis.joursPers', { jours: t(c.jours > 1 ? 'devis.journees' : 'devis.journee', { n: c.jours }), n: devis.voyageurs })
+                : t('devis.nuitsPers', { x: fcfa(c.villa?.pricePerNight || 0), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs })}
+              montant={fcfa(c.sousTotalVilla)}
+            />
+          )}
           {c.lignes.map(l => <LigneRecap C={C} key={l.libelle} libelle={l.libelle} detail={l.calcul} montant={l.montant === null ? t('devis.surDevis') : fcfa(l.montant)} />)}
+          {c.voiture ? (
+            <LigneRecap C={C} libelle={c.voiture.vehicule.name}
+              detail={t('devis.recapVoiture', { jours: t(c.voiture.estimation.jours > 1 ? 'louer.jours' : 'louer.jour', { n: c.voiture.estimation.jours }), formule: modeChauffeur(c.voiture.estimation.chauffeur ? 'avec' : 'sans', langue) })}
+              montant={c.voiture.estimation.ok ? fcfa(c.voiture.montant) : t('devis.surDevis')} />
+          ) : null}
           <View style={s.total}>
             <Text style={s.totalLibelle}>{t('devis.estimationTotale')}</Text>
             <View style={{ alignItems: 'flex-end' }}>
@@ -299,31 +397,6 @@ export default function Devis() {
         </Carte>
         <Text style={s.mention}>{t('devis.mention')}</Text>
       </>
-    );
-  }
-
-  if (formuleVoiture) {
-    const revenir = (mode: 'sejour' | 'activites') => { setFormuleVoiture(false); majDevis({ mode, etape: 1 }); };
-    return (
-      <View style={s.ecran}>
-        <EnTete titre={t('devis.titre')} sousTitre={t('devis.voiture')} retour={() => setFormuleVoiture(false)} />
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
-          <ScrollView contentContainerStyle={s.contenu} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-            <Text style={s.h2}>{t('devis.quoi')}</Text>
-            <View style={s.modes}>
-              <Choix C={C} icone="home-outline" titre={t('devis.sejour')} detail={t('devis.sejourDetail')} actif={false} desactive={!donnees.villas.length} onPress={() => revenir('sejour')} />
-              <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={false} onPress={() => revenir('activites')} />
-            </View>
-            <View style={[s.modes, { marginTop: 10, marginBottom: 16 }]}>
-              <Choix C={C} icone="car-sport-outline" titre={t('devis.voiture')} detail={t('devis.voitureDetail')} actif onPress={() => {}} />
-            </View>
-            <FormulaireLocation onEnvoye={({ total, lien }) => {
-              setFormuleVoiture(false);
-              router.push({ pathname: '/envoye', params: { enregistree: '1', total, lien } });
-            }} />
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
     );
   }
 
@@ -345,7 +418,7 @@ export default function Devis() {
           contentContainerStyle={s.contenu}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          refreshControl={etape === 1 || etape === 3
+          refreshControl={cleEtape === 'projet' || cleEtape === 'activites'
             ? <RefreshControl refreshing={tire} tintColor={C.marque} colors={['#151837']} onRefresh={async () => { setTire(true); await actualiser(); setTire(false); }} />
             : undefined}>
           <Animated.View key={cleEtape} entering={Platform.OS === 'web' ? FadeIn : (sens > 0 ? SlideInRight : SlideInLeft).duration(280)}>

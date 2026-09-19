@@ -170,6 +170,57 @@ function preparerDemande(payload = {}, { vehicule, reglages, reservations = [], 
   return { reservation, devis };
 }
 
+/**
+ * Voiture jointe à une demande de devis (19/09/2026) : séjour + activités +
+ * voiture, activités + voiture, ou voiture seule (type « location-voiture »).
+ * UNE seule demande : son montant devient « reste de la demande + prix de la
+ * voiture recalculé ici » (le prix envoyé par le client pour la voiture est
+ * remplacé), son libellé et son message décrivent la voiture, et une
+ * réservation « demande » est préparée pour le planning, à lier à la demande.
+ * `lead` : demande déjà nettoyée par le serveur ; elle n'est pas modifiée.
+ */
+function joindreVoiture(lead, location = {}, contexte = {}) {
+  const preparation = preparerDemande({
+    ...location, nom: lead.name, telephone: lead.phone, email: lead.email,
+    message: lead.type === 'location-voiture' ? '' : texte(`Avec la demande : ${lead.villa || 'devis'} · ${lead.dates}`, 1000),
+    source: contexte.source
+  }, contexte);
+  if (preparation.erreur) return preparation;
+  const { reservation, devis } = preparation;
+  const vehicule = contexte.vehicule;
+  const seule = lead.type === 'location-voiture';
+  const montantClient = Math.max(0, Math.round(Number(location.montant) || 0));
+  const reste = seule ? 0 : Math.max(0, (Number(lead.amount) || 0) - montantClient);
+  return {
+    reservation, devis,
+    lead: {
+      ...lead,
+      amount: reste + devis.total,
+      villa: texte(seule ? `Location · ${vehicule.name}` : `${lead.villa || 'Demande'} + voiture ${vehicule.name}`, 160),
+      dates: seule ? texte(`${formatDate(devis.debut)} → ${formatDate(devis.fin)}`, 160) : lead.dates,
+      message: texte([lead.message, recapitulatif(vehicule, devis)].filter(Boolean).join('\n\n'), 2000)
+    }
+  };
+}
+
+/**
+ * Report d'une réservation modifiée au studio sur sa demande. Voiture seule :
+ * statut et montant suivent la réservation. Demande combinée (séjour ou
+ * activités + voiture) : seul l'écart du prix de la voiture est reporté — le
+ * séjour ne se confirme ni ne s'annule depuis le planning des voitures.
+ */
+function patchDemandeDepuisReservation(lead, reservation, avant) {
+  if (!lead) return {};
+  const patch = {};
+  const seule = lead.type === 'location-voiture';
+  const statut = { confirmee: 'confirme', en_cours: 'confirme', terminee: 'confirme', annulee: 'archive' }[reservation.statut];
+  if (seule && statut && (!avant || avant.statut !== reservation.statut)) patch.status = statut;
+  if (avant && avant.montant !== reservation.montant) {
+    patch.amount = seule ? reservation.montant : Math.max(0, (Number(lead.amount) || 0) - (Number(avant.montant) || 0) + (Number(reservation.montant) || 0));
+  } else if (!avant && seule) patch.amount = reservation.montant;
+  return patch;
+}
+
 const formatDate = iso => {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return '';
@@ -446,6 +497,6 @@ async function enregistrerReglages(reglages) {
 module.exports = {
   FICHIER, MOTIFS, SOURCES,
   validerVehicule, validerReglages, reglagesPublics,
-  preparerDemande, recapitulatif, formatDate, validerReservationStudio, changerStatut, validerIndisponibilite, occupationsPubliques,
+  preparerDemande, joindreVoiture, patchDemandeDepuisReservation, recapitulatif, formatDate, validerReservationStudio, changerStatut, validerIndisponibilite, occupationsPubliques,
   configure, tout, enregistrerReservation, supprimerReservation, enregistrerIndisponibilite, supprimerIndisponibilite, enregistrerReglages
 };

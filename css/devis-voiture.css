@@ -1,0 +1,123 @@
+/* ==========================================================================
+   Voiture dans le simulateur de devis (devis.html), 19/09/2026.
+   Section remplie par js/devis-voiture.js ; formule « Voiture seule ».
+   ========================================================================== */
+
+/* Trois formules côte à côte sur grand écran (la troisième n'apparaît que si
+   des véhicules sont publiés). */
+@media (min-width: 901px) {
+  .sim-mode:has(#simModeVoiture:not([hidden])) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.sim-mode-option[hidden] { display: none; }
+
+/* Voiture seule : ni dates de séjour, ni voyageurs, ni activités. */
+.sim-voiture-seule #simDatesField,
+.sim-voiture-seule #simGuestsField,
+.sim-voiture-seule #simAddonsField { display: none !important; }
+
+.summary-row[hidden] { display: none; }
+
+.sim-voiture {
+  margin-top: 1.4rem;
+  padding: 1.1rem 1.1rem 1.2rem;
+  border: 2px solid rgba(21, 24, 55, .1);
+  border-radius: 16px;
+  background: #fbfaf6;
+}
+.sim-voiture[hidden] { display: none; }
+.sim-voiture-seule .sim-voiture { margin-top: 0; }
+
+.sim-voiture-titre {
+  margin: 0 0 .8rem;
+  font-size: .85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--color-forest, #151837);
+}
+
+.sim-voiture label {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-muted, #6b6f80);
+}
+.sim-voiture .form-control { width: 100%; }
+.sim-voiture-champ { margin-bottom: .6rem; }
+
+.sim-voiture-grille {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .7rem;
+  margin-top: .7rem;
+}
+
+.sim-voiture-note {
+  margin: .5rem 0 0;
+  font-size: .78rem;
+  line-height: 1.4;
+  color: #6b6f80;
+}
+.sim-voiture-note[hidden] { display: none; }
+
+.sim-voiture-lien {
+  margin-left: .3rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: #9a7a00;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.sim-voiture-lien[hidden] { display: none; }
+
+.sim-voiture label.sim-voiture-case {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: .55rem;
+  margin-top: .8rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #151837;
+  cursor: pointer;
+}
+.sim-voiture label.sim-voiture-case[hidden] { display: none; }
+.sim-voiture-case input { accent-color: #e8b904; width: 18px; height: 18px; margin-top: .1rem; flex: 0 0 auto; }
+
+.sim-voiture-options { border: 0; margin: .9rem 0 0; padding: 0; }
+.sim-voiture-options legend { font-size: .78rem; font-weight: 700; color: #6b6f80; padding: 0; }
+.sim-voiture-options .sim-voiture-case { margin-top: .5rem; }
+
+.sim-voiture-estimation {
+  margin-top: 1rem;
+  padding: .9rem 1rem;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 0 rgba(21, 24, 55, .06), 0 6px 18px rgba(21, 24, 55, .06);
+}
+.sim-voiture-estimation:empty { display: none; }
+.sim-voiture-estimation h5 { margin: 0 0 .5rem; font-size: .88rem; color: #151837; }
+.sim-voiture-estimation ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.sim-voiture-estimation li,
+.sim-voiture-total,
+.sim-voiture-caution { display: flex; justify-content: space-between; gap: 1rem; font-size: .82rem; color: #4a4f63; }
+.sim-voiture-estimation li strong { color: #151837; white-space: nowrap; }
+.sim-voiture-total { margin: .6rem 0 0; padding-top: .55rem; border-top: 1px solid rgba(21, 24, 55, .1); font-size: .92rem; font-weight: 800; color: #151837; }
+.sim-voiture-total strong { color: #151837; white-space: nowrap; }
+.sim-voiture-caution { margin: .35rem 0 0; }
+
+.sim-voiture-occupations { margin-top: .7rem; font-size: .8rem; color: #4a4f63; }
+.sim-voiture-occupations p { margin: 0 0 .2rem; }
+.sim-voiture-occupations ul { margin: 0; padding-left: 1.1rem; }
+
+.sim-voiture-erreur { margin: .6rem 0 0; font-size: .84rem; font-weight: 700; color: #b42318; }
+.sim-voiture-erreur[hidden] { display: none; }
+
+@media (max-width: 520px) {
+  .sim-voiture { padding: .9rem; }
+  .sim-voiture-grille { grid-template-columns: 1fr 1fr; gap: .55rem; }
+}

@@ -33,6 +33,7 @@
   <link rel="stylesheet" href="css/premium.css?v=20260912a">
   <link rel="stylesheet" href="css/design-polish.css?v=20260912a">
   <link rel="stylesheet" href="css/refonte.css?v=20260913r">
+  <link rel="stylesheet" href="css/devis-voiture.css?v=20260919a">
 </head>
 <body>
 
@@ -125,6 +126,12 @@
             <input type="radio" name="simMode" value="activites">
             <span><strong data-i18n="t.activites-uniquement">Activités uniquement</strong><small data-i18n="t.sans-hebergement">Sans hébergement</small></span>
           </label>
+          <!-- Location de voiture seule (19/09/2026) : affichée par
+               js/devis-voiture.js quand des véhicules sont publiés. -->
+          <label class="sim-mode-option" id="simModeVoiture" hidden>
+            <input type="radio" name="simMode" value="voiture">
+            <span><strong data-i18n="t.voiture-seule">Voiture seule</strong><small data-i18n="t.location-avec-ou-sans-chauffeur">Location, avec ou sans chauffeur</small></span>
+          </label>
         </fieldset>
 
         <div style="margin-bottom: 1.2rem;" id="simVillaField">
@@ -143,7 +150,7 @@
           </select>
         </div>
 
-        <div class="simulator-date-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.2rem;">
+        <div class="simulator-date-grid" id="simDatesField" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.2rem;">
           <div>
             <label for="simCheckin" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.arrivee-check-in-14h">
               Arrivée (Check-in 14h) :
@@ -158,7 +165,7 @@
           </div>
         </div>
 
-        <div style="margin-bottom: 1.5rem;">
+        <div style="margin-bottom: 1.5rem;" id="simGuestsField">
           <label for="simGuests" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.nombre-de-voyageurs">
             Nombre de voyageurs :
           </label>
@@ -176,6 +183,7 @@
           <p id="simCapaciteAlerte" class="sim-alerte-capacite" role="status" hidden></p>
         </div>
 
+        <div id="simAddonsField">
         <div style="font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-forest); margin-bottom: 0.8rem;" data-i18n="t.services-vip-loisirs-additionnels">
           Services VIP & Loisirs Additionnels :
         </div>
@@ -187,6 +195,16 @@
                invisible dans le studio et impossible à modifier ou à masquer. -->
           <div id="simAddons"></div>
         </div>
+        </div>
+
+        <!-- Voiture facultative (séjour, activités) ou seule (19/09/2026) :
+             véhicule, dates reprises du séjour et modifiables, lieux,
+             chauffeur, options, estimation. Rempli par js/devis-voiture.js
+             (mêmes règles que la page Voitures et que le serveur). -->
+        <section class="sim-voiture" id="simVoiture" hidden aria-labelledby="simVoitureTitre">
+          <h4 class="sim-voiture-titre" id="simVoitureTitre" data-i18n="t.location-de-voiture">Location de voiture :</h4>
+          <div id="simVoitureContenu"></div>
+        </section>
       </div>
 
       <!-- Récapitulatif Dynamique -->
@@ -199,24 +217,29 @@
             Villa Oasis Lagune
           </h4>
 
-          <div class="summary-row">
+          <div class="summary-row" data-sejour>
             <span data-i18n="t.tarif-de-la-nuitee">Tarif de la nuitée :</span>
             <span id="summaryNightlyRate" style="font-weight: 700; color: #fff;">-</span>
           </div>
 
-          <div class="summary-row">
+          <div class="summary-row" data-sejour>
             <span data-i18n="t.duree-du-sejour">Durée du séjour :</span>
             <span id="summaryNightsCount" style="font-weight: 700; color: #fff;">-</span>
           </div>
 
-          <div class="summary-row">
+          <div class="summary-row" data-sejour>
             <span data-i18n="t.sous-total-hebergement">Sous-total Hébergement :</span>
             <span id="summaryLodgingTotal" style="font-weight: 700; color: #fff;">-</span>
           </div>
 
-          <div class="summary-row">
+          <div class="summary-row" data-sejour>
             <span data-i18n="t.prestations-loisirs-vip">Prestations & Loisirs VIP :</span>
             <span id="summaryAddonsTotal" style="font-weight: 700; color: #fff;">-</span>
+          </div>
+
+          <div class="summary-row" id="summaryVoitureRow" hidden>
+            <span data-i18n="t.location-de-voiture">Location de voiture :</span>
+            <span id="summaryVoitureTotal" style="font-weight: 700; color: #fff;">-</span>
           </div>
 
           <div style="border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 1.5rem 0 1.2rem 0; padding-top: 1.2rem;">
@@ -260,6 +283,8 @@
           </label>
           <!-- Rempli par js/app.js quand le nom ou le téléphone manque au clic. -->
           <p id="simContactAlerte" class="sim-contact-alerte" role="alert" hidden></p>
+          <!-- Demande refusée par le site (voiture devenue indisponible…). -->
+          <p id="simEnvoiAlerte" class="sim-contact-alerte" role="alert" hidden></p>
         </div>
 
         <a id="btnConfirmWhatsApp" 
@@ -412,9 +437,11 @@
   </a>
 
   <!-- Scripts -->
-  <script src="js/i18n.js?v=20260919a"></script>
+  <script src="js/i18n.js?v=20260919b"></script>
   <script src="js/data.js?v=20260912a"></script>
-  <script src="js/app.js?v=20260917b"></script>
+  <script src="js/location-voitures.js?v=20260919a"></script>
+  <script src="js/devis-voiture.js?v=20260919b"></script>
+  <script src="js/app.js?v=20260919a"></script>
   <script src="js/premium.js?v=20260913g"></script>
   <script src="js/pwa.js?v=20260914a" defer></script>
 </body>

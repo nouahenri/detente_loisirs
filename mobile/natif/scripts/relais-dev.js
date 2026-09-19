@@ -15,6 +15,8 @@
  *   node scripts/relais-dev.js --site http://localhost:3460   (banc d'essai local)
  *
  * Location de voitures : disponibilités lues sur le site, demandes SIMULÉES.
+ * Banc d'essai local (--site http://localhost:…) : les demandes (devis et
+ * location) sont TRANSMISES au banc, pour éprouver le vrai serveur.
  */
 const crypto = require('crypto');
 const http = require('http');
@@ -25,6 +27,16 @@ const PORT = 5175;
 const indexSite = process.argv.indexOf('--site');
 const SITE = indexSite > 0 && process.argv[indexSite + 1] ? process.argv[indexSite + 1].replace(/\/+$/, '') : 'https://henri-philippe.com';
 const client = SITE.startsWith('https:') ? https : http;
+const BANC = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(SITE);
+/** Banc local : la requête est rejouée telle quelle sur le serveur du banc. */
+const transmettre = (req, res, corps) => {
+  const amont = http.request(SITE + req.url, { method: req.method, headers: { 'Content-Type': 'application/json', Accept: 'application/json' } }, reponse => {
+    res.writeHead(reponse.statusCode || 502, { ...ENTETES, 'Content-Type': 'application/json; charset=utf-8' });
+    reponse.pipe(res);
+  });
+  amont.on('error', () => repondre(res, 502, { ok: false, error: 'Banc injoignable.' }));
+  amont.end(JSON.stringify(corps));
+};
 const ENTETES = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Accept',
@@ -77,6 +89,7 @@ http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && chemin === '/api/leads') {
     const corps = await lireCorps(req);
+    if (BANC) return transmettre(req, res, corps);
     const id = crypto.randomUUID();
     demandesSimulees.set(id, Date.now());
     console.log('[demande simulée]', id, JSON.stringify(corps));
@@ -132,7 +145,8 @@ http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && chemin === '/api/location/demande') {
     const corps = await lireCorps(req);
-    if (String(corps.nom || '').trim().length < 2 || String(corps.telephone || '').replace(/D/g, '').length < 8) {
+    if (BANC) return transmettre(req, res, corps);
+    if (String(corps.nom || '').trim().length < 2 || String(corps.telephone || '').replace(/\D/g, '').length < 8) {
       return repondre(res, 422, { ok: false, error: 'Indiquez votre nom et un numéro de téléphone joignable.' });
     }
     const id = crypto.randomUUID();

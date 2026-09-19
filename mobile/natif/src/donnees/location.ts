@@ -193,3 +193,51 @@ export function creneaux(reglages: ReglagesLocation) {
   for (let m = debut; m <= fin; m += 30) liste.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
   return liste;
 }
+
+/**
+ * Voiture saisie dans l'onglet Devis (étape « Voiture », 19/09/2026) et dans
+ * l'écran « Louer une voiture ». `vehiculeId` vide = sans voiture.
+ */
+export type SaisieVoiture = {
+  vehiculeId: string; debutJour: string; debutHeure: string; finJour: string; finHeure: string;
+  lieuPrise: string; lieuRetour: string; chauffeur: boolean; options: string[]; attestation: boolean;
+  /** Dates changées à la main : elles ne suivent plus celles du séjour. */
+  datesLibres: boolean;
+};
+
+export const plusJours = (iso: string, n: number) => {
+  const d = new Date(`${iso}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+/** Heure proposée par défaut : 9 h si l'agence est ouverte, sinon l'ouverture. */
+export function heureParDefaut(reglages: ReglagesLocation | undefined) {
+  const liste = reglages ? creneaux(reglages) : ['09:00'];
+  return liste.includes('09:00') ? '09:00' : liste[0];
+}
+
+/** Premier jour réservable (délai de réservation), puis 3 jours de location. */
+export function saisieVoitureInitiale(reglages: ReglagesLocation | undefined, maintenant = new Date()): SaisieVoiture {
+  const premier = plusJours(new Date(maintenant.getTime() + (reglages?.delaiMinHeures ?? 12) * 3600000).toISOString().slice(0, 10), 1);
+  const heure = heureParDefaut(reglages);
+  const lieu = reglages?.lieux.find(l => l.actif)?.id || '';
+  return {
+    vehiculeId: '', debutJour: premier, debutHeure: heure, finJour: plusJours(premier, 3), finHeure: heure,
+    lieuPrise: lieu, lieuRetour: lieu, chauffeur: false, options: [], attestation: false, datesLibres: false,
+  };
+}
+
+/** Dates de la voiture : celles du séjour tant qu'elles n'ont pas été changées à la main. */
+export function saisieAvecSejour(s: SaisieVoiture, sejour: { arrivee: string; depart: string } | null): SaisieVoiture {
+  if (!sejour || s.datesLibres || !sejour.arrivee || !sejour.depart) return s;
+  return { ...s, debutJour: sejour.arrivee, finJour: sejour.depart > sejour.arrivee ? sejour.depart : plusJours(sejour.arrivee, 1) };
+}
+
+export const demandeDeSaisie = (s: SaisieVoiture): DemandeLocation => ({
+  debut: `${s.debutJour}T${s.debutHeure}`, fin: `${s.finJour}T${s.finHeure}`,
+  lieuPrise: s.lieuPrise, lieuRetour: s.lieuRetour, chauffeur: s.chauffeur, options: s.options,
+});
+
+/** Sans chauffeur, le client atteste l'âge et l'ancienneté de permis exigés. */
+export const attestationExigee = (v: Vehicule | null, chauffeur: boolean) => Boolean(v && !chauffeur && (v.minAge || v.licenseYears));

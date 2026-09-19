@@ -1014,10 +1014,9 @@ async function synchroniserReservationDeDemande(leadId, statutDemande, acteur) {
 
 async function repercuterSurDemande(reservation, avant) {
   if (!reservation.leadId || (avant && avant.statut === reservation.statut && avant.montant === reservation.montant)) return;
-  const statutDemande = { confirmee: 'confirme', en_cours: 'confirme', terminee: 'confirme', annulee: 'archive' }[reservation.statut];
-  const patch = {};
-  if (statutDemande) patch.status = statutDemande;
-  if (!avant || avant.montant !== reservation.montant) patch.amount = reservation.montant;
+  // Demande combinée (séjour ou activités + voiture) : seul l'écart de prix de la voiture est reporté.
+  const demande = (await store.readLeads().catch(() => [])).find(l => l.id === reservation.leadId);
+  const patch = LOC.patchDemandeDepuisReservation(demande, reservation, avant);
   if (!Object.keys(patch).length) return;
   const lead = await store.updateLead(reservation.leadId, patch).catch(() => null);
   if (lead && patch.status) notifierSuiviDemandeApp(lead).catch(() => {});
@@ -2835,6 +2834,17 @@ async function handleApi(req, res, url) {
         lead.whatsappOptIn = payload.whatsappOptIn;
         lead.whatsappOptInAt = payload.whatsappOptIn ? lead.createdAt : null;
       }
+      // Voiture jointe au devis (19/09/2026) : prix recalculé ici, dates
+      // vérifiées, réservation préparée pour le planning. Une voiture refusée
+      // (dates prises, attestation manquante…) bloque l'envoi avec un message clair.
+      let voiture = null;
+      if (payload.location && typeof payload.location === 'object') {
+        const vehicule = (contenuPublic(await lireContenuBrut()).vehicles || []).find(v => v.id === text(payload.location.vehicule, 80) && v.visible !== false) || null;
+        const jointe = LOC.joindreVoiture(lead, payload.location, { vehicule, ...(await LOC.tout()), source: text(payload.source, 10) });
+        if (jointe.erreur) return json(res, jointe.statut || 422, { ok: false, error: jointe.erreur, champ: 'voiture', devis: jointe.devis || null });
+        Object.assign(lead, jointe.lead);
+        voiture = { ...jointe, vehicule };
+      }
       // Demandeur bloqué ou suspendu depuis le studio (17/09/2026) : refus avec
       // un message neutre, qui ne dit pas au visiteur qu'il est bloqué.
       const restriction = DEMANDEURS.restrictionPour(await DEMANDEURS.lister().catch(() => []), lead);
@@ -2843,6 +2853,14 @@ async function handleApi(req, res, url) {
         return json(res, 403, { ok: false, error: DEMANDEURS.MESSAGE_REFUS });
       }
       await store.createLead(lead);
+      if (voiture) {
+        // La demande est enregistrée : une réservation en échec ne la fait pas
+        // échouer (le récapitulatif de la voiture est dans son message).
+        voiture.reservation.leadId = lead.id;
+        await LOC.enregistrerReservation(voiture.reservation)
+          .then(() => audit('location.demande', { reservation: voiture.reservation.id, lead: lead.id, vehicule: voiture.vehicule.id, montant: voiture.devis.total, source: voiture.reservation.source, combinee: lead.type !== 'location-voiture' }))
+          .catch(error => { voiture = null; audit('location.reservation_echec', { lead: lead.id, erreur: text(error.message, 200) }); });
+      }
       // Demande envoyée depuis l'application avec les notifications activées :
       // on retient le téléphone pour le prévenir du suivi (« Contacté », « Confirmé »).
       if (NOTIF.estJetonExpo(payload.appareil)) {
@@ -2856,7 +2874,7 @@ async function handleApi(req, res, url) {
       notifyNewLead(lead, req).catch(() => {});
       // Accusé de réception au client, même principe détaché.
       confirmLeadToClient(lead, req).catch(() => {});
-      return json(res, 201, { ok: true, lead });
+      return json(res, 201, { ok: true, lead, ...(voiture ? { reservation: { id: voiture.reservation.id, statut: voiture.reservation.statut }, devis: voiture.devis } : {}) });
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
 
