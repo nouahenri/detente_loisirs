@@ -1246,10 +1246,10 @@
 
   function renderReglagesLocation(hote) {
     const r = gestionLocation.donnees.reglages;
-    const ligneLieu = (l = {}) => `<div class="loc-reglage-ligne" data-lieu><input name="nom" maxlength="120" required value="${esc(l.nom || '')}" placeholder="ex. Aéroport FHB" aria-label="Nom du lieu"><label class="loc-montant">Frais (FCFA)<input type="number" name="frais" min="0" step="500" value="${Number(l.frais) || 0}"></label><label class="loc-actif"><input type="checkbox" name="actif" ${l.actif !== false ? 'checked' : ''}> Proposé</label><input type="hidden" name="id" value="${esc(l.id || '')}"><button type="button" class="danger" data-retirer-ligne aria-label="Retirer ce lieu">×</button></div>`;
+    const ligneLieu = (l = {}) => `<div class="loc-reglage-ligne" data-lieu><input name="nom" maxlength="120" required value="${esc(l.nom || '')}" placeholder="ex. Aéroport FHB" aria-label="Nom du lieu"><label class="loc-montant">Frais (FCFA)<input type="number" name="frais" min="0" step="500" value="${Number(l.frais) || 0}"></label><label class="loc-actif"><input type="checkbox" name="actif" ${l.actif !== false ? 'checked' : ''}> Proposé</label><input type="hidden" name="id" value="${esc(l.id || '')}">${l.precision ? '<span class="loc-precision" title="Le client indique l’adresse">Adresse à préciser</span>' : '<button type="button" class="danger" data-retirer-ligne aria-label="Retirer ce lieu">×</button>'}</div>`;
     const ligneOption = (o = {}) => `<div class="loc-reglage-ligne" data-option><input name="nom" maxlength="120" required value="${esc(o.nom || '')}" placeholder="ex. Siège bébé" aria-label="Nom de l’option"><label class="loc-montant">Prix (FCFA)<input type="number" name="prix" min="0" step="500" value="${Number(o.prix) || 0}"></label><select name="unite" aria-label="Facturation"><option value="jour" ${o.unite !== 'location' ? 'selected' : ''}>par jour</option><option value="location" ${o.unite === 'location' ? 'selected' : ''}>par location</option></select><label class="loc-actif"><input type="checkbox" name="actif" ${o.actif !== false ? 'checked' : ''}> Proposée</label><input type="hidden" name="id" value="${esc(o.id || '')}"><button type="button" class="danger" data-retirer-ligne aria-label="Retirer cette option">×</button></div>`;
     hote.innerHTML = `<form class="loc-reglages" novalidate>
-      <section class="panel"><h3>Lieux de prise en charge et de retour</h3><p class="compta-aide">Les frais s’ajoutent au départ et au retour du lieu choisi (livraison, aéroport…). Un lieu décoché n’est plus proposé.</p><div data-liste-lieux>${r.lieux.map(ligneLieu).join('')}</div><button type="button" data-ajouter-lieu>＋ Ajouter un lieu</button></section>
+      <section class="panel"><h3>Lieux de prise en charge et de retour</h3><p class="compta-aide">Les frais s’ajoutent au départ et au retour du lieu choisi (livraison, aéroport…). Un lieu décoché n’est plus proposé. « À domicile », « Bureau » et « Autre » demandent l’adresse au client : fixez leurs frais ou décochez-les.</p><div data-liste-lieux>${r.lieux.map(ligneLieu).join('')}</div><button type="button" data-ajouter-lieu>＋ Ajouter un lieu</button></section>
       <section class="panel"><h3>Options</h3><p class="compta-aide">Facturées par jour de location ou une fois par location. Décochez pour ne plus les proposer.</p><div data-liste-options>${r.options.map(ligneOption).join('')}</div><button type="button" data-ajouter-option>＋ Ajouter une option</button></section>
       <section class="panel"><h3>Horaires et planning</h3><div class="form-grid">
         <label>Prise en charge et retour à partir de<input type="time" name="heureOuverture" value="${esc(r.heureOuverture)}"></label>
@@ -1341,6 +1341,8 @@
           <label>Retour<input type="datetime-local" name="fin" required value="${esc(LV.versSaisie(r.fin))}"></label>
           <label>Lieu de prise en charge<select name="lieuPrise"><option value="">—</option>${lieux(r.lieuPrise)}</select></label>
           <label>Lieu de retour<select name="lieuRetour"><option value="">—</option>${lieux(r.lieuRetour)}</select></label>
+          <label data-adresse-studio="lieuPrise" hidden>Adresse de prise en charge<input name="adressePrise" maxlength="200" value="${esc(r.adressePrise || '')}"></label>
+          <label data-adresse-studio="lieuRetour" hidden>Adresse de retour<input name="adresseRetour" maxlength="200" value="${esc(r.adresseRetour || '')}"></label>
         </div>
         ${d.reglages.options.some(o => o.actif || (r.options || []).includes(o.id)) ? `<fieldset class="vehicule-bloc"><legend>Options</legend><div class="toggle-row">${d.reglages.options.filter(o => o.actif || (r.options || []).includes(o.id)).map(o => `<label><input type="checkbox" name="options" value="${esc(o.id)}" ${(r.options || []).includes(o.id) ? 'checked' : ''}> ${esc(o.nom)} (${money(o.prix)} ${o.unite === 'jour' ? '/ jour' : '/ location'})</label>`).join('')}</div></fieldset>` : ''}
         <div class="loc-estimation" data-estimation aria-live="polite"></div>
@@ -1362,8 +1364,10 @@
           const devis = LV.devis(vehicule, d.reglages, {
             debut: form.elements.debut.value, fin: form.elements.fin.value, chauffeur: caseChauffeur.checked,
             lieuPrise: form.elements.lieuPrise.value, lieuRetour: form.elements.lieuRetour.value,
+            adressePrise: form.elements.adressePrise.value, adresseRetour: form.elements.adresseRetour.value,
             options: $$('[name="options"]:checked', form).map(c => c.value)
           }, { controlerDelai: false });
+          $$('[data-adresse-studio]', form).forEach(bloc => { bloc.hidden = !d.reglages.lieux.find(l => l.id === form.elements[bloc.dataset.adresseStudio].value)?.precision; });
           const bloquantes = devis.erreurs.filter(e => ['dates', 'ordre', 'duree', 'tarif'].includes(e.code));
           const occupees = vehicule ? LV.occupations(vehicule.id, d.reservations, d.indisponibilites, { battementHeures: d.reglages.battementHeures, ignorer: reservation?.id }) : [];
           const gene = devis.debut && devis.fin ? LV.conflit(occupees, devis.debut, devis.fin) : null;
@@ -1391,7 +1395,8 @@
         const valeurs = Object.fromEntries(new FormData(form));
         const corps = {
           vehiculeId: valeurs.vehiculeId, debut: valeurs.debut, fin: valeurs.fin, chauffeur: form.elements.chauffeur.checked,
-          lieuPrise: valeurs.lieuPrise, lieuRetour: valeurs.lieuRetour, options: $$('[name="options"]:checked', form).map(c => c.value),
+          lieuPrise: valeurs.lieuPrise, lieuRetour: valeurs.lieuRetour, adressePrise: valeurs.adressePrise || '', adresseRetour: valeurs.adresseRetour || '',
+          options: $$('[name="options"]:checked', form).map(c => c.value),
           client: { nom: valeurs.clientNom, telephone: valeurs.clientTelephone, email: valeurs.clientEmail },
           montant: valeurs.montant === '' ? null : Number(valeurs.montant), notes: valeurs.notes
         };

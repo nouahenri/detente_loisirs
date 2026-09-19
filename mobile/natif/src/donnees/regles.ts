@@ -499,6 +499,8 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
   const formuleVoiture = estimation?.chauffeur ? 'avec chauffeur' : 'sans chauffeur';
   const ligneVoiture = vehicule && estimation
     ? `🚗 Voiture : ${vehicule.name}, ${formuleVoiture}\n🗓️ ${periodeVoiture} : ${estimation.ok ? fcfa(estimation.total) : 'à préciser'}\n`
+      + (estimation.lieuPrise ? `📍 Prise en charge : ${estimation.lieuPrise.nom}${estimation.adressePrise ? ` — ${estimation.adressePrise}` : ''}\n` : '')
+      + (estimation.lieuRetour && estimation.adresseRetour ? `📍 Retour : ${estimation.lieuRetour.nom} — ${estimation.adresseRetour}\n` : '')
     : '';
   const entete = voitureSeule
     ? '✨ Demande de Location de Voiture - Détente & Loisirs à Assinie ✨'

@@ -52,7 +52,8 @@ export type Vehicule = {
   badge?: string; badgeId?: string; visible?: boolean; featured?: boolean;
   translations?: Traductions; avis?: ResumeAvis;
 };
-export type LieuLocation = { id: string; nom: string; frais: number; actif: boolean };
+/** `precision` : lieu « à préciser » (domicile, bureau, autre), le client indique l'adresse. */
+export type LieuLocation = { id: string; nom: string; frais: number; actif: boolean; precision?: boolean };
 export type OptionLocation = { id: string; nom: string; prix: number; unite: 'jour' | 'location'; actif: boolean };
 export type ReglagesLocation = {
   lieux: LieuLocation[]; options: OptionLocation[]; heureOuverture: string; heureFermeture: string;

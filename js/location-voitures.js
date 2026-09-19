@@ -97,6 +97,24 @@
     }
   };
 
+  /**
+   * Lieux « à préciser » (demande du 19/09/2026) : à domicile, au bureau ou
+   * ailleurs — le client indique l'adresse. Toujours proposés (ajoutés aux
+   * réglages s'ils y manquent) ; le propriétaire peut les désactiver ou leur
+   * fixer des frais de livraison (Studio → Location → Réglages).
+   */
+  const LIEUX_A_PRECISER = [
+    { id: 'domicile', nom: 'À domicile', libelles: { fr: 'À domicile', en: 'At home', es: 'A domicilio' } },
+    { id: 'bureau', nom: 'Bureau', libelles: { fr: 'Bureau', en: 'Office', es: 'Oficina' } },
+    { id: 'autre', nom: 'Autre', libelles: { fr: 'Autre', en: 'Other', es: 'Otro' } }
+  ];
+  /** Nom d'un lieu dans la langue du visiteur (lieux à préciser non renommés au studio). */
+  const nomLieu = (lieu, langue = 'fr') => {
+    const defaut = LIEUX_A_PRECISER.find(p => p.id === (lieu && lieu.id));
+    return defaut && lieu.nom === defaut.nom ? defaut.libelles[langue] || defaut.nom : (lieu && lieu.nom) || '';
+  };
+  const ADRESSE_MAX = 200;
+
   const nombre = (valeur, repli = 0) => {
     const n = Number(valeur);
     return Number.isFinite(n) ? n : repli;
@@ -180,8 +198,15 @@
     const lieux = Array.isArray(r.lieux) ? r.lieux : REGLAGES_INITIAUX.lieux;
     const options = Array.isArray(r.options) ? r.options : REGLAGES_INITIAUX.options;
     const conditions = r.conditions && typeof r.conditions === 'object' ? r.conditions : REGLAGES_INITIAUX.conditions;
+    const listeLieux = lieux.filter(l => l && l.id).map(l => ({
+      id: String(l.id), nom: String(l.nom || l.id), frais: montant(l.frais), actif: l.actif !== false,
+      precision: LIEUX_A_PRECISER.some(p => p.id === String(l.id))
+    }));
+    for (const p of LIEUX_A_PRECISER) {
+      if (!listeLieux.some(l => l.id === p.id)) listeLieux.push({ id: p.id, nom: p.nom, frais: 0, actif: true, precision: true });
+    }
     return {
-      lieux: lieux.filter(l => l && l.id).map(l => ({ id: String(l.id), nom: String(l.nom || l.id), frais: montant(l.frais), actif: l.actif !== false })),
+      lieux: listeLieux,
       options: options.filter(o => o && o.id).map(o => ({
         id: String(o.id), nom: String(o.nom || o.id), prix: montant(o.prix), unite: o.unite === 'location' ? 'location' : 'jour', actif: o.actif !== false
       })),
@@ -195,7 +220,8 @@
 
   /**
    * Estimation d'une location. `demande` : { debut, fin, lieuPrise,
-   * lieuRetour, chauffeur, options: [ids] }. Renvoie le détail chiffré et les
+   * lieuRetour, adressePrise, adresseRetour, chauffeur, options: [ids] }
+   * (adresse exigée pour un lieu « à préciser »). Renvoie le détail chiffré et les
    * erreurs (codes + messages français). Les montants sont des FCFA entiers.
    * `maintenant` sert au délai de réservation (tests : date fixe).
    */
@@ -234,6 +260,12 @@
     const prise = lieu(d.lieuPrise);
     const retour = lieu(d.lieuRetour);
     if (lieuxActifs.length && (!prise || !retour)) erreur('lieu', 'Choisissez le lieu de prise en charge et de retour.');
+    const adresse = (lieuChoisi, valeur) => (lieuChoisi && lieuChoisi.precision ? String(valeur || '').trim().replace(/\s+/g, ' ').slice(0, ADRESSE_MAX) : '');
+    const adressePrise = adresse(prise, d.adressePrise);
+    const adresseRetour = adresse(retour, d.adresseRetour);
+    if ((prise && prise.precision && !adressePrise) || (retour && retour.precision && !adresseRetour)) {
+      erreur('adresse', 'Précisez l’adresse de prise en charge et de retour.');
+    }
 
     const chauffeur = avecChauffeur(vehicule, d.chauffeur);
     const { palier, tarifJour } = tarifApplicable(vehicule, jours);
@@ -266,7 +298,7 @@
       caution: chauffeur ? 0 : montant(vehicule && vehicule.deposit),
       kmInclus: kmParJour ? kmParJour * jours : null,
       prixKmSupplementaire: kmParJour ? montant(vehicule && vehicule.extraKmPrice) : 0,
-      lieuPrise: prise, lieuRetour: retour,
+      lieuPrise: prise, lieuRetour: retour, adressePrise, adresseRetour,
       options: options.map(o => o.id),
       debut: debut ? debut.toISOString() : null,
       fin: fin ? fin.toISOString() : null
@@ -317,7 +349,7 @@
 
   return {
     CATEGORIES, BOITES, CARBURANTS, MODES_CHAUFFEUR, STATUTS, STATUTS_BLOQUANTS, TRANSITIONS, MOTIFS_INDISPONIBILITE,
-    TOLERANCE_MINUTES, JOURS_SEMAINE, JOURS_MOIS, DUREE_MAX_JOURS, REGLAGES_INITIAUX,
+    TOLERANCE_MINUTES, JOURS_SEMAINE, JOURS_MOIS, DUREE_MAX_JOURS, REGLAGES_INITIAUX, LIEUX_A_PRECISER, ADRESSE_MAX, nomLieu,
     libelle, dateHeure, joursLocation, tarifApplicable, prixAPartirDe, avecChauffeur, normaliserReglages,
     devis, chevauche, occupations, conflit, versSaisie, fcfa
   };

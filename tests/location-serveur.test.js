@@ -38,10 +38,10 @@ test('réglages : un lieu actif au moins, identifiants uniques, horaires cohére
     heureOuverture: '08:00', heureFermeture: '19:00'
   });
   assert.deepEqual(erreurs, []);
-  assert.deepEqual(reglages.lieux.map(l => l.id), ['agence', 'agence-2', 'ferme']);
+  assert.deepEqual(reglages.lieux.map(l => l.id), ['agence', 'agence-2', 'ferme', 'domicile', 'bureau', 'autre']);
   assert.equal(reglages.lieux[1].frais, 15000);
   const publics = LOC.reglagesPublics(reglages);
-  assert.deepEqual(publics.lieux.map(l => l.id), ['agence', 'agence-2']);
+  assert.deepEqual(publics.lieux.map(l => l.id), ['agence', 'agence-2', 'domicile', 'bureau', 'autre']);
   assert.deepEqual(publics.options.map(o => o.id), ['siege-bebe']);
   assert.match(LOC.validerReglages({ lieux: [{ nom: 'X', actif: false }] }).erreurs.join(), /au moins un lieu/);
   assert.match(LOC.validerReglages({ lieux: [{ nom: 'X' }], heureOuverture: '20:00', heureFermeture: '08:00' }).erreurs.join(), /fermeture/);
@@ -147,4 +147,12 @@ test('migration : tables identiques dans le script phpMyAdmin et le schéma de �
   const vehicules = repo.match(/INSERT INTO vehicles \(([^)]+)\)/)[1].split(',').map(c => c.trim());
   for (const c of vehicules) assert.ok(colonnes('vehicles').includes(c), `vehicles.${c}`);
   assert.doesNotMatch(migration, /^\s*(SELECT|SHOW|DROP|TRUNCATE|DELETE)/im, 'import sans requête de contrôle ni suppression');
+});
+
+test('adresse d’un lieu à préciser : exigée à la demande, gardée dans la réservation et le récapitulatif', () => {
+  const contexte = { vehicule: PRADO, reglages: REGLAGES, maintenant: MAINTENANT };
+  assert.match(LOC.preparerDemande(demande({ lieuPrise: 'domicile' }), contexte).erreur, /adresse/);
+  const { reservation, devis } = LOC.preparerDemande(demande({ lieuPrise: 'domicile', adressePrise: 'Cocody, rue des Jardins' }), contexte);
+  assert.deepEqual([reservation.lieuPrise, reservation.adressePrise, reservation.adresseRetour], ['domicile', 'Cocody, rue des Jardins', '']);
+  assert.match(LOC.recapitulatif(PRADO, devis), /Prise en charge : À domicile — Cocody, rue des Jardins/);
 });

@@ -27,7 +27,7 @@
       caution: "Caution (restituée)", km: "Kilométrage", kmIllimite: "Illimité", kmInclus: (n, prix) => `${n} km inclus par jour, puis ${prix} / km`, minJours: n => `Location minimale : ${n} jour${n > 1 ? "s" : ""}`,
       conducteur: (age, annees) => `Conducteur : ${age} ans minimum, permis depuis ${annees} an${annees > 1 ? "s" : ""}`, equipements: "Équipements", description: "Description", conditions: "Conditions de location",
       modeAvec: "Toujours conduit par notre chauffeur, sans caution.", modeSans: "Vous conduisez : caution à la remise du véhicule.", modeChoix: "Au choix : avec notre chauffeur (supplément par jour) ou vous conduisez (caution).",
-      reserver: "Estimer et réserver", priseEnCharge: "Prise en charge", retour: "Retour", date: "Date", heure: "Heure", heureAbidjan: "Heures d’Abidjan (GMT)", lieuPrise: "Lieu de prise en charge", lieuRetour: "Lieu de retour", sansFrais: "sans frais",
+      reserver: "Estimer et réserver", priseEnCharge: "Prise en charge", retour: "Retour", date: "Date", heure: "Heure", heureAbidjan: "Heures d’Abidjan (GMT)", lieuPrise: "Lieu de prise en charge", lieuRetour: "Lieu de retour", sansFrais: "sans frais", aPreciser: "À préciser", adresses: { domicile: "Adresse du domicile (quartier, rue, repère)", bureau: "Adresse du bureau (quartier, rue, repère)", autre: "Lieu à préciser" },
       chauffeurChoix: "Je souhaite un chauffeur", chauffeurImpose: "Avec chauffeur (compris dans la formule)", chauffeurExclu: "Sans chauffeur : vous conduisez", options: "Options", parLocation: "/ location",
       estimation: "Estimation", ligneVehicule: (j, prix) => `Véhicule · ${j} j × ${prix}`, ligneChauffeur: (j, prix) => `Chauffeur · ${j} j × ${prix}`, livraison: "Livraison", reprise: "Reprise", total: "Total estimé", cautionRemise: "Caution à la remise (restituée)",
       palier: { jour: "tarif jour", semaine: "tarif semaine", mois: "tarif mois" }, jours: n => `${n} jour${n > 1 ? "s" : ""}`,
@@ -37,7 +37,7 @@
       envoyer: "Envoyer ma demande", envoi: "Envoi…", merciTitre: "Demande envoyée", merciTexte: "Notre conciergerie vérifie la disponibilité et vous confirme sur WhatsApp, avec les modalités de paiement et de remise du véhicule. Rien n’est payé en ligne.",
       suivreWa: "Continuer sur WhatsApp", erreur: "Envoi impossible pour le moment. Réessayez ou contactez-nous sur WhatsApp.", requis: "Indiquez votre nom et un numéro de téléphone joignable.", attestationRequise: "Cochez la case sur l’âge et le permis du conducteur.",
       aucuneDemandeEnLigne: "Rien n’est payé en ligne : la conciergerie confirme votre réservation.",
-      erreurs: { dates: "Indiquez la date et l’heure de prise en charge et de retour.", ordre: "Le retour doit suivre la prise en charge.", delai: h => `Réservez au moins ${h} h à l’avance.`, duree: n => `Location limitée à ${n} jours : contactez-nous pour une longue durée.`,
+      erreurs: { adresse: "Précisez l’adresse de prise en charge et de retour.", dates: "Indiquez la date et l’heure de prise en charge et de retour.", ordre: "Le retour doit suivre la prise en charge.", delai: h => `Réservez au moins ${h} h à l’avance.`, duree: n => `Location limitée à ${n} jours : contactez-nous pour une longue durée.`,
         minimum: n => `Location minimale : ${n} jour${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Prise en charge et retour entre ${a} et ${b}.`, lieu: "Choisissez le lieu de prise en charge et de retour.", tarif: "Tarif sur demande : contactez-nous sur WhatsApp." },
       waIntro: "Bonjour Henri & Philippe, je viens d’envoyer une demande de location :"
     },
@@ -50,7 +50,7 @@
       caution: "Deposit (refundable)", km: "Mileage", kmIllimite: "Unlimited", kmInclus: (n, prix) => `${n} km per day included, then ${prix} / km`, minJours: n => `Minimum rental: ${n} day${n > 1 ? "s" : ""}`,
       conducteur: (age, annees) => `Driver: aged ${age}+, licence held for ${annees} year${annees > 1 ? "s" : ""}`, equipements: "Features", description: "Description", conditions: "Rental conditions",
       modeAvec: "Always driven by our driver, no deposit.", modeSans: "You drive: deposit due at handover.", modeChoix: "Your choice: with our driver (daily supplement) or you drive (deposit).",
-      reserver: "Get a quote and book", priseEnCharge: "Pick-up", retour: "Return", date: "Date", heure: "Time", heureAbidjan: "Abidjan time (GMT)", lieuPrise: "Pick-up location", lieuRetour: "Return location", sansFrais: "free",
+      reserver: "Get a quote and book", priseEnCharge: "Pick-up", retour: "Return", date: "Date", heure: "Time", heureAbidjan: "Abidjan time (GMT)", lieuPrise: "Pick-up location", lieuRetour: "Return location", sansFrais: "free", aPreciser: "Please specify", adresses: { domicile: "Home address (area, street, landmark)", bureau: "Office address (area, street, landmark)", autre: "Place to specify" },
       chauffeurChoix: "I would like a driver", chauffeurImpose: "With driver (included in this rental)", chauffeurExclu: "Self-drive: you drive", options: "Extras", parLocation: "/ rental",
       estimation: "Estimate", ligneVehicule: (j, prix) => `Vehicle · ${j} d × ${prix}`, ligneChauffeur: (j, prix) => `Driver · ${j} d × ${prix}`, livraison: "Delivery", reprise: "Collection", total: "Estimated total", cautionRemise: "Deposit at handover (refundable)",
       palier: { jour: "daily rate", semaine: "weekly rate", mois: "monthly rate" }, jours: n => `${n} day${n > 1 ? "s" : ""}`,
@@ -60,7 +60,7 @@
       envoyer: "Send my request", envoi: "Sending…", merciTitre: "Request sent", merciTexte: "Our concierge checks availability and confirms on WhatsApp, with payment and handover details. Nothing is paid online.",
       suivreWa: "Continue on WhatsApp", erreur: "Could not send right now. Please try again or contact us on WhatsApp.", requis: "Enter your name and a phone number we can reach.", attestationRequise: "Tick the box about the driver’s age and licence.",
       aucuneDemandeEnLigne: "Nothing is paid online: our concierge confirms your booking.",
-      erreurs: { dates: "Enter the pick-up and return date and time.", ordre: "The return must be after the pick-up.", delai: h => `Book at least ${h} hours in advance.`, duree: n => `Rentals are limited to ${n} days: contact us for long-term rental.`,
+      erreurs: { adresse: "Enter the pick-up and return address.", dates: "Enter the pick-up and return date and time.", ordre: "The return must be after the pick-up.", delai: h => `Book at least ${h} hours in advance.`, duree: n => `Rentals are limited to ${n} days: contact us for long-term rental.`,
         minimum: n => `Minimum rental: ${n} day${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Pick-up and return between ${a} and ${b}.`, lieu: "Choose the pick-up and return locations.", tarif: "Price on request: contact us on WhatsApp." },
       waIntro: "Hello Henri & Philippe, I have just sent a car rental request:"
     },
@@ -73,7 +73,7 @@
       caution: "Fianza (reembolsable)", km: "Kilometraje", kmIllimite: "Ilimitado", kmInclus: (n, prix) => `${n} km por día incluidos, luego ${prix} / km`, minJours: n => `Alquiler mínimo: ${n} día${n > 1 ? "s" : ""}`,
       conducteur: (age, annees) => `Conductor: ${age} años mínimo, carné desde hace ${annees} año${annees > 1 ? "s" : ""}`, equipements: "Equipamiento", description: "Descripción", conditions: "Condiciones de alquiler",
       modeAvec: "Siempre conducido por nuestro chófer, sin fianza.", modeSans: "Usted conduce: fianza a la entrega.", modeChoix: "A elegir: con nuestro chófer (suplemento diario) o usted conduce (fianza).",
-      reserver: "Calcular y reservar", priseEnCharge: "Recogida", retour: "Devolución", date: "Fecha", heure: "Hora", heureAbidjan: "Hora de Abiyán (GMT)", lieuPrise: "Lugar de recogida", lieuRetour: "Lugar de devolución", sansFrais: "sin coste",
+      reserver: "Calcular y reservar", priseEnCharge: "Recogida", retour: "Devolución", date: "Fecha", heure: "Hora", heureAbidjan: "Hora de Abiyán (GMT)", lieuPrise: "Lugar de recogida", lieuRetour: "Lugar de devolución", sansFrais: "sin coste", aPreciser: "A precisar", adresses: { domicile: "Dirección del domicilio (barrio, calle, referencia)", bureau: "Dirección de la oficina (barrio, calle, referencia)", autre: "Lugar a precisar" },
       chauffeurChoix: "Deseo un chófer", chauffeurImpose: "Con chófer (incluido en la modalidad)", chauffeurExclu: "Sin chófer: usted conduce", options: "Opciones", parLocation: "/ alquiler",
       estimation: "Estimación", ligneVehicule: (j, prix) => `Vehículo · ${j} d × ${prix}`, ligneChauffeur: (j, prix) => `Chófer · ${j} d × ${prix}`, livraison: "Entrega", reprise: "Recogida del vehículo", total: "Total estimado", cautionRemise: "Fianza a la entrega (reembolsable)",
       palier: { jour: "tarifa diaria", semaine: "tarifa semanal", mois: "tarifa mensual" }, jours: n => `${n} día${n > 1 ? "s" : ""}`,
@@ -83,7 +83,7 @@
       envoyer: "Enviar mi solicitud", envoi: "Enviando…", merciTitre: "Solicitud enviada", merciTexte: "Nuestra conserjería comprueba la disponibilidad y le confirma por WhatsApp, con las modalidades de pago y entrega. No se paga nada en línea.",
       suivreWa: "Continuar en WhatsApp", erreur: "No se pudo enviar ahora. Inténtelo de nuevo o contáctenos por WhatsApp.", requis: "Indique su nombre y un teléfono de contacto.", attestationRequise: "Marque la casilla sobre la edad y el carné del conductor.",
       aucuneDemandeEnLigne: "No se paga nada en línea: la conserjería confirma su reserva.",
-      erreurs: { dates: "Indique la fecha y hora de recogida y de devolución.", ordre: "La devolución debe ser posterior a la recogida.", delai: h => `Reserve con al menos ${h} h de antelación.`, duree: n => `Alquiler limitado a ${n} días: contáctenos para larga duración.`,
+      erreurs: { adresse: "Indique la dirección de recogida y de devolución.", dates: "Indique la fecha y hora de recogida y de devolución.", ordre: "La devolución debe ser posterior a la recogida.", delai: h => `Reserve con al menos ${h} h de antelación.`, duree: n => `Alquiler limitado a ${n} días: contáctenos para larga duración.`,
         minimum: n => `Alquiler mínimo: ${n} día${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Recogida y devolución entre las ${a} y las ${b}.`, lieu: "Elija el lugar de recogida y de devolución.", tarif: "Precio a consultar: contáctenos por WhatsApp." },
       waIntro: "Hola Henri & Philippe, acabo de enviar una solicitud de alquiler:"
     }
@@ -242,7 +242,7 @@
     const images = (v.images || []).length ? v.images : [];
     const defaut = datesParDefaut();
     const heures = creneaux().map(h => `<option value="${h}">${h}</option>`).join("");
-    const lieux = r.lieux.map(l => `<option value="${esc(l.id)}">${esc(l.nom)} · ${l.frais ? `+${esc(prix(l.frais))}` : esc(t("sansFrais"))}</option>`).join("");
+    const lieux = r.lieux.map(l => `<option value="${esc(l.id)}">${esc(LV.nomLieu(l, langue()))} · ${l.frais ? `+${esc(prix(l.frais))}` : esc(t("sansFrais"))}</option>`).join("");
     const conditions = r.conditions[langue()] || r.conditions.fr;
     const kmTexte = v.kmIncludedPerDay ? t("kmInclus", v.kmIncludedPerDay, prix(v.extraKmPrice)) : t("kmIllimite");
     const lignesTarifs = [
@@ -302,6 +302,8 @@
             ${r.lieux.length ? `<div class="vehicule-grille-champs">
               <label>${esc(t("lieuPrise"))}<select name="lieuPrise">${lieux}</select></label>
               <label>${esc(t("lieuRetour"))}<select name="lieuRetour">${lieux}</select></label>
+              <label data-adresse="prise" hidden>${esc(t("aPreciser"))} · ${esc(t("lieuPrise"))}<input name="adressePrise" maxlength="200" autocomplete="street-address"></label>
+              <label data-adresse="retour" hidden>${esc(t("aPreciser"))} · ${esc(t("lieuRetour"))}<input name="adresseRetour" maxlength="200" autocomplete="street-address"></label>
             </div>` : ""}
             <label class="vehicule-case">${v.driverMode === "choix"
               ? `<input type="checkbox" name="chauffeur"> ${esc(t("chauffeurChoix"))}${v.driverPricePerDay ? ` (+${esc(prix(v.driverPricePerDay))} ${esc(t("parJour"))})` : ""}`
@@ -357,6 +359,7 @@
       debut: `${form.elements.debutJour.value}T${form.elements.debutHeure.value}`,
       fin: `${form.elements.finJour.value}T${form.elements.finHeure.value}`,
       lieuPrise: form.elements.lieuPrise?.value || "", lieuRetour: form.elements.lieuRetour?.value || "",
+      adressePrise: form.elements.adressePrise?.value || "", adresseRetour: form.elements.adresseRetour?.value || "",
       chauffeur: form.elements.chauffeur.checked,
       options: [...form.querySelectorAll('[name="options"]:checked')].map(c => c.value)
     });
@@ -371,7 +374,19 @@
       }
       return traduction || e.message;
     };
+    // Lieu « à préciser » (domicile, bureau, autre) : champ d'adresse affiché.
+    const majAdresses = () => {
+      [["prise", "lieuPrise", "adressePrise"], ["retour", "lieuRetour", "adresseRetour"]].forEach(([sens, champLieu, champAdresse]) => {
+        const lieu = etat.reglages.lieux.find(l => l.id === form.elements[champLieu]?.value);
+        const bloc = form.querySelector(`[data-adresse="${sens}"]`);
+        if (!bloc) return;
+        bloc.hidden = !(lieu && lieu.precision);
+        form.elements[champAdresse].required = !bloc.hidden;
+        form.elements[champAdresse].placeholder = lieu && lieu.precision ? t("adresses")[lieu.id] || t("aPreciser") : "";
+      });
+    };
     const estimer = () => {
+      majAdresses();
       const d = demande();
       const devis = LV.devis(v, etat.reglages, d);
       const gene = devis.debut && devis.fin ? LV.conflit(occupations, devis.debut, devis.fin) : null;
@@ -439,7 +454,8 @@
           t("waIntro"), `• ${v.name}`,
           `• ${dateLisible(corps.devis.debut)} → ${dateLisible(corps.devis.fin)} (${t("jours", corps.devis.jours)})`,
           `• ${corps.devis.chauffeur ? t("avecChauffeur") : t("sansChauffeur")}`,
-          corps.devis.lieuPrise ? `• ${t("priseEnCharge")} : ${corps.devis.lieuPrise.nom}` : "",
+          corps.devis.lieuPrise ? `• ${t("priseEnCharge")} : ${corps.devis.lieuPrise.nom}${corps.devis.adressePrise ? ` — ${corps.devis.adressePrise}` : ""}` : "",
+          corps.devis.lieuRetour && corps.devis.adresseRetour ? `• ${t("retour")} : ${corps.devis.lieuRetour.nom} — ${corps.devis.adresseRetour}` : "",
           `• ${t("total")} : ${prix(corps.devis.total)}`,
           `• ${nom}`
         ].filter(Boolean).join("\n");

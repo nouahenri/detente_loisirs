@@ -572,6 +572,8 @@ CREATE TABLE IF NOT EXISTS `location_reservations` (
   `chauffeur`        TINYINT(1)      NOT NULL DEFAULT 0,
   `lieu_prise`       VARCHAR(80)     NOT NULL DEFAULT '',
   `lieu_retour`      VARCHAR(80)     NOT NULL DEFAULT '',
+  `adresse_prise`    VARCHAR(200)    NOT NULL DEFAULT '' COMMENT 'lieu à préciser : domicile, bureau, autre',
+  `adresse_retour`   VARCHAR(200)    NOT NULL DEFAULT '',
   `options`          JSON            NULL,
   `jours`            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `montant`          BIGINT UNSIGNED NOT NULL DEFAULT 0,

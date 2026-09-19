@@ -121,3 +121,7 @@
   .sim-voiture { padding: .9rem; }
   .sim-voiture-grille { grid-template-columns: 1fr 1fr; gap: .55rem; }
 }
+
+/* Lieu « à préciser » (domicile, bureau, autre). */
+.sim-voiture-adresse { grid-column: 1 / -1; }
+.sim-voiture label.sim-voiture-adresse[hidden] { display: none; }

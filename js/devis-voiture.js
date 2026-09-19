@@ -26,7 +26,7 @@
       vehicule: "Véhicule", sansVoiture: "Sans voiture", choisir: "Choisissez un véhicule", des: prix => `dès ${prix} / jour`, surDemande: "tarif sur demande",
       modes: { avec: "avec chauffeur", sans: "sans chauffeur", choix: "avec ou sans chauffeur" },
       datesSejour: "Dates reprises de votre séjour : modifiables.", reprendre: "Reprendre les dates du séjour",
-      prise: "Prise en charge", retour: "Retour", heure: "Heure", heureAbidjan: "Heures d’Abidjan (GMT)", lieuPrise: "Lieu de prise en charge", lieuRetour: "Lieu de retour", sansFrais: "sans frais",
+      prise: "Prise en charge", retour: "Retour", heure: "Heure", heureAbidjan: "Heures d’Abidjan (GMT)", lieuPrise: "Lieu de prise en charge", lieuRetour: "Lieu de retour", sansFrais: "sans frais", aPreciser: "À préciser", adresses: { domicile: "Adresse du domicile (quartier, rue, repère)", bureau: "Adresse du bureau (quartier, rue, repère)", autre: "Lieu à préciser" },
       chauffeurChoix: "Je souhaite un chauffeur", chauffeurImpose: "Avec chauffeur (compris dans la formule)", chauffeurExclu: "Sans chauffeur : vous conduisez", options: "Options", parJour: "/ jour", parLocation: "/ location",
       estimation: "Estimation de la voiture", ligneVehicule: (j, prix) => `Véhicule · ${j} j × ${prix}`, ligneChauffeur: (j, prix) => `Chauffeur · ${j} j × ${prix}`, livraison: "Livraison", reprise: "Reprise", total: "Total voiture", cautionRemise: "Caution à la remise (restituée)",
       palier: { jour: "tarif jour", semaine: "tarif semaine", mois: "tarif mois" }, jours: n => `${n} jour${n > 1 ? "s" : ""}`,
@@ -34,14 +34,14 @@
       dejaReserve: "Dates déjà réservées", toutLibre: "Aucune réservation à venir sur ce véhicule.", occupe: "Ce véhicule n’est pas disponible sur ces dates. Choisissez d’autres dates ou un autre véhicule.",
       attestation: (age, annees) => `J’ai au moins ${age} ans et mon permis de conduire depuis au moins ${annees} an${annees > 1 ? "s" : ""}.`,
       attestationRequise: "Cochez la case sur l’âge et le permis du conducteur.", vehiculeRequis: "Choisissez un véhicule.",
-      erreurs: { dates: "Indiquez la date et l’heure de prise en charge et de retour.", ordre: "Le retour doit suivre la prise en charge.", delai: h => `Réservez la voiture au moins ${h} h à l’avance.`, duree: n => `Location limitée à ${n} jours : contactez-nous pour une longue durée.`,
+      erreurs: { adresse: "Précisez l’adresse de prise en charge et de retour.", dates: "Indiquez la date et l’heure de prise en charge et de retour.", ordre: "Le retour doit suivre la prise en charge.", delai: h => `Réservez la voiture au moins ${h} h à l’avance.`, duree: n => `Location limitée à ${n} jours : contactez-nous pour une longue durée.`,
         minimum: n => `Location minimale : ${n} jour${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Prise en charge et retour entre ${a} et ${b}.`, lieu: "Choisissez le lieu de prise en charge et de retour.", tarif: "Tarif sur demande : contactez-nous sur WhatsApp." }
     },
     en: {
       vehicule: "Vehicle", sansVoiture: "No car", choisir: "Choose a vehicle", des: prix => `from ${prix} / day`, surDemande: "price on request",
       modes: { avec: "with driver", sans: "self-drive", choix: "with or without driver" },
       datesSejour: "Dates taken from your stay: you can change them.", reprendre: "Use my stay dates",
-      prise: "Pick-up", retour: "Return", heure: "Time", heureAbidjan: "Abidjan time (GMT)", lieuPrise: "Pick-up location", lieuRetour: "Return location", sansFrais: "free",
+      prise: "Pick-up", retour: "Return", heure: "Time", heureAbidjan: "Abidjan time (GMT)", lieuPrise: "Pick-up location", lieuRetour: "Return location", sansFrais: "free", aPreciser: "Please specify", adresses: { domicile: "Home address (area, street, landmark)", bureau: "Office address (area, street, landmark)", autre: "Place to specify" },
       chauffeurChoix: "I would like a driver", chauffeurImpose: "With driver (included in this rental)", chauffeurExclu: "Self-drive: you drive", options: "Extras", parJour: "/ day", parLocation: "/ rental",
       estimation: "Car estimate", ligneVehicule: (j, prix) => `Vehicle · ${j} d × ${prix}`, ligneChauffeur: (j, prix) => `Driver · ${j} d × ${prix}`, livraison: "Delivery", reprise: "Collection", total: "Car total", cautionRemise: "Deposit at handover (refundable)",
       palier: { jour: "daily rate", semaine: "weekly rate", mois: "monthly rate" }, jours: n => `${n} day${n > 1 ? "s" : ""}`,
@@ -49,14 +49,14 @@
       dejaReserve: "Dates already booked", toutLibre: "No upcoming bookings for this vehicle.", occupe: "This vehicle is not available on these dates. Please choose other dates or another vehicle.",
       attestation: (age, annees) => `I am at least ${age} and have held my driving licence for at least ${annees} year${annees > 1 ? "s" : ""}.`,
       attestationRequise: "Tick the box about the driver’s age and licence.", vehiculeRequis: "Choose a vehicle.",
-      erreurs: { dates: "Enter the pick-up and return date and time.", ordre: "Return must be after pick-up.", delai: h => `Book the car at least ${h} h in advance.`, duree: n => `Rentals are limited to ${n} days: contact us for long-term rental.`,
+      erreurs: { adresse: "Enter the pick-up and return address.", dates: "Enter the pick-up and return date and time.", ordre: "Return must be after pick-up.", delai: h => `Book the car at least ${h} h in advance.`, duree: n => `Rentals are limited to ${n} days: contact us for long-term rental.`,
         minimum: n => `Minimum rental: ${n} day${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Pick-up and return between ${a} and ${b}.`, lieu: "Choose the pick-up and return location.", tarif: "Price on request: contact us on WhatsApp." }
     },
     es: {
       vehicule: "Vehículo", sansVoiture: "Sin coche", choisir: "Elija un vehículo", des: prix => `desde ${prix} / día`, surDemande: "precio a consultar",
       modes: { avec: "con chófer", sans: "sin chófer", choix: "con o sin chófer" },
       datesSejour: "Fechas tomadas de su estancia: puede cambiarlas.", reprendre: "Usar las fechas de mi estancia",
-      prise: "Recogida", retour: "Devolución", heure: "Hora", heureAbidjan: "Hora de Abiyán (GMT)", lieuPrise: "Lugar de recogida", lieuRetour: "Lugar de devolución", sansFrais: "sin coste",
+      prise: "Recogida", retour: "Devolución", heure: "Hora", heureAbidjan: "Hora de Abiyán (GMT)", lieuPrise: "Lugar de recogida", lieuRetour: "Lugar de devolución", sansFrais: "sin coste", aPreciser: "A precisar", adresses: { domicile: "Dirección del domicilio (barrio, calle, referencia)", bureau: "Dirección de la oficina (barrio, calle, referencia)", autre: "Lugar a precisar" },
       chauffeurChoix: "Deseo un chófer", chauffeurImpose: "Con chófer (incluido en la modalidad)", chauffeurExclu: "Sin chófer: usted conduce", options: "Opciones", parJour: "/ día", parLocation: "/ alquiler",
       estimation: "Estimación del coche", ligneVehicule: (j, prix) => `Vehículo · ${j} d × ${prix}`, ligneChauffeur: (j, prix) => `Chófer · ${j} d × ${prix}`, livraison: "Entrega", reprise: "Recogida del vehículo", total: "Total coche", cautionRemise: "Fianza a la entrega (reembolsable)",
       palier: { jour: "tarifa diaria", semaine: "tarifa semanal", mois: "tarifa mensual" }, jours: n => `${n} día${n > 1 ? "s" : ""}`,
@@ -64,7 +64,7 @@
       dejaReserve: "Fechas ya reservadas", toutLibre: "No hay reservas próximas para este vehículo.", occupe: "Este vehículo no está disponible en esas fechas. Elija otras fechas u otro vehículo.",
       attestation: (age, annees) => `Tengo al menos ${age} años y el carné de conducir desde hace al menos ${annees} año${annees > 1 ? "s" : ""}.`,
       attestationRequise: "Marque la casilla sobre la edad y el carné del conductor.", vehiculeRequis: "Elija un vehículo.",
-      erreurs: { dates: "Indique la fecha y hora de recogida y de devolución.", ordre: "La devolución debe ser posterior a la recogida.", delai: h => `Reserve el coche con al menos ${h} h de antelación.`, duree: n => `Alquiler limitado a ${n} días: contáctenos para larga duración.`,
+      erreurs: { adresse: "Indique la dirección de recogida y de devolución.", dates: "Indique la fecha y hora de recogida y de devolución.", ordre: "La devolución debe ser posterior a la recogida.", delai: h => `Reserve el coche con al menos ${h} h de antelación.`, duree: n => `Alquiler limitado a ${n} días: contáctenos para larga duración.`,
         minimum: n => `Alquiler mínimo: ${n} día${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Recogida y devolución entre las ${a} y las ${b}.`, lieu: "Elija el lugar de recogida y de devolución.", tarif: "Precio a consultar: contáctenos por WhatsApp." }
     }
   };
@@ -80,7 +80,7 @@
   const etat = {
     vehicules: [], reglages: LV.normaliserReglages(null), charge: false,
     mode: "sejour", sejour: null, occupations: [],
-    saisie: { vehiculeId: "", debutJour: "", debutHeure: "09:00", finJour: "", finHeure: "09:00", lieuPrise: "", lieuRetour: "", chauffeur: false, options: [], attestation: false, datesLibres: false }
+    saisie: { vehiculeId: "", debutJour: "", debutHeure: "09:00", finJour: "", finHeure: "09:00", lieuPrise: "", lieuRetour: "", adressePrise: "", adresseRetour: "", chauffeur: false, options: [], attestation: false, datesLibres: false }
   };
 
   /** Créneaux : toutes les 30 min entre l'ouverture et la fermeture de l'agence. */
@@ -104,7 +104,8 @@
 
   const demande = () => ({
     debut: `${etat.saisie.debutJour}T${etat.saisie.debutHeure}`, fin: `${etat.saisie.finJour}T${etat.saisie.finHeure}`,
-    lieuPrise: etat.saisie.lieuPrise, lieuRetour: etat.saisie.lieuRetour, chauffeur: etat.saisie.chauffeur, options: etat.saisie.options.slice()
+    lieuPrise: etat.saisie.lieuPrise, lieuRetour: etat.saisie.lieuRetour, adressePrise: etat.saisie.adressePrise, adresseRetour: etat.saisie.adresseRetour,
+    chauffeur: etat.saisie.chauffeur, options: etat.saisie.options.slice()
   });
 
   function calcul() {
@@ -148,7 +149,7 @@
     let html = `<label class="sim-voiture-champ">${esc(t("vehicule"))}<select class="form-control" data-v="vehiculeId">${premiere}${choix}</select></label>`;
     if (v) {
       const heures = creneaux().map(h => `<option value="${h}">${h}</option>`).join("");
-      const lieux = etat.reglages.lieux.map(l => `<option value="${esc(l.id)}">${esc(l.nom)} · ${esc(l.frais ? `+${prix(l.frais)}` : t("sansFrais"))}</option>`).join("");
+      const lieux = etat.reglages.lieux.map(l => `<option value="${esc(l.id)}">${esc(LV.nomLieu(l, langue()))} · ${esc(l.frais ? `+${prix(l.frais)}` : t("sansFrais"))}</option>`).join("");
       const aujourdhui = new Date().toISOString().slice(0, 10);
       html += `
         <p class="sim-voiture-note" data-v-dates-note ${avecSejour() ? "" : "hidden"}><span data-v-dates-texte>${esc(t("datesSejour"))}</span>
@@ -163,6 +164,8 @@
         ${etat.reglages.lieux.length ? `<div class="sim-voiture-grille">
           <label>${esc(t("lieuPrise"))}<select class="form-control" data-v="lieuPrise">${lieux}</select></label>
           <label>${esc(t("lieuRetour"))}<select class="form-control" data-v="lieuRetour">${lieux}</select></label>
+          <label class="sim-voiture-adresse" data-v-adresse="prise" hidden>${esc(t("aPreciser"))} · ${esc(t("lieuPrise"))}<input class="form-control" data-v="adressePrise" maxlength="200" autocomplete="street-address"></label>
+          <label class="sim-voiture-adresse" data-v-adresse="retour" hidden>${esc(t("aPreciser"))} · ${esc(t("lieuRetour"))}<input class="form-control" data-v="adresseRetour" maxlength="200" autocomplete="street-address"></label>
         </div>` : ""}
         <label class="sim-voiture-case">${v.driverMode === "choix"
           ? `<input type="checkbox" data-v="chauffeur"> <span>${esc(t("chauffeurChoix"))}${v.driverPricePerDay ? ` (+${esc(prix(v.driverPricePerDay))} ${esc(t("parJour"))})` : ""}</span>`
@@ -181,7 +184,7 @@
 
   /** Valeurs de la saisie reportées dans les champs (après un rendu ou un changement de dates du séjour). */
   function remplirChamps() {
-    ["debutJour", "debutHeure", "finJour", "finHeure", "lieuPrise", "lieuRetour"].forEach(cle => {
+    ["debutJour", "debutHeure", "finJour", "finHeure", "lieuPrise", "lieuRetour", "adressePrise", "adresseRetour"].forEach(cle => {
       const champ = contenu.querySelector(`[data-v="${cle}"]`);
       if (champ && etat.saisie[cle]) champ.value = etat.saisie[cle];
     });
@@ -216,6 +219,14 @@
         ${gene ? `<p class="sim-voiture-erreur">${esc(t("occupe"))}</p>` : ""}`;
     const attestation = contenu.querySelector("[data-v-attestation]");
     if (attestation) attestation.hidden = !attestationRequise;
+    // Lieu « à préciser » (domicile, bureau, autre) : champ d'adresse affiché.
+    [["prise", "lieuPrise"], ["retour", "lieuRetour"]].forEach(([sens, cle]) => {
+      const bloc = contenu.querySelector(`[data-v-adresse="${sens}"]`);
+      const lieu = etat.reglages.lieux.find(l => l.id === etat.saisie[cle]);
+      if (!bloc) return;
+      bloc.hidden = !(lieu && lieu.precision);
+      bloc.querySelector("input").placeholder = lieu && lieu.precision ? t("adresses")[lieu.id] || t("aPreciser") : "";
+    });
     const note = contenu.querySelector("[data-v-dates-note]");
     if (note) {
       note.hidden = !avecSejour();
@@ -274,6 +285,15 @@
         remplirChamps();
       }
     }
+    rafraichir();
+    signaler();
+  });
+  // Adresse saisie : estimation tenue à jour à chaque frappe.
+  contenu.addEventListener("input", event => {
+    const cible = event.target;
+    if (!cible.matches('[data-v="adressePrise"], [data-v="adresseRetour"]')) return;
+    etat.saisie[cible.dataset.v] = cible.value;
+    effacerErreur();
     rafraichir();
     signaler();
   });

@@ -101,7 +101,8 @@ test('planning : seules les réservations confirmées ou en cours et les indispo
 
 test('réglages : valeurs initiales sans tarif inventé (lieux et options de livraison désactivés)', () => {
   const r = L.normaliserReglages(null);
-  assert.deepEqual(r.lieux.filter(l => l.actif).map(l => [l.id, l.frais]), [['agence', 0]]);
+  assert.deepEqual(r.lieux.filter(l => l.actif).map(l => [l.id, l.frais]), [['agence', 0], ['domicile', 0], ['bureau', 0], ['autre', 0]]);
+  assert.deepEqual(r.lieux.filter(l => l.precision).map(l => l.id), ['domicile', 'bureau', 'autre'], 'lieux à préciser (19/09/2026)');
   assert.ok(r.options.every(o => !o.actif));
   assert.equal(r.heureOuverture, '07:00');
   assert.equal(L.normaliserReglages({ heureOuverture: 'n’importe', battementHeures: 500 }).battementHeures, 48);
@@ -111,4 +112,16 @@ test('cycle d’une réservation : transitions autorisées seulement', () => {
   assert.deepEqual(L.TRANSITIONS.demande, ['confirmee', 'annulee']);
   assert.ok(!L.TRANSITIONS.terminee.length, 'une location terminée ne bouge plus');
   assert.ok(L.TRANSITIONS.confirmee.includes('en_cours'));
+});
+
+test('lieux à préciser (domicile, bureau, autre) : toujours proposés, adresse exigée, frais du studio', () => {
+  const r = L.normaliserReglages({ lieux: [{ id: 'agence', nom: 'Agence' }, { id: 'domicile', nom: 'À domicile', frais: 5000, actif: false }] });
+  assert.deepEqual(r.lieux.map(l => [l.id, l.actif, l.frais, l.precision]), [['agence', true, 0, false], ['domicile', false, 5000, true], ['bureau', true, 0, true], ['autre', true, 0, true]], 'désactivé au studio : reste désactivé');
+  const v = { name: 'X', pricePerDay: 10000, driverMode: 'avec' };
+  const demande = champs => ({ debut: '2026-10-01T09:00', fin: '2026-10-02T09:00', lieuPrise: 'bureau', lieuRetour: 'agence', chauffeur: true, ...champs });
+  const sans = L.devis(v, r, demande(), { maintenant: new Date('2026-09-19') });
+  assert.deepEqual(sans.erreurs.map(e => e.code), ['adresse']);
+  const avec = L.devis(v, r, demande({ adressePrise: '  Plateau,   tour  B ', adresseRetour: 'ignorée : lieu sans adresse' }), { maintenant: new Date('2026-09-19') });
+  assert.equal(avec.ok, true);
+  assert.deepEqual([avec.adressePrise, avec.adresseRetour], ['Plateau, tour B', '']);
 });

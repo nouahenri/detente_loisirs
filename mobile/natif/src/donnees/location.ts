@@ -37,6 +37,23 @@ export const MODES_CHAUFFEUR: Record<string, Libelles> = {
 };
 
 const TOLERANCE_MINUTES = 59;
+
+/**
+ * Lieux « à préciser » (demande du 19/09/2026) : à domicile, au bureau ou
+ * ailleurs — le client indique l'adresse. Toujours proposés (ajoutés aux
+ * réglages s'ils y manquent), comme sur le site.
+ */
+export const LIEUX_A_PRECISER: { id: string; nom: string; libelles: Libelles }[] = [
+  { id: 'domicile', nom: 'À domicile', libelles: { fr: 'À domicile', en: 'At home', es: 'A domicilio' } },
+  { id: 'bureau', nom: 'Bureau', libelles: { fr: 'Bureau', en: 'Office', es: 'Oficina' } },
+  { id: 'autre', nom: 'Autre', libelles: { fr: 'Autre', en: 'Other', es: 'Otro' } },
+];
+export const ADRESSE_MAX = 200;
+/** Nom d'un lieu dans la langue de l'app (lieux à préciser non renommés au studio). */
+export const nomLieu = (lieu: { id: string; nom: string }, langue: Langue) => {
+  const defaut = LIEUX_A_PRECISER.find(p => p.id === lieu.id);
+  return defaut && lieu.nom === defaut.nom ? defaut.libelles[langue] : lieu.nom;
+};
 export const JOURS_SEMAINE = 7;
 export const JOURS_MOIS = 30;
 export const DUREE_MAX_JOURS = 90;
@@ -59,13 +76,18 @@ export const REGLAGES_INITIAUX: ReglagesLocation = {
   conditions: { fr: '', en: '', es: '' },
 };
 
+const avecLieuxAPreciser = (lieux: ReglagesLocation['lieux']) => [
+  ...lieux,
+  ...LIEUX_A_PRECISER.filter(p => !lieux.some(l => l.id === p.id)).map(p => ({ id: p.id, nom: p.nom, frais: 0, actif: true, precision: true })),
+];
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export function normaliserReglages(source: any): ReglagesLocation {
   const r = source && typeof source === 'object' ? source : {};
   const heure = (v: unknown, repli: string) => (/^\d{1,2}:\d{2}$/.test(String(v || '')) ? String(v).padStart(5, '0') : repli);
   return {
-    lieux: (Array.isArray(r.lieux) ? r.lieux : REGLAGES_INITIAUX.lieux).filter((l: any) => l && l.id)
-      .map((l: any) => ({ id: String(l.id), nom: String(l.nom || l.id), frais: montant(l.frais), actif: l.actif !== false })),
+    lieux: avecLieuxAPreciser((Array.isArray(r.lieux) ? r.lieux : REGLAGES_INITIAUX.lieux).filter((l: any) => l && l.id)
+      .map((l: any) => ({ id: String(l.id), nom: String(l.nom || l.id), frais: montant(l.frais), actif: l.actif !== false, precision: LIEUX_A_PRECISER.some(p => p.id === String(l.id)) }))),
     options: (Array.isArray(r.options) ? r.options : []).filter((o: any) => o && o.id)
       .map((o: any) => ({ id: String(o.id), nom: String(o.nom || o.id), prix: montant(o.prix), unite: o.unite === 'location' ? 'location' : 'jour', actif: o.actif !== false })),
     heureOuverture: heure(r.heureOuverture, REGLAGES_INITIAUX.heureOuverture),
@@ -119,12 +141,14 @@ export function avecChauffeur(v: Partial<Vehicule> | null, choixClient: boolean)
   return Boolean(choixClient);
 }
 
-export type CodeErreurLocation = 'vehicule' | 'dates' | 'ordre' | 'delai' | 'duree' | 'minimum' | 'horaires' | 'lieu' | 'tarif';
+export type CodeErreurLocation = 'vehicule' | 'dates' | 'ordre' | 'delai' | 'duree' | 'minimum' | 'horaires' | 'lieu' | 'adresse' | 'tarif';
 export type LigneDevisLocation = {
   cle: 'vehicule' | 'chauffeur' | 'livraison' | 'option'; quantite: number; prixUnitaire: number; montant: number;
   palier?: 'jour' | 'semaine' | 'mois'; id?: string; nom?: string; sens?: 'prise' | 'retour'; unite?: 'jour' | 'location';
 };
-export type DemandeLocation = { debut: string; fin: string; lieuPrise: string; lieuRetour: string; chauffeur: boolean; options: string[] };
+export type DemandeLocation = {
+  debut: string; fin: string; lieuPrise: string; lieuRetour: string; adressePrise?: string; adresseRetour?: string; chauffeur: boolean; options: string[];
+};
 
 /** Estimation d'une location, identique à celle du site et du serveur. */
 export function devisLocation(v: Vehicule | null, reglagesBruts: unknown, d: DemandeLocation, maintenant = new Date()) {
@@ -152,6 +176,10 @@ export function devisLocation(v: Vehicule | null, reglagesBruts: unknown, d: Dem
   const prise = lieux.find(l => l.id === d.lieuPrise) || null;
   const retour = lieux.find(l => l.id === d.lieuRetour) || null;
   if (lieux.length && (!prise || !retour)) erreurs.push('lieu');
+  const adresse = (lieu: typeof prise, valeur?: string) => (lieu?.precision ? String(valeur || '').trim().replace(/\s+/g, ' ').slice(0, ADRESSE_MAX) : '');
+  const adressePrise = adresse(prise, d.adressePrise);
+  const adresseRetour = adresse(retour, d.adresseRetour);
+  if ((prise?.precision && !adressePrise) || (retour?.precision && !adresseRetour)) erreurs.push('adresse');
   const chauffeur = avecChauffeur(v, d.chauffeur);
   const { palier, tarifJour } = tarifApplicable(v, jours);
   if (v && !(tarifJour > 0)) erreurs.push('tarif');
@@ -172,6 +200,7 @@ export function devisLocation(v: Vehicule | null, reglagesBruts: unknown, d: Dem
     total: lignes.reduce((s, l) => s + l.montant, 0),
     caution: chauffeur ? 0 : montant(v?.deposit),
     kmInclus: kmParJour ? kmParJour * jours : null,
+    lieuPrise: prise, lieuRetour: retour, adressePrise, adresseRetour,
     debut: debut ? debut.toISOString() : null,
     fin: fin ? fin.toISOString() : null,
   };
@@ -201,6 +230,8 @@ export function creneaux(reglages: ReglagesLocation) {
 export type SaisieVoiture = {
   vehiculeId: string; debutJour: string; debutHeure: string; finJour: string; finHeure: string;
   lieuPrise: string; lieuRetour: string; chauffeur: boolean; options: string[]; attestation: boolean;
+  /** Adresse d'un lieu « à préciser » (domicile, bureau, autre). */
+  adressePrise: string; adresseRetour: string;
   /** Dates changées à la main : elles ne suivent plus celles du séjour. */
   datesLibres: boolean;
 };
@@ -224,7 +255,7 @@ export function saisieVoitureInitiale(reglages: ReglagesLocation | undefined, ma
   const lieu = reglages?.lieux.find(l => l.actif)?.id || '';
   return {
     vehiculeId: '', debutJour: premier, debutHeure: heure, finJour: plusJours(premier, 3), finHeure: heure,
-    lieuPrise: lieu, lieuRetour: lieu, chauffeur: false, options: [], attestation: false, datesLibres: false,
+    lieuPrise: lieu, lieuRetour: lieu, adressePrise: '', adresseRetour: '', chauffeur: false, options: [], attestation: false, datesLibres: false,
   };
 }
 
@@ -236,7 +267,7 @@ export function saisieAvecSejour(s: SaisieVoiture, sejour: { arrivee: string; de
 
 export const demandeDeSaisie = (s: SaisieVoiture): DemandeLocation => ({
   debut: `${s.debutJour}T${s.debutHeure}`, fin: `${s.finJour}T${s.finHeure}`,
-  lieuPrise: s.lieuPrise, lieuRetour: s.lieuRetour, chauffeur: s.chauffeur, options: s.options,
+  lieuPrise: s.lieuPrise, lieuRetour: s.lieuRetour, adressePrise: s.adressePrise, adresseRetour: s.adresseRetour, chauffeur: s.chauffeur, options: s.options,
 });
 
 /** Sans chauffeur, le client atteste l'âge et l'ancienneté de permis exigés. */

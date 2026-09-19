@@ -80,6 +80,8 @@ export function FormulaireLocation({ vehiculeImpose, onEnvoye }: { vehiculeImpos
       `• ${vehicule.name}`,
       `• ${heureLisible(devis.debut || '', 'fr')} → ${heureLisible(devis.fin || '', 'fr')} (${devis.jours} jour${devis.jours > 1 ? 's' : ''})`,
       `• ${devis.chauffeur ? 'Avec chauffeur' : 'Sans chauffeur'}`,
+      ...(devis.adressePrise ? [`• Prise en charge : ${devis.lieuPrise?.nom} — ${devis.adressePrise}`] : []),
+      ...(devis.adresseRetour ? [`• Retour : ${devis.lieuRetour?.nom} — ${devis.adresseRetour}`] : []),
       `• Total estimé : ${fcfa(devis.total)}`,
       `• ${nom.trim()}`,
     ].join('\n');

@@ -1961,7 +1961,9 @@ function initSimulator(villaParam, activityParam) {
 `;
     const ligneVoitureWa = voiture ? `🚗 Voiture : ${voiture.vehicule.name}, ${DV.libelleFormule(voiture)}
 🗓️ Du ${voiture.saisie.debutJour} ${voiture.saisie.debutHeure} au ${voiture.saisie.finJour} ${voiture.saisie.finHeure} (${voiture.devis.jours} jour${voiture.devis.jours > 1 ? "s" : ""}) : ${voiture.devis.ok ? formatFCFA(montantVoiture) : "à préciser"}
-` : "";
+${voiture.devis.lieuPrise ? `📍 Prise en charge : ${voiture.devis.lieuPrise.nom}${voiture.devis.adressePrise ? ` — ${voiture.devis.adressePrise}` : ""}
+` : ""}${voiture.devis.lieuRetour && voiture.devis.adresseRetour ? `📍 Retour : ${voiture.devis.lieuRetour.nom} — ${voiture.devis.adresseRetour}
+` : ""}` : "";
 
     // Coordonnées saisies dans le récapitulatif : lignes omises si vides.
     const nom = nomInput ? nomInput.value.trim() : "";

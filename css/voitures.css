@@ -149,3 +149,7 @@
 @media (prefers-reduced-motion: reduce) {
   .vehicule-card, .vehicule-card-visuel img, .voitures-bouton { transition: none; }
 }
+
+/* Lieu « à préciser » (domicile, bureau, autre) : adresse sur toute la largeur. */
+.vehicule-grille-champs [data-adresse] { grid-column: 1 / -1; }
+.vehicule-grille-champs [data-adresse][hidden] { display: none !important; }

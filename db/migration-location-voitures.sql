@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS `location_reservations` (
   `chauffeur`        TINYINT(1)      NOT NULL DEFAULT 0,
   `lieu_prise`       VARCHAR(80)     NOT NULL DEFAULT '',
   `lieu_retour`      VARCHAR(80)     NOT NULL DEFAULT '',
+  `adresse_prise`    VARCHAR(200)    NOT NULL DEFAULT '' COMMENT 'lieu à préciser : domicile, bureau, autre',
+  `adresse_retour`   VARCHAR(200)    NOT NULL DEFAULT '',
   `options`          JSON            NULL,
   `jours`            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `montant`          BIGINT UNSIGNED NOT NULL DEFAULT 0,
@@ -101,3 +103,11 @@ CREATE TABLE IF NOT EXISTS `location_reglages` (
 -- Contrôle, à lancer ENSUITE dans l'onglet SQL (pas dans ce fichier) :
 --   SHOW TABLES LIKE '%location%';   -- 3 tables
 --   SHOW TABLES LIKE 'vehicles';
+
+-- ---------------------------------------------------------------------
+-- Adresses des lieux « à préciser » (19/09/2026) : ajoutées si la table
+-- existait déjà avant cette version du script. Sans effet sinon.
+-- ---------------------------------------------------------------------
+ALTER TABLE `location_reservations`
+  ADD COLUMN IF NOT EXISTS `adresse_prise`  VARCHAR(200) NOT NULL DEFAULT '' AFTER `lieu_retour`,
+  ADD COLUMN IF NOT EXISTS `adresse_retour` VARCHAR(200) NOT NULL DEFAULT '' AFTER `adresse_prise`;

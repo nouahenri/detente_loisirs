@@ -6,7 +6,7 @@
  * Composants contrôlés : la saisie vit chez l'appelant (SaisieVoiture).
  */
 import { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { ChampChoix, type OptionChoix } from './ChampChoix';
 import { ChampDate } from './ChampDate';
@@ -16,7 +16,7 @@ import { Carte, Icone } from './ui';
 import { API } from '@/donnees/config';
 import { dateJour, type Langue, type Traduire } from '@/donnees/i18n';
 import {
-  attestationExigee, categorieVehicule, conflitLocation, creneaux, demandeDeSaisie, devisLocation, DUREE_MAX_JOURS, modeChauffeur, plusJours, prixAPartirDe,
+  ADRESSE_MAX, attestationExigee, categorieVehicule, conflitLocation, creneaux, demandeDeSaisie, devisLocation, DUREE_MAX_JOURS, modeChauffeur, nomLieu, plusJours, prixAPartirDe,
   type CodeErreurLocation, type SaisieVoiture,
 } from '@/donnees/location';
 import { usePreferences } from '@/donnees/preferences';
@@ -55,7 +55,7 @@ export function messageErreurLocation(code: CodeErreurLocation, t: Traduire, veh
     delai: t('louer.erreurDelai', { n: reglages?.delaiMinHeures ?? 12 }), duree: t('louer.erreurDuree', { n: DUREE_MAX_JOURS }),
     minimum: t('louer.erreurMinimum', { n: vehicule?.minDays || 1 }),
     horaires: t('louer.erreurHoraires', { a: reglages?.heureOuverture ?? '07:00', b: reglages?.heureFermeture ?? '20:00' }),
-    lieu: t('louer.erreurLieu'), tarif: t('louer.erreurTarif'),
+    lieu: t('louer.erreurLieu'), adresse: t('louer.erreurAdresse'), tarif: t('louer.erreurTarif'),
   })[code];
 }
 
@@ -115,7 +115,11 @@ export function DetailsVoiture({ vehicule, reglages, saisie, maj, occupations, s
   const { C, t, langue } = usePreferences();
   const s = feuille(C);
   const { devis, gene, attestationRequise } = etatVoiture(vehicule, reglages, saisie, occupations);
-  const lieux: OptionChoix[] = reglages.lieux.filter(l => l.actif).map(l => [l.id, `${l.nom} · ${l.frais ? `+${fcfa(l.frais)}` : t('louer.sansFrais')}`, 'location-outline']);
+  const lieux: OptionChoix[] = reglages.lieux.filter(l => l.actif).map(l => [l.id, `${nomLieu(l, langue)} · ${l.frais ? `+${fcfa(l.frais)}` : t('louer.sansFrais')}`, l.precision ? 'create-outline' : 'location-outline']);
+  // Lieu « à préciser » (domicile, bureau, autre) : champ d'adresse sous le choix.
+  const lieuPrise = reglages.lieux.find(l => l.id === saisie.lieuPrise);
+  const lieuRetour = reglages.lieux.find(l => l.id === saisie.lieuRetour);
+  const aideAdresse = (id: string) => t(id === 'domicile' ? 'louer.adresseDomicile' : id === 'bureau' ? 'louer.adresseBureau' : 'louer.adresseAutre');
   const optionsHeures: OptionChoix[] = creneaux(reglages).map(h => [h, h, 'time-outline']);
 
   return (
@@ -158,7 +162,13 @@ export function DetailsVoiture({ vehicule, reglages, saisie, maj, occupations, s
       {lieux.length ? (
         <View style={{ marginTop: 14, gap: 10 }}>
           <ChampChoix libelle={t('louer.lieuPrise')} icone="location-outline" valeur={saisie.lieuPrise} options={lieux} onChange={lieuPrise => maj({ lieuPrise })} />
+          {lieuPrise?.precision ? (
+            <ChampAdresse C={C} libelle={`${t('louer.aPreciser')} · ${t('louer.lieuPrise')}`} aide={aideAdresse(lieuPrise.id)} valeur={saisie.adressePrise} onChange={adressePrise => maj({ adressePrise })} />
+          ) : null}
           <ChampChoix libelle={t('louer.lieuRetour')} icone="flag-outline" valeur={saisie.lieuRetour} options={lieux} onChange={lieuRetour => maj({ lieuRetour })} />
+          {lieuRetour?.precision ? (
+            <ChampAdresse C={C} libelle={`${t('louer.aPreciser')} · ${t('louer.lieuRetour')}`} aide={aideAdresse(lieuRetour.id)} valeur={saisie.adresseRetour} onChange={adresseRetour => maj({ adresseRetour })} />
+          ) : null}
         </View>
       ) : null}
 
@@ -223,6 +233,28 @@ export function DetailsVoiture({ vehicule, reglages, saisie, maj, occupations, s
   );
 }
 
+function ChampAdresse({ C, libelle, aide, valeur, onChange }: { C: Palette; libelle: string; aide: string; valeur: string; onChange: (v: string) => void }) {
+  const s = feuille(C);
+  const [focus, setFocus] = useState(false);
+  return (
+    <View>
+      <Text style={s.champLibelle}>{libelle}</Text>
+      <TextInput
+        value={valeur}
+        onChangeText={onChange}
+        placeholder={aide}
+        placeholderTextColor={C.texte3}
+        maxLength={ADRESSE_MAX}
+        autoComplete="street-address"
+        autoCapitalize="sentences"
+        onFocus={() => setFocus(true)}
+        onBlur={() => setFocus(false)}
+        style={[s.champ, focus && { borderColor: C.sombre ? C.or : '#151837' }]}
+      />
+    </View>
+  );
+}
+
 function Radio({ C, actif }: { C: Palette; actif: boolean }) {
   const s = feuille(C);
   return <View style={[s.radio, actif && s.radioActif]}>{actif ? <View style={s.radioPoint} /> : null}</View>;
@@ -268,4 +300,6 @@ const feuille = creerStyles(C => ({
   caseBoite: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: C.bord, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   caseActive: { backgroundColor: C.primaire, borderColor: C.primaire },
   caseTexte: { flex: 1, fontSize: 14.5, lineHeight: 21, color: C.texte2 },
+  champLibelle: { fontSize: 12.5, fontWeight: '700', color: C.texte2, marginBottom: 6, marginLeft: 4 },
+  champ: { minHeight: 48, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1.5, borderColor: C.bord, backgroundColor: C.carte, fontSize: 16, color: C.texte },
 }));

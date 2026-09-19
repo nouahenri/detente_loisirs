@@ -147,6 +147,7 @@ function preparerDemande(payload = {}, { vehicule, reglages, reservations = [], 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { erreur: 'Adresse e-mail invalide.', statut: 422 };
   const devis = L.devis(vehicule, reglages, {
     debut: payload.debut, fin: payload.fin, lieuPrise: payload.lieuPrise, lieuRetour: payload.lieuRetour,
+    adressePrise: payload.adressePrise, adresseRetour: payload.adresseRetour,
     chauffeur: payload.chauffeur === true, options: Array.isArray(payload.options) ? payload.options.map(String) : []
   }, { maintenant });
   if (!devis.ok) return { erreur: devis.erreurs[0].message, statut: 422, devis };
@@ -161,7 +162,8 @@ function preparerDemande(payload = {}, { vehicule, reglages, reservations = [], 
   const reservation = {
     id: crypto.randomUUID(), vehiculeId: vehicule.id, vehiculeNom: vehicule.name, leadId: '',
     statut: 'demande', debut: devis.debut, fin: devis.fin, chauffeur: devis.chauffeur,
-    lieuPrise: devis.lieuPrise?.id || '', lieuRetour: devis.lieuRetour?.id || '', options: devis.options,
+    lieuPrise: devis.lieuPrise?.id || '', lieuRetour: devis.lieuRetour?.id || '',
+    adressePrise: devis.adressePrise || '', adresseRetour: devis.adresseRetour || '', options: devis.options,
     montant: devis.total, caution: devis.caution, jours: devis.jours,
     client: { nom, telephone, email }, notes: texte(payload.message, 1000),
     source: SOURCES.includes(payload.source) ? payload.source : 'site',
@@ -235,8 +237,8 @@ function recapitulatif(vehicule, devis) {
     `Location de véhicule : ${vehicule.name}`,
     `Du ${formatDate(devis.debut)} au ${formatDate(devis.fin)} (${devis.jours} jour${devis.jours > 1 ? 's' : ''})`,
     devis.chauffeur ? 'Avec chauffeur' : 'Sans chauffeur (le client conduit)',
-    devis.lieuPrise ? `Prise en charge : ${devis.lieuPrise.nom}` : '',
-    devis.lieuRetour ? `Retour : ${devis.lieuRetour.nom}` : '',
+    devis.lieuPrise ? `Prise en charge : ${devis.lieuPrise.nom}${devis.adressePrise ? ` — ${devis.adressePrise}` : ''}` : '',
+    devis.lieuRetour ? `Retour : ${devis.lieuRetour.nom}${devis.adresseRetour ? ` — ${devis.adresseRetour}` : ''}` : '',
     ...devis.lignes.map(l => {
       if (l.cle === 'vehicule') return `Véhicule : ${l.quantite} j × ${fcfa(l.prixUnitaire)} (tarif ${l.palier}) = ${fcfa(l.montant)}`;
       if (l.cle === 'chauffeur') return `Chauffeur : ${l.quantite} j × ${fcfa(l.prixUnitaire)} = ${fcfa(l.montant)}`;
@@ -272,6 +274,7 @@ function validerReservationStudio(source = {}, { existante = null, vehicules = [
   const devis = L.devis(vehicule, reglages, {
     debut, fin, chauffeur: source.chauffeur ?? existante?.chauffeur,
     lieuPrise: source.lieuPrise ?? existante?.lieuPrise, lieuRetour: source.lieuRetour ?? existante?.lieuRetour,
+    adressePrise: source.adressePrise ?? existante?.adressePrise, adresseRetour: source.adresseRetour ?? existante?.adresseRetour,
     options: Array.isArray(source.options) ? source.options : existante?.options || []
   }, { maintenant, controlerDelai: false });
   // Au studio, seules comptent les erreurs de fond ; horaires et lieu restent libres.
@@ -287,6 +290,9 @@ function validerReservationStudio(source = {}, { existante = null, vehicules = [
       statut: existante?.statut || 'demande', debut: devis.debut, fin: devis.fin, chauffeur: devis.chauffeur,
       lieuPrise: devis.lieuPrise?.id || texte(source.lieuPrise ?? existante?.lieuPrise, 80),
       lieuRetour: devis.lieuRetour?.id || texte(source.lieuRetour ?? existante?.lieuRetour, 80),
+      // Adresse d'un lieu « à préciser » (domicile, bureau, autre).
+      adressePrise: devis.lieuPrise ? devis.adressePrise : texte(source.adressePrise ?? existante?.adressePrise, 200),
+      adresseRetour: devis.lieuRetour ? devis.adresseRetour : texte(source.adresseRetour ?? existante?.adresseRetour, 200),
       options: devis.options, jours: devis.jours,
       montant: montantSaisi ?? devis.total, caution: devis.caution,
       client, notes: texte(source.notes ?? existante?.notes, 1000),
@@ -392,7 +398,8 @@ function lireFichier() {
 const reservationDepuisLigne = l => ({
   id: l.id, vehiculeId: l.vehicule_id, vehiculeNom: l.vehicule_nom || '', leadId: l.lead_id || '', statut: l.statut,
   debut: versIso(l.debut), fin: versIso(l.fin), chauffeur: Boolean(Number(l.chauffeur)),
-  lieuPrise: l.lieu_prise || '', lieuRetour: l.lieu_retour || '', options: json(l.options, []),
+  lieuPrise: l.lieu_prise || '', lieuRetour: l.lieu_retour || '', adressePrise: l.adresse_prise || '', adresseRetour: l.adresse_retour || '',
+  options: json(l.options, []),
   jours: Number(l.jours) || 0, montant: Number(l.montant) || 0, caution: Number(l.caution) || 0,
   client: { nom: l.client_nom || '', telephone: l.client_telephone || '', email: l.client_email || '' },
   notes: l.notes || '', source: l.source || 'site', creePar: l.cree_par || '', modifiePar: l.modifie_par || '',
@@ -437,12 +444,12 @@ async function enBaseOuFichier(requeteBase, modifierFichier) {
 }
 
 const REQUETE_RESERVATION = `INSERT INTO location_reservations
-  (id, vehicule_id, vehicule_nom, lead_id, statut, debut, fin, chauffeur, lieu_prise, lieu_retour, options, jours,
+  (id, vehicule_id, vehicule_nom, lead_id, statut, debut, fin, chauffeur, lieu_prise, lieu_retour, adresse_prise, adresse_retour, options, jours,
    montant, caution, client_nom, client_telephone, client_email, notes, source, cree_par, modifie_par, created_at)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE vehicule_id=VALUES(vehicule_id), vehicule_nom=VALUES(vehicule_nom), lead_id=VALUES(lead_id),
     statut=VALUES(statut), debut=VALUES(debut), fin=VALUES(fin), chauffeur=VALUES(chauffeur), lieu_prise=VALUES(lieu_prise),
-    lieu_retour=VALUES(lieu_retour), options=VALUES(options), jours=VALUES(jours), montant=VALUES(montant), caution=VALUES(caution),
+    lieu_retour=VALUES(lieu_retour), adresse_prise=VALUES(adresse_prise), adresse_retour=VALUES(adresse_retour), options=VALUES(options), jours=VALUES(jours), montant=VALUES(montant), caution=VALUES(caution),
     client_nom=VALUES(client_nom), client_telephone=VALUES(client_telephone), client_email=VALUES(client_email),
     notes=VALUES(notes), modifie_par=VALUES(modifie_par)`;
 
@@ -450,7 +457,7 @@ async function enregistrerReservation(r) {
   return enBaseOuFichier(async depotBase => {
     await depotBase.query(REQUETE_RESERVATION, [
       r.id, r.vehiculeId, r.vehiculeNom || '', r.leadId || '', r.statut, versMysql(r.debut), versMysql(r.fin), r.chauffeur ? 1 : 0,
-      r.lieuPrise || '', r.lieuRetour || '', JSON.stringify(r.options || []), Number(r.jours) || 0,
+      r.lieuPrise || '', r.lieuRetour || '', r.adressePrise || '', r.adresseRetour || '', JSON.stringify(r.options || []), Number(r.jours) || 0,
       Number(r.montant) || 0, Number(r.caution) || 0, r.client?.nom || '', r.client?.telephone || '', r.client?.email || '',
       r.notes || '', r.source || 'site', r.creePar || '', r.modifiePar || '', versMysql(r.creeLe)
     ]);
