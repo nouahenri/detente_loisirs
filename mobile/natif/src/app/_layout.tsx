@@ -60,6 +60,7 @@ function Navigation() {
           <Stack.Screen name="visionneuse" options={{ presentation: 'fullScreenModal', animation: 'fade', contentStyle: { backgroundColor: '#000' } }} />
           <Stack.Screen name="profil" options={{ ...enTeteNatif, title: t('profil.titre') }} />
           <Stack.Screen name="demandes" options={{ ...enTeteNatif, title: t('demandes.titre') }} />
+          <Stack.Screen name="messages" options={{ ...enTeteNatif, title: t('messages.titre') }} />
           <Stack.Screen name="carte" options={{ ...enTeteNatif, title: t('carte.titre') }} />
           <Stack.Screen name="faq" options={{ ...enTeteNatif, title: t('faq.titre') }} />
           <Stack.Screen name="avis" options={{ ...enTeteNatif, title: t('avis.titre') }} />

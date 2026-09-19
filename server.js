@@ -23,6 +23,7 @@ const DEMANDEURS = require('./db/demandeurs');
 const AVIS = require('./db/avis');
 const COMPTA = require('./db/comptabilite');
 const LOC = require('./db/location');
+const NS = require('./db/notifications-studio');
 const LV = require('./js/location-voitures.js');
 
 const PORT = Number(process.env.PORT || 3456);
@@ -231,6 +232,7 @@ DEMANDEURS.configure({ isDbReady: dbEnabled });
 AVIS.configure({ isDbReady: dbEnabled });
 COMPTA.configure({ isDbReady: dbEnabled });
 LOC.configure({ isDbReady: dbEnabled });
+NS.configure({ isDbReady: dbEnabled });
 mailer.configure({ isDbReady: dbEnabled });
 
 /** Exécute une opération MySQL sans jamais faire tomber la requête HTTP. */
@@ -1273,6 +1275,11 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['DELETE', /^\/api\/admin\/whatsapp\/campagnes\/[^/]+$/, 'leads:write'],
   ['POST', /^\/api\/admin\/whatsapp\/stop$/, 'leads:write'],
   ['GET', /^\/api\/admin\/export$/, 'leads:export'],
+  ['GET', /^\/api\/admin\/notifications$/, 'notifications:manage'],
+  ['POST', /^\/api\/admin\/notifications(\/apercu)?$/, 'notifications:manage'],
+  ['POST', /^\/api\/admin\/proprietaires$/, 'notifications:manage'],
+  ['PATCH', /^\/api\/admin\/proprietaires\/[^/]+$/, 'notifications:manage'],
+  ['DELETE', /^\/api\/admin\/proprietaires\/[^/]+$/, 'notifications:manage'],
   ['GET', /^\/api\/admin\/location$/, 'location:manage'],
   ['POST', /^\/api\/admin\/location\/(reservations|indisponibilites)$/, 'location:manage'],
   ['PATCH', /^\/api\/admin\/location\/(reservations|indisponibilites)\/[^/]+$/, 'location:manage'],
@@ -2895,6 +2902,40 @@ async function handleApi(req, res, url) {
     } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 200) }); }
   }
 
+  // --- Application mobile : inscription avec le numéro du profil (19/09/2026) ---
+  // Le téléphone s'inscrit quand la personne active les notifications : il
+  // transmet son identifiant d'app, son jeton Expo s'il en a un, et le numéro
+  // de son profil (mention affichée dans l'app), qui permet au studio de
+  // cibler employés, propriétaires et demandeurs.
+  if (url.pathname === '/api/app/abonnement' && (req.method === 'POST' || req.method === 'DELETE')) {
+    const limite = rateLimit(req, 'app-abonnement', 30);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de requêtes.' });
+    try {
+      const payload = await parseBody(req, 5_000);
+      if (req.method === 'DELETE') {
+        if (/^[A-Za-z0-9-]{16,64}$/.test(String(payload.visiteur || ''))) await NS.retirerAbonne(payload.visiteur);
+        return json(res, 200, { ok: true });
+      }
+      const existant = (await NS.tout()).abonnes.find(a => a.visiteur === payload.visiteur) || null;
+      const { abonne, erreur } = NS.validerAbonne(payload, { existant });
+      if (erreur) return json(res, 400, { ok: false, error: erreur });
+      await NS.enregistrerAbonne(abonne);
+      return json(res, 200, { ok: true, identifie: Boolean(abonne.cleTelephone) });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 200) }); }
+  }
+
+  // --- Application mobile : messages du studio (relève, sans service push) ---
+  if (req.method === 'GET' && url.pathname === '/api/app/messages') {
+    const limite = rateLimit(req, 'app-messages', 120);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de requêtes.' });
+    const visiteur = String(url.searchParams.get('visiteur') || '');
+    if (!/^[A-Za-z0-9-]{16,64}$/.test(visiteur)) return json(res, 400, { ok: false, error: 'Téléphone non identifié.' });
+    try {
+      const { messages } = await NS.tout();
+      return json(res, 200, { ok: true, messages: NS.messagesPour(visiteur, messages, url.searchParams.get('depuis')) });
+    } catch (error) { return json(res, 503, { ok: false, error: 'Messages momentanément indisponibles.' }); }
+  }
+
   // --- Application mobile : statut de ses propres demandes (suivi sans push) ---
   if (req.method === 'POST' && url.pathname === '/api/app/suivi') {
     const limite = rateLimit(req, 'app-suivi', 120);
@@ -3141,6 +3182,63 @@ async function handleApi(req, res, url) {
       const media = saveUploadedImage(await parseBody(req, 12_000_000));
       return json(res, 201, { ok: true, ...media });
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
+  }
+
+  // ---- Notifications de l'app et propriétaires (19/09/2026) -------------
+  if (url.pathname === '/api/admin/notifications' || url.pathname === '/api/admin/notifications/apercu' || url.pathname === '/api/admin/proprietaires' || url.pathname.startsWith('/api/admin/proprietaires/')) {
+    try {
+      const acteur = actorLabel(actor);
+      const donnees = await NS.tout();
+      if (url.pathname.startsWith('/api/admin/proprietaires')) {
+        const id = url.pathname.split('/')[4] ? decodeURIComponent(url.pathname.split('/')[4]) : null;
+        const existant = id ? donnees.proprietaires.find(p => p.id === id) : null;
+        if (id && !existant) return json(res, 404, { ok: false, error: 'Propriétaire introuvable.' });
+        if (req.method === 'DELETE') {
+          await NS.supprimerProprietaire(id);
+          audit('proprietaire.supprime', { id, nom: existant.nom }, acteur);
+          return json(res, 200, { ok: true });
+        }
+        const { proprietaire, erreurs } = NS.validerProprietaire(await parseBody(req, 50_000), { existant, annoncesConnues: annoncesDuCatalogue(await lireContenuBrut()) });
+        if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+        await NS.enregistrerProprietaire(proprietaire);
+        audit(existant ? 'proprietaire.modifie' : 'proprietaire.cree', { id: proprietaire.id, annonces: proprietaire.annonces.length }, acteur);
+        return json(res, existant ? 200 : 201, { ok: true, proprietaire });
+      }
+      const contexte = await contexteNotifications(donnees);
+      if (req.method === 'GET') {
+        const contenu = await lireContenuBrut();
+        return json(res, 200, {
+          ok: true,
+          proprietaires: donnees.proprietaires,
+          annonces: listeAnnoncesStudio(contenu),
+          abonnes: {
+            total: donnees.abonnes.length,
+            identifies: donnees.abonnes.filter(a => a.cleTelephone).length,
+            push: donnees.abonnes.filter(a => a.jeton).length
+          },
+          audiences: Object.fromEntries(['tous', 'demandeurs', 'employes', 'proprietaires'].map(cible => {
+            const d = NS.destinataires({ cible, type: 'tous', proprietaireId: '' }, contexte);
+            return [cible, { telephones: d.abonnes.length, emails: d.emails.length, personnes: d.personnes }];
+          })),
+          messages: donnees.messages.slice(0, 50).map(m => ({
+            id: m.id, titre: m.titre, corps: m.corps, creeLe: m.creeLe, creePar: m.creePar, bilan: m.bilan,
+            audience: NS.libelleAudience(m.audience, donnees.proprietaires)
+          })),
+          pushActif: Boolean(process.env.EXPO_ACCESS_TOKEN) || donnees.abonnes.some(a => a.jeton)
+        });
+      }
+      const { message, erreurs } = NS.validerMessage(await parseBody(req, 20_000));
+      if (url.pathname === '/api/admin/notifications/apercu') {
+        const audience = message ? message.audience : null;
+        if (!audience) return json(res, 422, { ok: false, error: erreurs[0] });
+        const d = NS.destinataires(audience, contexte);
+        return json(res, 200, { ok: true, telephones: d.abonnes.length, push: d.abonnes.filter(a => a.jeton).length, emails: d.emails.length, personnes: d.personnes, libelle: NS.libelleAudience(audience, donnees.proprietaires) });
+      }
+      if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+      const envoye = await envoyerMessageStudio(message, { contexte, acteur, req });
+      audit('notifications.envoyees', { id: envoye.id, audience: envoye.audience, bilan: envoye.bilan }, acteur);
+      return json(res, 201, { ok: true, message: { ...envoye, destinataires: undefined, audience: NS.libelleAudience(envoye.audience, donnees.proprietaires) } });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
   }
 
   // ---- Location de voitures (17/09/2026) --------------------------------
@@ -4445,6 +4543,69 @@ async function envoyerLotsExpo(lots, origine) {
   }
   if (perimes.length) writeJSON(APP_APPAREILS_FILE, NOTIF.retirerAppareils(readJSON(APP_APPAREILS_FILE, {}), perimes));
   return { envoyes, perimes: perimes.length };
+}
+
+/** Annonces du catalogue « kind:id » (propriétaires rattachés à des annonces existantes). */
+function annoncesDuCatalogue(contenu) {
+  const c = contenu && typeof contenu === 'object' ? contenu : {};
+  const cles = new Set();
+  [['villa', c.villas], ['vehicle', c.vehicles], ['activity', c.activities], ['terrain', c.terrains]]
+    .forEach(([kind, liste]) => (Array.isArray(liste) ? liste : []).forEach(item => { if (item?.id) cles.add(`${kind}:${item.id}`); }));
+  return cles;
+}
+
+/** Annonces proposées dans la fiche d'un propriétaire, par type. */
+function listeAnnoncesStudio(contenu) {
+  const c = contenu && typeof contenu === 'object' ? contenu : {};
+  const liste = (kind, items, titre) => (Array.isArray(items) ? items : []).filter(x => x?.id).map(x => ({ kind, id: x.id, titre: text(titre(x), 120) }));
+  return [
+    ...liste('villa', c.villas, v => v.name), ...liste('vehicle', c.vehicles, v => v.name),
+    ...liste('activity', c.activities, a => a.title), ...liste('terrain', c.terrains, t => t.title || t.reference)
+  ];
+}
+
+/** Données de ciblage : téléphones inscrits, demandes, employés, propriétaires. */
+async function contexteNotifications(donnees) {
+  const [leads, compta] = await Promise.all([store.readLeads().catch(() => []), COMPTA.tout().catch(() => ({ employes: [] }))]);
+  const suivis = readJSON(APP_NOTIF_FILE, {}).demandes || {};
+  return {
+    abonnes: donnees.abonnes, leads, employes: compta.employes || [], proprietaires: donnees.proprietaires,
+    jetonsDemandes: Object.fromEntries(Object.entries(suivis).map(([id, d]) => [id, d?.jeton]).filter(([, j]) => j))
+  };
+}
+
+/**
+ * Envoie une notification du studio : enregistrée d'abord (l'app la relève
+ * même sans service push), puis push Expo aux téléphones qui ont un jeton,
+ * puis e-mail aux contacts de l'audience qui ont une adresse.
+ */
+async function envoyerMessageStudio(saisie, { contexte, acteur, req }) {
+  const cible = NS.destinataires(saisie.audience, contexte);
+  const message = {
+    id: crypto.randomUUID(), titre: saisie.titre, corps: saisie.corps, audience: saisie.audience,
+    destinataires: cible.abonnes.map(a => a.visiteur), creePar: acteur, creeLe: new Date().toISOString(),
+    bilan: { telephones: cible.abonnes.length, push: 0, emails: saisie.email ? cible.emails.length : 0, emailsEnvoyes: 0, personnes: cible.personnes }
+  };
+  await NS.enregistrerMessage(message);
+  // « Tous » : aussi les téléphones inscrits aux nouveautés (jeton seul).
+  const jetons = new Set(cible.abonnes.map(a => a.jeton).filter(Boolean));
+  if (saisie.audience.cible === 'tous') Object.keys(readJSON(APP_APPAREILS_FILE, {}).appareils || {}).forEach(j => jetons.add(j));
+  const notifications = NS.messagesExpo(message, [...jetons].map(jeton => ({ jeton })));
+  if (notifications.length) {
+    const lots = [];
+    for (let i = 0; i < notifications.length; i += 100) lots.push(notifications.slice(i, i + 100));
+    const resultat = await envoyerLotsExpo(lots, 'studio');
+    message.bilan.push = resultat.envoyes;
+  }
+  if (saisie.email && cible.emails.length) {
+    for (const { email, nom } of cible.emails) {
+      const courrier = templates.messageStudio({ nom, titre: message.titre, corps: message.corps, siteUrl: publicBaseUrl(req) });
+      const resultat = await mailer.deliver({ kind: 'message-studio', to: email, subject: courrier.subject, html: courrier.html, text: courrier.text }).catch(() => ({ sent: false }));
+      if (resultat.sent) message.bilan.emailsEnvoyes += 1;
+    }
+  }
+  await NS.enregistrerMessage(message).catch(() => {});
+  return message;
 }
 
 /** Annonce aux téléphones inscrits les annonces apparues depuis le dernier passage. */

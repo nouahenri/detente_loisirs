@@ -50,6 +50,13 @@
         $('#comptaVue [data-compta-onglets]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else showView('compta');
     });
+    $('#messagesSousMenu')?.addEventListener('click', event => {
+      const bouton = event.target.closest('[data-messages-aller]');
+      if (!bouton) return;
+      gestionMessages.onglet = bouton.dataset.messagesAller;
+      fermerMenuMobile();
+      if ($('.admin-view[data-panel="messages"]')?.classList.contains('active')) ouvrirSectionMessages(); else showView('messages');
+    });
     $('#locationSousMenu')?.addEventListener('click', event => {
       const bouton = event.target.closest('[data-location-aller]');
       if (!bouton) return;
@@ -252,7 +259,8 @@
     $('#passwordBtn').hidden = degraded;
 
     $$('#adminNav [data-permission]').forEach(button => {
-      if (!can(button.dataset.permission)) button.remove();
+      // « leads:read notifications:manage » : l'une ou l'autre suffit.
+      if (!button.dataset.permission.split(' ').some(permission => can(permission))) button.remove();
     });
     // Le bouton « Publier les changements » n'a de sens que pour qui peut écrire.
     $('#saveAllBtn').hidden = !can('content:write');
@@ -344,7 +352,7 @@
     terrains:['VENTE DE TERRAIN','Terrains'], activities:['EXPÉRIENCES','Activités & loisirs'],
     vehicles:['LOCATION DE VOITURES','Voitures'], location:['LOCATION DE VOITURES','Planning & réservations'],
     referentiels:['LISTES DE CHOIX','Référentiels'],
-    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['RELATION CLIENT','Messages WhatsApp'], newsletter:['RELATION CLIENT','Newsletter'],
+    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['RELATION CLIENT','Messages'], newsletter:['RELATION CLIENT','Newsletter'],
     facebook:['SOCIAL STUDIO','Publications'], users:['SÉCURITÉ','Utilisateurs'],
     settings:['SITE PUBLIC','Réglages']
   };
@@ -413,8 +421,10 @@
     const sousMenuLocation = $('#locationSousMenu');
     if (sousMenuLocation) sousMenuLocation.hidden = name !== 'location';
     if (name === 'location' && can('location:manage')) chargerLocation();
+    const sousMenuMessages = $('#messagesSousMenu');
+    if (sousMenuMessages) sousMenuMessages.hidden = name !== 'messages';
     // Les contacts viennent des demandes : on relit à chaque ouverture.
-    if (name === 'messages' && can('leads:read')) chargerMessages();
+    if (name === 'messages') ouvrirSectionMessages();
     if (name === 'compta' && can('compta:manage')) chargerCompta();
     window.scrollTo({ top:0, behavior:'smooth' });
   }
@@ -1631,7 +1641,7 @@
     const d = compta.donnees;
     const salaires = d.ecritures.filter(e => e.employeId);
     hote.innerHTML = `<div class="compta-section-tete"><h3>Employés</h3><button type="button" data-compta-employe>＋ Employé</button></div>
-      <div class="content-table">${d.employes.length ? d.employes.map(e => `<div class="compta-ligne" role="button" tabindex="0" data-compta-fiche-employe="${esc(e.id)}"><span class="compta-avatar" aria-hidden="true">${esc((e.nom || '?').slice(0, 1).toUpperCase())}</span><div class="compta-ligne-texte"><strong>${esc(e.nom)}</strong><small>${esc([e.poste, e.telephone, e.dateEmbauche ? `depuis le ${dateCourte(e.dateEmbauche)}` : ''].filter(Boolean).join(' · '))}</small></div>${e.actif ? '' : '<span class="compta-statut">Inactif</span>'}<strong class="compta-montant">${money(e.salaireMensuel)} / mois</strong></div>`).join('') : '<div class="empty">Aucun employé enregistré.</div>'}</div>
+      <div class="content-table">${d.employes.length ? d.employes.map(e => `<div class="compta-ligne" role="button" tabindex="0" data-compta-fiche-employe="${esc(e.id)}"><span class="compta-avatar" aria-hidden="true">${esc((e.nom || '?').slice(0, 1).toUpperCase())}</span><div class="compta-ligne-texte"><strong>${esc([e.prenom, e.nom].filter(Boolean).join(' '))}</strong><small>${esc([e.poste, e.telephone, e.email, e.dateEmbauche ? `depuis le ${dateCourte(e.dateEmbauche)}` : ''].filter(Boolean).join(' · '))}</small></div>${e.actif ? '' : '<span class="compta-statut">Inactif</span>'}<strong class="compta-montant">${money(e.salaireMensuel)} / mois</strong></div>`).join('') : '<div class="empty">Aucun employé enregistré.</div>'}</div>
       <div class="compta-section-tete"><h3>Paie du mois</h3><div class="compta-generer"><label>Mois<input type="month" data-compta-mois-paie value="${esc((compta.debut || aujourdhui()).slice(0, 7))}"></label><button type="button" class="primary" data-compta-generer-paie>Générer la paie</button></div></div>
       <p class="compta-aide">Crée, pour chaque employé actif, son salaire du mois « à régler » (une seule fois par mois). Ouvrez ensuite chaque salaire pour le marquer réglé, avec la date et le mode de paiement.</p>
       <div class="content-table">${salaires.length ? salaires.map(ligneEcriture).join('') : '<div class="empty">Aucun salaire sur la période affichée.</div>'}</div>`;
@@ -1807,9 +1817,9 @@
   }
 
   // ---- Fiches de saisie -------------------------------------------------
-  function ouvrirTiroirCompta({ surtitre, titre, champs, supprimable, apresOuverture, enregistrer, supprimer }) {
+  function ouvrirTiroirCompta({ surtitre, titre, champs, supprimable, apresOuverture, enregistrer, supprimer, recharger = chargerCompta }) {
     document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop compta-backdrop"><form class="editor-drawer compta-fiche" novalidate><div class="editor-head"><div><span class="eyebrow">${esc(surtitre)}</span><h2>${esc(titre)}</h2></div><button type="button" data-close-editor aria-label="Fermer">×</button></div><div class="editor-fields">${champs}</div><div class="editor-actions">${supprimable ? '<button type="button" class="danger" data-compta-supprimer>Supprimer</button>' : ''}<button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
-    const fond = $('.compta-backdrop');
+    const fond = document.body.lastElementChild;
     const formulaire = $('form', fond);
     const fermer = () => { document.removeEventListener('keydown', echap); fond.remove(); };
     const echap = event => { if (event.key === 'Escape') fermer(); };
@@ -1821,11 +1831,11 @@
       event.preventDefault();
       const bouton = $('button[type="submit"]', formulaire);
       bouton.disabled = true;
-      try { await enregistrer(formulaire); fermer(); await chargerCompta(); }
+      try { await enregistrer(formulaire); fermer(); await recharger(); }
       catch (error) { toast(error.message); bouton.disabled = false; }
     });
     $('[data-compta-supprimer]', fond)?.addEventListener('click', async () => {
-      try { if (await supprimer()) { fermer(); await chargerCompta(); } }
+      try { if (await supprimer()) { fermer(); await recharger(); } }
       catch (error) { toast(error.message); }
     });
     $('input:not([type=hidden]):not([type=radio]), select', formulaire)?.focus();
@@ -1923,11 +1933,17 @@
   function ouvrirEmploye(employe) {
     const e = employe || { actif: true };
     ouvrirTiroirCompta({
-      surtitre: 'COMPTABILITÉ · SALAIRES', titre: employe ? employe.nom : 'Nouvel employé', supprimable: Boolean(employe),
-      champs: `<label>Nom et prénom<input name="nom" maxlength="120" required value="${esc(e.nom || '')}"></label>
-        <div class="form-grid">
+      surtitre: 'COMPTABILITÉ · SALAIRES', titre: employe ? [employe.prenom, employe.nom].filter(Boolean).join(' ') : 'Nouvel employé', supprimable: Boolean(employe),
+      // Coordonnées (19/09/2026) : le téléphone ou le WhatsApp rapproche
+      // l'employé de son app pour les notifications de Messages ; l'e-mail
+      // reçoit les mêmes messages.
+      champs: `<div class="form-grid">
+          <label>Nom<input name="nom" maxlength="120" required value="${esc(e.nom || '')}"></label>
+          <label>Prénom<input name="prenom" maxlength="80" value="${esc(e.prenom || '')}"></label>
           <label>Poste<input name="poste" maxlength="120" value="${esc(e.poste || '')}" placeholder="ex. Gardien, gouvernante"></label>
-          <label>Téléphone<input name="telephone" maxlength="40" value="${esc(e.telephone || '')}"></label>
+          <label>E-mail<input type="email" name="email" maxlength="180" value="${esc(e.email || '')}"></label>
+          <label>Téléphone<input type="tel" name="telephone" maxlength="40" value="${esc(e.telephone || '')}"></label>
+          <label>WhatsApp<input type="tel" name="whatsapp" maxlength="40" value="${esc(e.whatsapp || '')}"></label>
           <label>Salaire mensuel (FCFA)<input type="number" name="salaireMensuel" min="0" step="1" required value="${esc(e.salaireMensuel ?? '')}"></label>
           <label>Date d’embauche<input type="date" name="dateEmbauche" value="${esc(e.dateEmbauche || '')}"></label>
         </div>
@@ -2082,6 +2098,183 @@
   // lien avec le message personnalisé (db/whatsapp-promo.js). Destinataires :
   // clients ayant coché l'accord dans le simulateur, hors « ne plus contacter ».
   let chargementMessages = null;
+  // ---- Messages : WhatsApp, notifications de l'app, propriétaires (19/09/2026) ----
+  const gestionMessages = { onglet: 'whatsapp', donnees: null, chargement: null };
+  const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read'], ['notifications', 'Notifications de l’app', 'notifications:manage'], ['proprietaires', 'Propriétaires', 'notifications:manage']];
+  const TYPES_ANNONCE_PROPRIETAIRE = { villa: 'Résidences', vehicle: 'Véhicules', activity: 'Activités', terrain: 'Terrains' };
+  const dateHeureCourte = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(valeur)); } catch { return ''; } };
+  const nomComplet = p => [p.prenom, p.nom].filter(Boolean).join(' ');
+
+  /** Affiche la section choisie (onglets du panneau et sous-menu) et charge ses données. */
+  function ouvrirSectionMessages() {
+    const permises = SECTIONS_MESSAGES.filter(([, , permission]) => can(permission));
+    if (!permises.length) return;
+    if (!permises.some(([id]) => id === gestionMessages.onglet)) gestionMessages.onglet = permises[0][0];
+    const onglets = $('#messagesOnglets');
+    if (onglets) {
+      onglets.hidden = permises.length < 2;
+      onglets.innerHTML = permises.map(([id, libelle]) => `<button type="button" role="tab" data-messages-onglet="${id}" class="${gestionMessages.onglet === id ? 'active' : ''}" aria-selected="${gestionMessages.onglet === id}">${libelle}</button>`).join('');
+      $$('[data-messages-onglet]', onglets).forEach(bouton => bouton.addEventListener('click', () => { gestionMessages.onglet = bouton.dataset.messagesOnglet; ouvrirSectionMessages(); }));
+    }
+    $$('[data-messages-section]').forEach(section => { section.hidden = section.dataset.messagesSection !== gestionMessages.onglet; });
+    $$('#messagesSousMenu [data-messages-aller]').forEach(bouton => {
+      const actif = bouton.dataset.messagesAller === gestionMessages.onglet;
+      bouton.classList.toggle('active', actif);
+      if (actif) bouton.setAttribute('aria-current', 'page'); else bouton.removeAttribute('aria-current');
+    });
+    if (gestionMessages.onglet === 'whatsapp') chargerMessages(); else chargerNotifications();
+  }
+
+  function chargerNotifications() {
+    gestionMessages.chargement = gestionMessages.chargement || api('/api/admin/notifications')
+      .then(data => { gestionMessages.donnees = data; if (gestionMessages.onglet === 'proprietaires') renderProprietaires(); else renderNotifications(); })
+      .catch(error => {
+        const hote = $(gestionMessages.onglet === 'proprietaires' ? '#proprietairesVue' : '#notifVue');
+        if (hote) hote.innerHTML = `<div class="empty">Indisponible : ${esc(error.message)}</div>`;
+      })
+      .finally(() => { gestionMessages.chargement = null; });
+    return gestionMessages.chargement;
+  }
+
+  /**
+   * Notifications de l'app : envoi à une audience (tous, demandeurs, employés,
+   * propriétaires), aperçu du nombre de téléphones et d'e-mails, historique.
+   */
+  function renderNotifications() {
+    const d = gestionMessages.donnees;
+    const hote = $('#notifVue');
+    if (!d || !hote) return;
+    const nombre = cible => d.audiences?.[cible]?.telephones ?? 0;
+    const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+    hote.innerHTML = `
+      <div class="kpi-grid notif-kpis">
+        <article class="kpi-card"><small>Téléphones inscrits</small><strong>${d.abonnes.total}</strong><em>Notifications activées dans l’app</em></article>
+        <article class="kpi-card"><small>Identifiés</small><strong>${d.abonnes.identifies}</strong><em>Numéro du profil transmis</em></article>
+        <article class="kpi-card"><small>Instantanées (push)</small><strong>${d.abonnes.push}</strong><em>${d.abonnes.push ? 'Reçues aussitôt' : 'Service à activer dans l’app'}</em></article>
+      </div>
+      ${d.abonnes.push ? '' : '<p class="notif-aide">Les notifications instantanées ne sont pas encore activées dans l’application : chaque téléphone reçoit vos messages à l’ouverture de l’app ou lors de sa relève automatique (environ toutes les heures).</p>'}
+      <div class="notif-grille">
+        <form class="wa-bloc notif-form" id="notifForm" novalidate>
+          <h3>Nouvelle notification</h3>
+          <label>Titre <small>(80 caractères au plus)</small><input name="titre" maxlength="80" required placeholder="Ex. : Réunion d’équipe samedi à 9 h"></label>
+          <label>Message<textarea name="corps" rows="5" maxlength="1000" required placeholder="Votre message…"></textarea></label>
+          <small class="notif-compteur" data-notif-compteur>0 / 1000</small>
+          <fieldset class="notif-audience"><legend>Destinataires</legend>
+            ${[['tous', 'Tous les utilisateurs de l’app'], ['demandeurs', 'Les demandeurs'], ['employes', 'Les employés'], ['proprietaires', 'Les propriétaires']].map(([id, libelle], i) => `<label><input type="radio" name="cible" value="${id}" ${i === 0 ? 'checked' : ''}> <span>${libelle}</span> <em>${pluriel(nombre(id), 'téléphone')}</em></label>`).join('')}
+          </fieldset>
+          <div class="form-grid notif-proprietaires" data-notif-proprietaires hidden>
+            <label>Annonces<select name="type"><option value="tous">Tous les propriétaires</option>${Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([id, libelle]) => `<option value="${id}">Propriétaires des ${libelle.toLowerCase()}</option>`).join('')}</select></label>
+            <label>Ou un propriétaire précis<select name="proprietaireId"><option value="">—</option>${d.proprietaires.filter(p => p.actif).map(p => `<option value="${esc(p.id)}">${esc(nomComplet(p))}</option>`).join('')}</select></label>
+          </div>
+          <label class="notif-email" data-notif-email hidden><input type="checkbox" name="email" checked> <span>Envoyer aussi par e-mail aux contacts qui ont une adresse <small data-notif-email-note></small></span></label>
+          <p class="notif-apercu" data-notif-apercu aria-live="polite"></p>
+          <div class="wa-form-actions"><button class="primary" type="submit">Envoyer la notification</button></div>
+        </form>
+        <div class="wa-bloc notif-historique"><h3>Envoyées</h3>
+          ${d.messages.length ? d.messages.map(m => `<article class="notif-envoi"><header><strong>${esc(m.titre)}</strong><time>${esc(dateHeureCourte(m.creeLe))}</time></header><p>${esc(m.corps)}</p><footer>${esc(m.audience)} · ${pluriel(m.bilan?.telephones ?? 0, 'téléphone')}${m.bilan?.push ? ` · ${m.bilan.push} push` : ''}${m.bilan?.emails ? ` · ${m.bilan.emailsEnvoyes || 0} / ${pluriel(m.bilan.emails, 'e-mail')}` : ''}${m.creePar ? ` · par ${esc(m.creePar)}` : ''}</footer></article>`).join('') : '<div class="empty">Aucune notification envoyée.</div>'}
+        </div>
+      </div>`;
+
+    const form = $('#notifForm', hote);
+    const audience = () => ({ cible: form.elements.cible.value, type: form.elements.type.value, proprietaireId: form.elements.proprietaireId.value });
+    let minuterie = null;
+    const majApercu = () => {
+      const a = audience();
+      $('[data-notif-proprietaires]', form).hidden = a.cible !== 'proprietaires';
+      $('[data-notif-email]', form).hidden = a.cible === 'tous';
+      $('[data-notif-email-note]', form).textContent = a.cible === 'demandeurs' ? '(seulement ceux qui ont accepté de recevoir nos offres)' : '';
+      $('[data-notif-compteur]', form).textContent = `${form.elements.corps.value.length} / 1000`;
+      clearTimeout(minuterie);
+      minuterie = setTimeout(async () => {
+        try {
+          const r = await api('/api/admin/notifications/apercu', { method: 'POST', body: JSON.stringify({ titre: 'aperçu', corps: 'aperçu', audience: a }) });
+          const email = a.cible !== 'tous' && form.elements.email.checked ? ` et par ${pluriel(r.emails, 'e-mail')}` : '';
+          const personnes = a.cible !== 'tous' ? ` · ${pluriel(r.personnes, 'personne')} dans cette audience` : '';
+          $('[data-notif-apercu]', form).textContent = `Sera reçue sur ${pluriel(r.telephones, 'téléphone')}${email}${personnes}.`;
+        } catch { /* aperçu indicatif */ }
+      }, 250);
+    };
+    form.addEventListener('input', majApercu);
+    form.addEventListener('change', majApercu);
+    majApercu();
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!form.reportValidity()) return;
+      const a = audience();
+      const corps = { titre: form.elements.titre.value, corps: form.elements.corps.value, audience: a, email: a.cible !== 'tous' && form.elements.email.checked };
+      if (!confirm(`Envoyer « ${corps.titre} » ?\n${$('[data-notif-apercu]', form).textContent}`)) return;
+      const bouton = $('button[type="submit"]', form);
+      bouton.disabled = true;
+      try {
+        const r = await api('/api/admin/notifications', { method: 'POST', body: JSON.stringify(corps) });
+        toast(`Notification envoyée : ${pluriel(r.message.bilan.telephones, 'téléphone')}${r.message.bilan.emails ? `, ${pluriel(r.message.bilan.emailsEnvoyes, 'e-mail')}` : ''}`);
+        await chargerNotifications();
+      } catch (error) { toast(error.message); bouton.disabled = false; }
+    });
+  }
+
+  /** Carnet des propriétaires, rattachés à leurs annonces. */
+  function renderProprietaires() {
+    const d = gestionMessages.donnees;
+    const hote = $('#proprietairesVue');
+    if (!d || !hote) return;
+    hote.innerHTML = `<div class="compta-section-tete"><h3>Propriétaires</h3><button type="button" data-proprietaire-nouveau>＋ Propriétaire</button></div>
+      <p class="compta-aide">Rattachez chaque propriétaire à ses établissements, véhicules, activités ou terrains. Depuis « Notifications de l’app », vous pourrez leur écrire : sur l’app s’ils l’utilisent avec le même numéro, et par e-mail.</p>
+      <div class="content-table">${d.proprietaires.length ? d.proprietaires.map(p => {
+        const biens = Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([kind, libelle]) => { const n = (p.annonces || []).filter(a => a.kind === kind).length; return n ? `${n} ${libelle.toLowerCase()}` : ''; }).filter(Boolean).join(', ');
+        const contacts = [p.telephone, p.whatsapp && p.whatsapp !== p.telephone ? `WhatsApp ${p.whatsapp}` : '', p.email].filter(Boolean).join(' · ');
+        return `<div class="compta-ligne" role="button" tabindex="0" data-proprietaire="${esc(p.id)}"><span class="compta-avatar" aria-hidden="true">${esc((p.prenom || p.nom || '?').slice(0, 1).toUpperCase())}</span><div class="compta-ligne-texte"><strong>${esc(nomComplet(p))}</strong><small>${esc(contacts)}</small></div>${p.actif ? '' : '<span class="compta-statut">Inactif</span>'}<span class="proprietaire-biens-resume">${esc(biens || 'Aucune annonce')}</span></div>`;
+      }).join('') : '<div class="empty">Aucun propriétaire enregistré.</div>'}</div>`;
+    $('[data-proprietaire-nouveau]', hote).addEventListener('click', () => ouvrirProprietaire(null));
+    $$('[data-proprietaire]', hote).forEach(ligne => {
+      const ouvrir = () => ouvrirProprietaire(d.proprietaires.find(p => p.id === ligne.dataset.proprietaire));
+      ligne.addEventListener('click', ouvrir);
+      ligne.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ouvrir(); } });
+    });
+  }
+
+  function ouvrirProprietaire(proprietaire) {
+    const p = proprietaire || { actif: true, annonces: [] };
+    const rattachee = (kind, id) => (p.annonces || []).some(a => a.kind === kind && a.id === id);
+    const annonces = gestionMessages.donnees?.annonces || [];
+    const groupes = Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([kind, libelle]) => {
+      const liste = annonces.filter(a => a.kind === kind);
+      if (!liste.length) return '';
+      return `<div class="proprietaire-groupe"><strong>${libelle}</strong>${liste.map(a => `<label><input type="checkbox" name="annonce" value="${esc(kind)}|${esc(a.id)}" ${rattachee(kind, a.id) ? 'checked' : ''}> <span>${esc(a.titre || a.id)}</span></label>`).join('')}</div>`;
+    }).join('');
+    ouvrirTiroirCompta({
+      surtitre: 'MESSAGES · PROPRIÉTAIRES', titre: proprietaire ? nomComplet(proprietaire) : 'Nouveau propriétaire', supprimable: Boolean(proprietaire),
+      recharger: chargerNotifications,
+      champs: `<div class="form-grid">
+          <label>Nom<input name="nom" maxlength="120" required value="${esc(p.nom || '')}"></label>
+          <label>Prénom<input name="prenom" maxlength="80" value="${esc(p.prenom || '')}"></label>
+          <label>E-mail<input type="email" name="email" maxlength="180" value="${esc(p.email || '')}"></label>
+          <label>Téléphone<input type="tel" name="telephone" maxlength="40" value="${esc(p.telephone || '')}"></label>
+          <label>WhatsApp<input type="tel" name="whatsapp" maxlength="40" value="${esc(p.whatsapp || '')}"></label>
+        </div>
+        <div class="toggle-row"><label><input type="checkbox" name="actif" ${p.actif !== false ? 'checked' : ''}> Actif (reçoit les notifications)</label></div>
+        <fieldset class="proprietaire-biens"><legend>Annonces rattachées</legend>${groupes || '<p class="compta-aide">Aucune annonce publiée.</p>'}</fieldset>
+        <label>Notes<textarea name="notes" rows="3" maxlength="1000">${esc(p.notes || '')}</textarea></label>`,
+      enregistrer: async formulaire => {
+        if (!formulaire.reportValidity()) throw new Error('Complétez les champs requis');
+        const e = formulaire.elements;
+        const corps = {
+          nom: e.nom.value, prenom: e.prenom.value, email: e.email.value, telephone: e.telephone.value, whatsapp: e.whatsapp.value,
+          notes: e.notes.value, actif: e.actif.checked,
+          annonces: $$('[name="annonce"]:checked', formulaire).map(c => { const i = c.value.indexOf('|'); return { kind: c.value.slice(0, i), id: c.value.slice(i + 1) }; })
+        };
+        await api(proprietaire ? `/api/admin/proprietaires/${encodeURIComponent(proprietaire.id)}` : '/api/admin/proprietaires', { method: proprietaire ? 'PATCH' : 'POST', body: JSON.stringify(corps) });
+        toast(proprietaire ? 'Propriétaire mis à jour' : 'Propriétaire ajouté');
+      },
+      supprimer: async () => {
+        if (!confirm(`Supprimer ${nomComplet(proprietaire)} du carnet ?`)) return false;
+        await api(`/api/admin/proprietaires/${encodeURIComponent(proprietaire.id)}`, { method: 'DELETE' });
+        toast('Propriétaire supprimé');
+        return true;
+      }
+    });
+  }
+
   function chargerMessages() {
     if (!$('#waIntro')) return Promise.resolve();
     chargementMessages = chargementMessages || api('/api/admin/whatsapp')

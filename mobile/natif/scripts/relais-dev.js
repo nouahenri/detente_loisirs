@@ -107,6 +107,20 @@ http.createServer(async (req, res) => {
     return repondre(res, 200, { ok: true, statuts });
   }
 
+  // Inscription avec le numéro du profil et relève des messages du studio
+  // (19/09/2026) : banc local = vrai serveur ; site en ligne = simulées.
+  if (chemin === '/api/app/abonnement') {
+    const corps = await lireCorps(req);
+    if (BANC) return transmettre(req, res, corps);
+    console.log('[abonnement simulé]', req.method, JSON.stringify(corps));
+    return repondre(res, 200, { ok: true, simulee: true });
+  }
+
+  if (req.method === 'GET' && chemin === '/api/app/messages') {
+    if (BANC) return repondre(res, 200, (await lireSite(req.url)) || { ok: true, messages: [] });
+    return repondre(res, 200, { ok: true, messages: [] });
+  }
+
   if (chemin === '/api/app/appareils') {
     await lireCorps(req);
     return repondre(res, 200, { ok: true, simulee: true });

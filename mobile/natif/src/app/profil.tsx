@@ -4,8 +4,8 @@
  * effacement des données. Tout reste sur le téléphone : l'app n'a pas de compte.
  */
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
 import { ChampChoix, type OptionChoix } from '@/composants/ChampChoix';
@@ -16,6 +16,7 @@ import { dateCourte, LANGUES, type Langue } from '@/donnees/i18n';
 import { useMagasin, type Coordonnees } from '@/donnees/magasin';
 import { usePreferences, type ChoixTheme } from '@/donnees/preferences';
 import { creerStyles, type Palette } from '@/donnees/theme';
+import { messagesRecus } from '@/donnees/veille';
 
 export default function Profil() {
   const router = useRouter();
@@ -26,6 +27,9 @@ export default function Profil() {
   const [enregistre, setEnregistre] = useState(false);
   const [ouvert, setOuvert] = useState(false);
   const [notifEnCours, setNotifEnCours] = useState(false);
+  // Messages du studio gardés sur le téléphone (écran « Messages reçus »).
+  const [nbMessages, setNbMessages] = useState(0);
+  useFocusEffect(useCallback(() => { messagesRecus().then(liste => setNbMessages(liste.length)); }, []));
 
   // Coordonnées modifiées ailleurs (envoi d'un devis, effacement) : le formulaire suit.
   useEffect(() => { setSaisie(coordonnees); }, [coordonnees]);
@@ -141,6 +145,14 @@ export default function Profil() {
               />
             )}
           </View>
+          {notifications !== 'indisponible' && notifications !== 'nonConfigure' ? (
+            <View style={s.mention}>
+              <Icone nom="information-circle-outline" taille={16} couleur={C.texte3} />
+              <Text style={s.mentionTexte}>
+                {t('profil.mentionNumero')}{notifications === 'actif' && !coordonnees.tel.trim() ? `\n${t('profil.ajouterNumero')}` : ''}
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         <Text style={s.menuTitre}>{t('profil.activite')}</Text>
@@ -149,6 +161,12 @@ export default function Profil() {
             <View style={s.elementIcone}><Icone nom="heart-outline" taille={19} couleur={C.marque} /></View>
             <Text style={[s.elementTexte, { flex: 1 }]}>{t('profil.favoris')}</Text>
             <Text style={s.compteur}>{favoris.length}</Text>
+            <Icone nom="chevron-forward" taille={18} couleur={C.texte3} />
+          </Pressable>
+          <Pressable onPress={() => { vibrerSelection(); router.push('/messages'); }} style={({ pressed }) => [s.element, s.bordure, pressed && { backgroundColor: C.surface }]} accessibilityRole="button">
+            <View style={s.elementIcone}><Icone nom="chatbubbles-outline" taille={19} couleur={C.marque} /></View>
+            <Text style={[s.elementTexte, { flex: 1 }]}>{t('profil.messages')}</Text>
+            <Text style={s.compteur}>{nbMessages}</Text>
             <Icone nom="chevron-forward" taille={18} couleur={C.texte3} />
           </Pressable>
           <Pressable onPress={() => { vibrerSelection(); router.push('/demandes'); }} style={({ pressed }) => [s.element, pressed && { backgroundColor: C.surface }]} accessibilityRole="button">
@@ -245,6 +263,8 @@ const feuille = creerStyles(C => ({
   elementTexte: { fontSize: 15, fontWeight: '600', color: C.texte },
   elementDetail: { fontSize: 12.5, color: C.texte3, marginTop: 1 },
   compteur: { fontSize: 14, fontWeight: '700', color: C.texte2 },
+  mention: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingBottom: 12, paddingTop: 2 },
+  mentionTexte: { flex: 1, fontSize: 12, lineHeight: 17, color: C.texte3 },
   reglage: { padding: 13, gap: 10 },
   reglageTete: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   puces: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

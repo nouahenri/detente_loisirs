@@ -14,6 +14,7 @@ import * as TaskManager from 'expo-task-manager';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
+import { retirerAbonnement, synchroniserAbonnement } from './abonnement';
 import { API } from './config';
 import type { Langue } from './i18n';
 import { CLES_VEILLE, executerVeille } from './veille';
@@ -90,6 +91,8 @@ export async function activerNotifications(langue: Langue, demander = true): Pro
       } catch { jeton = null; /* service distant indisponible : mode local */ }
     }
     await AsyncStorage.multiSet([[CLES_VEILLE.active, '1'], [CLES_VEILLE.jeton, jeton || '']]);
+    // Inscription auprès du site avec le numéro du profil (messages du studio).
+    await synchroniserAbonnement({ force: true });
     return { etat: 'actif', jeton };
   } catch {
     return { etat: 'indisponible', jeton: null };
@@ -98,6 +101,7 @@ export async function activerNotifications(langue: Langue, demander = true): Pro
 
 export async function desactiverNotifications(jeton: string | null) {
   if (jeton) await envoyerAuSite('DELETE', { jeton });
+  await retirerAbonnement();
   try { if (await TaskManager.isTaskRegisteredAsync(TACHE_VEILLE)) await BackgroundTask.unregisterTaskAsync(TACHE_VEILLE); } catch { /* déjà retirée */ }
   await AsyncStorage.multiSet([[CLES_VEILLE.active, '0'], [CLES_VEILLE.jeton, '']]).catch(() => {});
 }
@@ -116,6 +120,8 @@ export function useOuvertureNotifications() {
       router.navigate(`/${donnees.ecran}`);
     } else if (donnees.ecran === 'profil') {
       router.push('/profil');
+    } else if (donnees.ecran === 'messages') {
+      router.push('/messages');
     }
   }, [derniere, router]);
 }

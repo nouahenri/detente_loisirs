@@ -48,7 +48,7 @@ test('registre : rôles prédéfinis par défaut, modifications appliquées, per
 });
 
 test('propriétaire : la gestion des accès ne peut pas lui être retirée', () => {
-  const [proprietaire] = auth.normaliserRoles([{ code: 'proprietaire', libelle: 'Propriétaire', permissions: ['dashboard:view'] }]);
+  const [proprietaire] = auth.normaliserRoles([{ code: 'proprietaire', libelle: 'Propriétaire', permissions: ['dashboard:view'], updated_at: new Date('2026-10-01T00:00:00Z') }]);
   assert.deepEqual(proprietaire.permissions, ['dashboard:view', auth.PERMISSION_VITALE]);
   const { role } = auth.validerRole({ libelle: 'Propriétaire', permissions: ['dashboard:view'] }, { existant: auth.listeRoles()[0] });
   assert.ok(role.permissions.includes(auth.PERMISSION_VITALE));
@@ -120,4 +120,16 @@ test('grille : colonne des permissions de largeur fixe et défilement aimanté, 
   assert.match(css, /\.roles-table-cadre \{ scroll-snap-type:x mandatory; scroll-padding-left:170px; \}/);
   assert.match(css, /width:170px; min-width:170px; max-width:170px;/);
   assert.match(css, /\.roles-table-cadre \{ scroll-padding-left:128px; \}\s*\.roles-table tbody th, \.roles-table thead th:first-child \{ width:128px; min-width:128px; max-width:128px;/);
+});
+
+test('permissions nouvelles : accordées aux rôles prédéfinis enregistrés avant leur arrivée, choix ultérieur respecté', () => {
+  const avant = auth.normaliserRoles([{ code: 'proprietaire', libelle: 'Propriétaire', permissions: ['dashboard:view', 'users:manage'], updated_at: new Date('2026-09-18T10:00:00Z') }]);
+  const p = avant.find(r => r.code === 'proprietaire').permissions;
+  assert.ok(p.includes('location:manage') && p.includes('notifications:manage'), 'rubriques nouvelles visibles du propriétaire');
+  const apres = auth.normaliserRoles([{ code: 'proprietaire', libelle: 'Propriétaire', permissions: ['dashboard:view', 'users:manage'], updated_at: '2026-10-02 09:00:00' }]);
+  assert.ok(!apres.find(r => r.code === 'proprietaire').permissions.includes('notifications:manage'), 'décochée après son arrivée : reste décochée');
+  const editeur = auth.normaliserRoles([{ code: 'editeur', libelle: 'Éditeur', permissions: ['content:read'] }]).find(r => r.code === 'editeur');
+  assert.deepEqual(editeur.permissions, ['content:read'], 'pas de permission que le rôle n’a pas par défaut');
+  const cree = auth.normaliserRoles([{ code: 'agent', libelle: 'Agent', permissions: ['leads:read'] }]).find(r => r.code === 'agent');
+  assert.deepEqual(cree.permissions, ['leads:read'], 'rôle créé au studio : inchangé');
 });

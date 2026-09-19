@@ -102,8 +102,11 @@ CREATE TABLE IF NOT EXISTS `compta_ecritures` (
 CREATE TABLE IF NOT EXISTS `compta_employes` (
   `id`              CHAR(36)        NOT NULL,
   `nom`             VARCHAR(120)    NOT NULL,
+  `prenom`          VARCHAR(80)     NOT NULL DEFAULT '',
   `poste`           VARCHAR(120)    NOT NULL DEFAULT '',
   `telephone`       VARCHAR(40)     NOT NULL DEFAULT '',
+  `email`           VARCHAR(180)    NOT NULL DEFAULT '',
+  `whatsapp`        VARCHAR(40)     NOT NULL DEFAULT '',
   `salaire_mensuel` BIGINT UNSIGNED NOT NULL DEFAULT 0,
   `date_embauche`   DATE            NULL DEFAULT NULL,
   `actif`           TINYINT(1)      NOT NULL DEFAULT 1,

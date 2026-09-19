@@ -89,7 +89,9 @@ const ROLE_PERMISSIONS = {
     // Comptabilité (17/09/2026) : salaires et finances, propriétaire seulement.
     'compta:manage',
     // Location de voitures (17/09/2026) : planning et réservations.
-    'location:manage'
+    'location:manage',
+    // Notifications de l'app et carnet des propriétaires (19/09/2026).
+    'notifications:manage'
   ],
   editeur: [
     'dashboard:view',
@@ -100,7 +102,7 @@ const ROLE_PERMISSIONS = {
     'dashboard:view',
     'leads:read', 'leads:write', 'leads:export',
     'newsletter:read', 'newsletter:write',
-    'location:manage'
+    'location:manage', 'notifications:manage'
   ]
 };
 
@@ -118,12 +120,23 @@ const CATALOGUE_PERMISSIONS = [
   { groupe: 'Newsletter', permissions: [['newsletter:read', 'Consulter abonnés et campagnes'], ['newsletter:write', 'Envoyer des campagnes']] },
   { groupe: 'Facebook', permissions: [['facebook:read', 'Consulter les publications'], ['facebook:write', 'Publier et synchroniser']] },
   { groupe: 'Location de voitures', permissions: [['location:manage', 'Planning, réservations, indisponibilités et réglages de location']] },
+  { groupe: 'Notifications de l’app', permissions: [['notifications:manage', 'Envoyer des notifications aux utilisateurs de l’app, gérer les propriétaires']] },
   { groupe: 'Finances', permissions: [['compta:manage', 'Comptabilité : entrées, sorties, salaires']] },
   { groupe: 'Administration', permissions: [['backup:manage', 'Sauvegardes et exports'], ['audit:read', 'Journal d’audit'], ['users:manage', 'Utilisateurs, rôles et permissions']] }
 ];
 const TOUTES_PERMISSIONS = CATALOGUE_PERMISSIONS.flatMap(groupe => groupe.permissions.map(([code]) => code));
 // Sans elle, plus personne ne pourrait rendre des droits : le propriétaire la garde.
 const PERMISSION_VITALE = 'users:manage';
+/*
+ * Permissions arrivées après la mise en service des rôles administrables :
+ * accordées aux rôles prédéfinis qui les ont par défaut quand leur fiche a
+ * été enregistrée AVANT leur arrivée (sinon le propriétaire ne verrait pas
+ * les nouvelles rubriques). Décochées ensuite au studio, elles le restent.
+ */
+const PERMISSIONS_INTRODUITES = [
+  ['location:manage', '2026-09-19T20:00:00Z'],
+  ['notifications:manage', '2026-09-19T20:00:00Z']
+];
 const ROLES_FILE = 'roles.json';
 const ROLES_TTL_MS = 30_000;
 
@@ -141,6 +154,11 @@ function normaliserRoles(lignes = []) {
     const base = parCode.get(code);
     if (ligne.supprime) { if (!base?.systeme) parCode.delete(code); continue; }
     let permissions = Array.isArray(ligne.permissions) ? ligne.permissions : (() => { try { return JSON.parse(ligne.permissions || '[]'); } catch { return []; } })();
+    const enregistreLe = Date.parse(ligne.updated_at instanceof Date ? ligne.updated_at.toISOString() : (ligne.updated_at || ligne.majLe || '')) || 0;
+    if (base?.systeme) {
+      const ajoutees = PERMISSIONS_INTRODUITES.filter(([p, depuis]) => ROLE_PERMISSIONS[code]?.includes(p) && enregistreLe < Date.parse(depuis)).map(([p]) => p);
+      permissions = [...permissions, ...ajoutees];
+    }
     permissions = TOUTES_PERMISSIONS.filter(p => permissions.includes(p));
     if (code === 'proprietaire' && !permissions.includes(PERMISSION_VITALE)) permissions.push(PERMISSION_VITALE);
     parCode.set(code, {
@@ -163,7 +181,7 @@ async function actualiserRoles(force = false) {
   if (!force && Date.now() - rolesLusLe < ROLES_TTL_MS) return registreRoles;
   let lignes = null;
   if (useDb()) {
-    try { [lignes] = await sql('SELECT code, libelle, description, permissions, ordre, supprime FROM roles'); }
+    try { [lignes] = await sql('SELECT code, libelle, description, permissions, ordre, supprime, updated_at FROM roles'); }
     catch (error) { if (!(error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146)) { rolesLusLe = Date.now(); return registreRoles; } }
   }
   if (!lignes) lignes = jsonStore.read(ROLES_FILE, []);
@@ -208,7 +226,7 @@ async function enregistrerRole(role) {
   }
   if (!enBase) {
     const lignes = jsonStore.read(ROLES_FILE, []).filter(ligne => ligne.code !== role.code);
-    jsonStore.write(ROLES_FILE, [...lignes, { code: role.code, libelle: role.libelle, description: role.description, permissions: role.permissions, ordre: role.ordre }]);
+    jsonStore.write(ROLES_FILE, [...lignes, { code: role.code, libelle: role.libelle, description: role.description, permissions: role.permissions, ordre: role.ordre, majLe: new Date().toISOString() }]);
   }
   await actualiserRoles(true);
   return role;
@@ -900,7 +918,7 @@ async function resolveSession(token) {
 
 module.exports = {
   ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_PERMISSIONS,
-  CATALOGUE_PERMISSIONS, TOUTES_PERMISSIONS, PERMISSION_VITALE,
+  CATALOGUE_PERMISSIONS, TOUTES_PERMISSIONS, PERMISSION_VITALE, PERMISSIONS_INTRODUITES,
   normaliserRoles, listeRoles, roleExiste, libelleRole, actualiserRoles, validerRole, enregistrerRole, supprimerRole,
   SESSION_TTL_MS, MAX_ATTEMPTS_BEFORE_LOCK, LOCK_STEPS_MINUTES,
   GENERIC_LOGIN_ERROR,

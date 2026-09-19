@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=20260917c">
+  <link rel="stylesheet" href="css/admin.css?v=20260919a">
 </head>
 <body>
   <!-- Écran d'attente affiché le temps que `/api/auth/session` réponde, pour
@@ -122,7 +122,13 @@
           <button type="button" data-location-aller="indisponibilites">Indisponibilités</button>
           <button type="button" data-location-aller="reglages">Réglages</button>
         </div>
-        <button data-view="messages" data-permission="leads:read"><span>✆</span> Messages</button>
+        <button data-view="messages" data-permission="leads:read notifications:manage"><span>✆</span> Messages</button>
+        <!-- Sous-menu des messages (19/09/2026) : WhatsApp, notifications de l'app, propriétaires. -->
+        <div class="nav-sous-menu" id="messagesSousMenu" hidden>
+          <button type="button" data-messages-aller="whatsapp" data-permission="leads:read">WhatsApp</button>
+          <button type="button" data-messages-aller="notifications" data-permission="notifications:manage">Notifications de l’app</button>
+          <button type="button" data-messages-aller="proprietaires" data-permission="notifications:manage">Propriétaires</button>
+        </div>
         <button data-view="newsletter" data-permission="newsletter:read"><span>✉</span> Newsletter</button>
         <button data-view="facebook" data-permission="facebook:read"><span>f</span> Publications</button>
         <button data-view="users" data-permission="users:manage"><span>◍</span> Utilisateurs</button>
@@ -221,6 +227,12 @@
       <!-- Messages WhatsApp promotionnels (13/09/2026) : envoi par liens wa.me,
            uniquement aux clients ayant donné leur accord dans le simulateur. -->
       <section class="admin-view" data-panel="messages">
+        <nav class="compta-onglets messages-onglets" role="tablist" aria-label="Sections des messages" id="messagesOnglets"></nav>
+        <!-- Notifications de l'app et propriétaires (19/09/2026) : rendus par
+             js/admin.js → renderNotifications() et renderProprietaires(). -->
+        <div data-messages-section="notifications" hidden><div id="notifVue"><div class="empty">Chargement…</div></div></div>
+        <div data-messages-section="proprietaires" hidden><div id="proprietairesVue"><div class="empty">Chargement…</div></div></div>
+        <div data-messages-section="whatsapp">
         <div class="wa-intro" id="waIntro"></div>
         <div class="wa-grille">
           <form class="wa-bloc wa-form" id="waForm" novalidate>
@@ -255,6 +267,7 @@
             <div class="filter-pills" id="waFiltres"><button class="active" data-filtre="tous">Tous</button><button data-filtre="accord">Avec accord</button><button data-filtre="sans">Sans accord</button><button data-filtre="stop">Ne plus contacter</button></div>
           </div>
           <div id="waContacts"></div>
+        </div>
         </div>
       </section>
 
@@ -328,6 +341,6 @@
   <div class="admin-toast" id="adminToast"></div>
   <script src="js/data.js?v=20260912a"></script>
   <script src="js/location-voitures.js?v=20260919a"></script>
-  <script src="js/admin.js?v=20260917c"></script>
+  <script src="js/admin.js?v=20260919b"></script>
 </body>
 </html>

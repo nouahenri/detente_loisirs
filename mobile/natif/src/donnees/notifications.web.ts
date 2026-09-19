@@ -4,6 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { retirerAbonnement, synchroniserAbonnement } from './abonnement';
 import type { Langue } from './i18n';
 import { CLES_VEILLE } from './veille';
 
@@ -27,10 +28,12 @@ export async function activerNotifications(_langue: Langue, demander = true): Pr
   if (permission !== 'granted' && demander) permission = await Notification.requestPermission();
   if (permission !== 'granted') return { etat: 'refuse', jeton: null };
   await AsyncStorage.multiSet([[CLES_VEILLE.active, '1'], [CLES_VEILLE.jeton, '']]);
+  await synchroniserAbonnement({ force: true });
   return { etat: 'actif', jeton: null };
 }
 
 export async function desactiverNotifications(_jeton: string | null) {
+  await retirerAbonnement();
   await AsyncStorage.multiSet([[CLES_VEILLE.active, '0'], [CLES_VEILLE.jeton, '']]).catch(() => {});
 }
 

@@ -6,6 +6,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { retirerAbonnement, synchroniserAbonnement } from './abonnement';
 import { oublierVisiteur } from './avis';
 import { API } from './config';
 import { afficherNotification } from './notifications';
@@ -183,6 +184,8 @@ export function FournisseurMagasin({ children }: { children: ReactNode }) {
     setCoordonnees(propres);
     ecrireStockage(CLES.coordonnees, propres);
     setDevis(actuel => ({ ...actuel, ...propres }));
+    // Numéro du profil transmis au site si les notifications sont activées.
+    synchroniserAbonnement({ force: true, coordonnees: propres }).catch(() => {});
   }, []);
 
   /** Après un envoi : les coordonnées saisies dans le devis deviennent celles du profil. */
@@ -190,6 +193,7 @@ export function FournisseurMagasin({ children }: { children: ReactNode }) {
     const valeurs = { nom: devis.nom.trim(), tel: devis.tel.trim(), email: devis.email.trim() };
     setCoordonnees(valeurs);
     ecrireStockage(CLES.coordonnees, valeurs);
+    synchroniserAbonnement({ force: true, coordonnees: valeurs }).catch(() => {});
   }, [devis.nom, devis.tel, devis.email]);
 
   const ajouterDemande = useCallback((demande: DemandeEnvoyee) => {
@@ -225,8 +229,13 @@ export function FournisseurMagasin({ children }: { children: ReactNode }) {
     setHistorique([]);
     setCoordonnees(COORDONNEES_VIDES);
     setDevis(actuel => ({ ...actuel, ...COORDONNEES_VIDES, optin: false }));
-    AsyncStorage.multiRemove([CLES.favoris, CLES.historique, CLES.coordonnees]).catch(() => {});
-    oublierVisiteur();
+    AsyncStorage.multiRemove([CLES.favoris, CLES.historique, CLES.coordonnees, 'dl:messages', 'dl:messages-depuis']).catch(() => {});
+    // Le site oublie ce téléphone et son numéro ; nouvelle inscription anonyme si les notifications restent actives.
+    (async () => {
+      await retirerAbonnement();
+      await oublierVisiteur();
+      await synchroniserAbonnement({ force: true, coordonnees: {} });
+    })().catch(() => {});
   }, []);
 
   const majResumeAvis = useCallback((type: TypeAnnonce, id: string, resume: ResumeAvis) => {

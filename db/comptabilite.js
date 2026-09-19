@@ -218,11 +218,15 @@ function validerEmploye(source = {}, { existant = null, maintenant = new Date() 
   if (!(salaire >= 0) || salaire > MONTANT_MAX) erreurs.push('Salaire mensuel invalide.');
   const embauche = texte(source.dateEmbauche, 10);
   if (embauche && !dateValide(embauche)) erreurs.push('Date d’embauche invalide.');
+  // Coordonnées (19/09/2026) : notifications de l'app et e-mails du studio.
+  const email = texte(source.email, 180).toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) erreurs.push('Adresse e-mail invalide.');
   const horodatage = new Date(maintenant).toISOString();
   return {
     erreurs,
     employe: erreurs.length ? null : {
-      id: existant?.id || crypto.randomUUID(), nom, poste: texte(source.poste, 120), telephone: texte(source.telephone, 40),
+      id: existant?.id || crypto.randomUUID(), nom, prenom: texte(source.prenom, 80), poste: texte(source.poste, 120),
+      telephone: texte(source.telephone, 40), email, whatsapp: texte(source.whatsapp, 40),
       salaireMensuel: salaire, dateEmbauche: embauche, actif: source.actif !== false && source.actif !== 'false',
       notes: texte(source.notes, 2000), creeLe: existant?.creeLe || horodatage, majLe: horodatage
     }
@@ -460,7 +464,8 @@ const ecritureDepuisLigne = l => ({
   creePar: l.cree_par || '', creeLe: versIso(l.created_at), modifiePar: l.modifie_par || '', majLe: versIso(l.updated_at)
 });
 const employeDepuisLigne = l => ({
-  id: l.id, nom: l.nom, poste: l.poste || '', telephone: l.telephone || '', salaireMensuel: Number(l.salaire_mensuel),
+  id: l.id, nom: l.nom, prenom: l.prenom || '', poste: l.poste || '', telephone: l.telephone || '', email: l.email || '', whatsapp: l.whatsapp || '',
+  salaireMensuel: Number(l.salaire_mensuel),
   dateEmbauche: versDate(l.date_embauche), actif: Boolean(Number(l.actif)), notes: l.notes || '',
   creeLe: versIso(l.created_at), majLe: versIso(l.updated_at)
 });
@@ -557,10 +562,10 @@ async function supprimerEcriture(id) {
 
 async function enregistrerEmploye(e) {
   return enBaseOuFichier(async r => {
-    await r.query(`INSERT INTO compta_employes (id, nom, poste, telephone, salaire_mensuel, date_embauche, actif, notes, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE nom=VALUES(nom), poste=VALUES(poste), telephone=VALUES(telephone),
-      salaire_mensuel=VALUES(salaire_mensuel), date_embauche=VALUES(date_embauche), actif=VALUES(actif), notes=VALUES(notes)`,
-    [e.id, e.nom, e.poste, e.telephone, e.salaireMensuel, e.dateEmbauche || null, e.actif ? 1 : 0, e.notes, versMysql(e.creeLe)]);
+    await r.query(`INSERT INTO compta_employes (id, nom, prenom, poste, telephone, email, whatsapp, salaire_mensuel, date_embauche, actif, notes, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE nom=VALUES(nom), prenom=VALUES(prenom), poste=VALUES(poste), telephone=VALUES(telephone),
+      email=VALUES(email), whatsapp=VALUES(whatsapp), salaire_mensuel=VALUES(salaire_mensuel), date_embauche=VALUES(date_embauche), actif=VALUES(actif), notes=VALUES(notes)`,
+    [e.id, e.nom, e.prenom || '', e.poste, e.telephone, e.email || '', e.whatsapp || '', e.salaireMensuel, e.dateEmbauche || null, e.actif ? 1 : 0, e.notes, versMysql(e.creeLe)]);
     return e;
   }, donnees => {
     const index = donnees.employes.findIndex(x => x.id === e.id);

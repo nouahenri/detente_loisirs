@@ -420,7 +420,32 @@ ${SIGNATURE_TEXT}`
   };
 }
 
+// ---------------------------------------------------------------------------
+// 6. Message du studio (Messages → Notifications de l'app), 19/09/2026 :
+//    envoyé par e-mail aux contacts de l'audience qui ont une adresse.
+// ---------------------------------------------------------------------------
+function messageStudio({ nom = '', titre, corps, siteUrl = '' }) {
+  const bonjour = nom ? `Bonjour ${nom},` : 'Bonjour,';
+  const p = contenu => `<p style="margin:0 0 16px;font-size:15px;line-height:1.65;color:${BRAND.ink};">${contenu}</p>`;
+  return {
+    subject: titre,
+    html: layout({
+      preheader: String(corps || '').slice(0, 120),
+      heading: titre,
+      bodyHtml: p(escapeHtml(bonjour)) + textToHtml(corps),
+      cta: siteUrl ? { label: 'Ouvrir henri-philippe.com', url: siteUrl } : null,
+      footerLines: ['Message envoyé par Détente & Loisirs à Assinie. Pour toute question, répondez simplement à cet e-mail.']
+    }),
+    text: `${bonjour}
+
+${corps}
+
+${SIGNATURE_TEXT}`
+  };
+}
+
 module.exports = {
+  messageStudio,
   passwordReset, passwordChanged,
   BRAND, escapeHtml, textToHtml, htmlToText, layout,
   newsletterConfirmation, newsletterWelcome, newsletterCampaign, leadNotification, leadConfirmation, smtpTest

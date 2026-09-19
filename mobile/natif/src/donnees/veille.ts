@@ -1,7 +1,9 @@
 /**
  * Veille des notifications, sans service de notifications distantes :
  *   · nouvelles annonces : comparaison avec les annonces déjà connues ;
- *   · suivi des demandes : statut demandé au site (POST /api/app/suivi).
+ *   · suivi des demandes : statut demandé au site (POST /api/app/suivi) ;
+ *   · messages du studio (19/09/2026) : relevés sur le site (GET /api/app/messages)
+ *     et gardés sur le téléphone (écran « Messages reçus »).
  * Appelée à chaque actualisation des annonces (app ouverte) et par la tâche
  * de fond (app fermée). Mêmes règles que db/notifications-app.js du site.
  * Si les notifications distantes Expo sont actives (jeton), le site les
@@ -9,6 +11,8 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { synchroniserAbonnement } from './abonnement';
+import { jetonVisiteur } from './avis';
 import { API } from './config';
 import { traducteur, type Langue } from './i18n';
 
@@ -18,7 +22,12 @@ export const CLES_VEILLE = {
   langue: 'dl:langue',
   connues: 'dl:annonces-connues',
   historique: 'dl:historique',
+  messages: 'dl:messages',
+  messagesDepuis: 'dl:messages-depuis',
 };
+
+/** Message envoyé depuis le studio (Messages → Notifications de l'app). */
+export type MessageRecu = { id: string; titre: string; corps: string; le: string };
 
 export type Afficher = (titre: string, corps: string, donnees: Record<string, string>) => Promise<void>;
 type DemandeSuivie = { id?: string; statut?: string; suivi?: boolean };
@@ -58,6 +67,38 @@ export async function amorcerVeille(contenu: unknown) {
   await AsyncStorage.setItem(CLES_VEILLE.connues, JSON.stringify(annoncesPubliques(contenu).map(a => a.cle))).catch(() => {});
 }
 
+export async function messagesRecus() {
+  return lire<MessageRecu[]>(CLES_VEILLE.messages, []);
+}
+
+/**
+ * Relève les messages du studio destinés à ce téléphone et les garde (50 au
+ * plus). `afficher` : notification locale des nouveaux (absente pour une
+ * simple actualisation de l'écran). Renvoie la liste complète.
+ */
+export async function releverMessages(afficher: Afficher | null, langue: Langue = 'fr'): Promise<MessageRecu[]> {
+  const connus = await messagesRecus();
+  try {
+    const depuis = await AsyncStorage.getItem(CLES_VEILLE.messagesDepuis);
+    const visiteur = await jetonVisiteur();
+    const reponse = await fetch(`${API}/api/app/messages?visiteur=${encodeURIComponent(visiteur)}${depuis ? `&depuis=${encodeURIComponent(depuis)}` : ''}`, { headers: { Accept: 'application/json' } });
+    const { messages } = (await reponse.json()) as { messages?: MessageRecu[] };
+    const dejaLus = new Set(connus.map(m => m.id));
+    const nouveaux = (Array.isArray(messages) ? messages : []).filter(m => m && m.id && !dejaLus.has(m.id));
+    if (!nouveaux.length) return connus;
+    const tous = [...nouveaux, ...connus].sort((a, b) => String(b.le).localeCompare(String(a.le))).slice(0, 50);
+    await AsyncStorage.multiSet([[CLES_VEILLE.messages, JSON.stringify(tous)], [CLES_VEILLE.messagesDepuis, tous[0].le]]);
+    if (afficher) {
+      const t = traducteur(langue);
+      if (nouveaux.length === 1) await afficher(nouveaux[0].titre, nouveaux[0].corps, { ecran: 'messages' });
+      else await afficher(t('notif.messages', { n: nouveaux.length }), nouveaux.map(m => m.titre).join(' · '), { ecran: 'messages' });
+    }
+    return tous;
+  } catch {
+    return connus; // réseau indisponible : prochaine fois
+  }
+}
+
 /** Renvoie l'historique mis à jour (statuts) pour que l'écran Profil suive. */
 export async function executerVeille(afficher: Afficher, contenuFourni?: unknown): Promise<DemandeSuivie[] | null> {
   const [active, jeton, langueLue] = await Promise.all([
@@ -87,6 +128,12 @@ export async function executerVeille(afficher: Afficher, contenuFourni?: unknown
       }
     }
   } catch { /* réseau indisponible : prochaine fois */ }
+
+  // --- Messages du studio ---------------------------------------------------
+  // Inscription rafraîchie une fois par jour (numéro du profil), puis relève.
+  // Notifications distantes actives : le site les a déjà affichées.
+  await synchroniserAbonnement();
+  await releverMessages(distantes ? null : afficher, langue);
 
   // --- Suivi des demandes ---------------------------------------------------
   const historique = await lire<DemandeSuivie[]>(CLES_VEILLE.historique, []);
