@@ -58,6 +58,8 @@
   function donneesAnnonces(kind) {
     if (kind === "villa") return typeof VILLAS_DATA !== "undefined" ? VILLAS_DATA : [];
     if (kind === "terrain") return typeof TERRAINS_DATA !== "undefined" ? TERRAINS_DATA : [];
+    // Location de voitures (17/09/2026) : catalogue chargé par js/voitures.js.
+    if (kind === "vehicle") return Array.isArray(window.VEHICULES_DATA) ? window.VEHICULES_DATA : [];
     return typeof ACTIVITIES_DATA !== "undefined" ? ACTIVITIES_DATA : [];
   }
 
@@ -80,7 +82,8 @@
     const cibles = [
       ["villa", ".property-card[data-id]", ".property-card-title-row"],
       ["terrain", ".terrain-card[data-id]", ".terrain-card-title"],
-      ["activity", ".activity-card[data-id]", ".activity-card-title"]
+      ["activity", ".activity-card[data-id]", ".activity-card-title"],
+      ["vehicle", ".vehicule-card[data-id]", ".vehicule-card-titre"]
     ];
     for (const [kind, selecteur, ancre] of cibles) {
       document.querySelectorAll(selecteur).forEach(carte => {
@@ -256,6 +259,7 @@
     if (kind === "activity") ouvrirFenetreActivite(id);
     else if (kind === "villa" && typeof openVillaModal === "function") openVillaModal(id);
     else if (kind === "terrain" && typeof openTerrainModal === "function") openTerrainModal(id);
+    else if (kind === "vehicle" && typeof window.ouvrirVehicule === "function") window.ouvrirVehicule(id);
     else ancreAvis = null;
   }, true);
   window.addEventListener("dl:cards-rendered", decorerCartes);

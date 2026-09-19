@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="meta.contact.titre">Contactez-Nous | Henri & Philippe - Détente & Loisirs à Assinie</title>
-  <meta name="description" content="Contactez l'équipe de Henri & Philippe - Détente & Loisirs à Assinie. Service client disponible 7j/7 sur WhatsApp au +225 07 67 69 63 18 pour toutes vos questions et réservations." data-i18n-attr="content:meta.contact.desc">
+  <title data-i18n="meta.voitures.titre">Location de Voitures à Assinie et Abidjan, avec ou sans Chauffeur | Henri & Philippe</title>
+  <meta name="description" content="Louez une voiture à Assinie et Abidjan : citadines, SUV, 4x4 et minibus, avec ou sans chauffeur. Tarifs dégressifs, livraison à l’aéroport, estimation immédiate et confirmation par notre conciergerie." data-i18n-attr="content:meta.voitures.desc">
   
-  <meta property="og:title" content="Contactez-Nous | Henri & Philippe">
-  <meta property="og:description" content="Service client disponible 7j/7 au +225 07 67 69 63 18 pour organiser votre séjour à Assinie.">
-  <meta property="og:image" content="https://henri-philippe.com/assets/images/banner-contact.jpg">
+  <meta property="og:title" content="Location de Voitures avec ou sans Chauffeur | Henri & Philippe - Assinie">
+  <meta property="og:description" content="Citadines, SUV, 4x4 et minibus à Assinie et Abidjan. Estimation immédiate, livraison possible, confirmation par la conciergerie.">
+  <meta property="og:image" content="https://henri-philippe.com/assets/images/banniere-parallaxe-assinie.jpg">
   <meta property="og:image:width" content="1376">
   <meta property="og:image:height" content="768">
-  <meta property="og:url" content="https://henri-philippe.com/contact.html">
+  <meta property="og:url" content="https://henri-philippe.com/voitures.html">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/images/logo.png">
@@ -33,6 +33,8 @@
   <link rel="stylesheet" href="css/premium.css?v=20260912a">
   <link rel="stylesheet" href="css/design-polish.css?v=20260912a">
   <link rel="stylesheet" href="css/refonte.css?v=20260913r">
+  <link rel="stylesheet" href="css/avis.css?v=20260917b">
+  <link rel="stylesheet" href="css/voitures.css?v=20260919c">
 </head>
 <body>
 
@@ -53,15 +55,15 @@
           <li><a href="residences.html" class="nav-link" data-i18n="t.nos-residences">Nos Résidences</a></li>
           <li><a href="terrains.html" class="nav-link" data-i18n="t.terrains">Terrains</a></li>
           <li><a href="loisirs.html" class="nav-link" data-i18n="t.activites-loisirs">Activités & Loisirs</a></li>
-          <li><a href="voitures.html" class="nav-link" data-i18n="t.voitures">Voitures</a></li>
+          <li><a href="voitures.html" class="nav-link active" data-i18n="t.voitures">Voitures</a></li>
           <li><a href="devis.html" class="nav-link" data-i18n="t.calculer-un-devis">Calculer un Devis</a></li>
           <li><a href="faq.html" class="nav-link">FAQ</a></li>
-          <li><a href="contact.html" class="nav-link active" data-i18n="t.contact">Contact</a></li>
+          <li><a href="contact.html" class="nav-link" data-i18n="t.contact">Contact</a></li>
         </ul>
       </nav>
 
       <div class="nav-actions">
-        <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20Je%20souhaite%20r%C3%A9server." 
+        <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20Je%20souhaite%20louer%20une%20voiture." 
            target="_blank" 
            rel="noopener noreferrer" 
            class="btn-book-nav" data-i18n="t.reserver">
@@ -89,121 +91,51 @@
   </header>
 
   <!-- 2. Page Hero -->
-  <section class="page-hero hero-contact" style="background-image: url('assets/images/banner-contact-wide-v2.png');">
+  <section class="page-hero hero-voitures" style="background-image: url('assets/images/banniere-parallaxe-assinie.jpg');">
     <div class="container">
       <div class="breadcrumb-nav">
         <a href="index.html" data-i18n="t.accueil">Accueil</a>
         <span>/</span>
-        <span data-i18n="t.contact">Contact</span>
+        <span data-i18n="t.voitures">Voitures</span>
       </div>
-      <h1 class="page-hero-title" data-i18n="t.contactez-notre-conciergerie">Contactez Notre Conciergerie</h1>
-      <p class="page-hero-subtitle" data-i18n="t.notre-equipe-locale-est-a">
-        Notre équipe locale est à votre disposition 7 jours sur 7 pour vous conseiller, organiser votre arrivée et sublimer votre séjour à Assinie.
+      <h1 class="page-hero-title" data-i18n="t.voitures-titre">Location de Voitures, avec ou sans Chauffeur</h1>
+      <p class="page-hero-subtitle" data-i18n="t.voitures-sous-titre">
+        Citadines, SUV, 4x4 et minibus pour vos trajets entre Abidjan et Assinie. Estimation immédiate, livraison possible, confirmation par notre conciergerie.
       </p>
     </div>
   </section>
 
-  <!-- 3. Section Coordonnées & Itinéraire -->
-  <section class="container" style="margin-bottom: 5rem;">
-    <div class="contact-layout">
-      
-      <!-- Colonne Informations de Contact -->
-      <div class="contact-info-col">
-        <div>
-          <span class="section-tag" data-i18n="t.disponibilite-accueil-7j-7">DISPONIBILITÉ & ACCUEIL 7J/7</span>
-          <h3 data-i18n="t.une-equipe-dediee-pour-vous">Une Équipe Dédiée Pour Vous Répondre</h3>
-          <p data-i18n="t.pour-verifier-les-disponibilites-d">
-            Pour vérifier les disponibilités d'un week-end, demander un devis traiteur pour un anniversaire ou planifier une sortie bateau, n'hésitez pas à nous écrire directement sur WhatsApp.
-          </p>
-
-          <div class="contact-cards-list">
-            <div class="contact-card-item">
-              <div class="contact-item-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981z"/>
-                </svg>
-              </div>
-              <div>
-                <h5 data-i18n="t.whatsapp-ligne-directe">WhatsApp & Ligne Directe</h5>
-                <a href="https://wa.me/2250767696318" target="_blank" rel="noopener">+225 07 67 69 63 18 (Réponse immédiate)</a>
-              </div>
-            </div>
-
-            <div class="contact-card-item">
-              <div class="contact-item-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-              </div>
-              <div>
-                <h5 data-i18n="t.bureau-de-reception-et-reservation">Bureau de réception et réservation</h5>
-                <span>Assinie-Mafia, Km 8 (Bord de Lagune), Côte d'Ivoire</span>
-              </div>
-            </div>
-
-            <div class="contact-card-item">
-              <div class="contact-item-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-              </div>
-              <div>
-                <h5 data-i18n="t.page-facebook-officielle">Page Facebook Officielle</h5>
-                <a href="https://web.facebook.com/profile.php?id=100075922063365" target="_blank" rel="noopener">Détente et loisirs à Assinie</a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <a href="https://wa.me/2250767696318?text=Bonjour%20Henri%20%26%20Philippe%20-%20D%C3%A9tente%20%26%20Loisirs%20!%20Je%20souhaite%20des%20informations." 
-           target="_blank" 
-           rel="noopener noreferrer" 
-           class="btn btn-forest" 
-           style="text-align: center; justify-content: center; width: 100%;" data-i18n="t.discuter-en-direct-sur-whatsapp">
-          Discuter en direct sur WhatsApp
-        </a>
-      </div>
-
-      <!-- Colonne Carte & Accès Itinéraire -->
-      <div class="contact-map-card">
-        <img src="assets/images/plage-assinie-passe.jpg" alt="Assinie Plage et Lagune" class="map-cover-img" width="1376" height="768" loading="lazy" decoding="async" data-dl-optimize data-dl-sizes="(max-width: 900px) 100vw, 50vw">
-        <div class="map-badge-overlay">
-          <span class="section-tag" style="color: var(--color-gold);" data-i18n="t.localisation-privilegiee">LOCALISATION PRIVILÉGIÉE</span>
-          <h4>Assinie-Mafia, Côte d'Ivoire</h4>
-          <p data-i18n="t.a-1h15-d-abidjan-par">
-            À 1h15 d'Abidjan par l'autoroute internationale de Grand-Bassam. Nos équipes vous attendent à l'embarcadère privé pour assurer votre transfert sécurisé.
-          </p>
-          <div class="map-features-row">
-            <span class="map-pill" data-i18n="t.parking-prive-garde">🚗 Parking Privé Gardé</span>
-            <span class="map-pill" data-i18n="t.ponton-bateau-prive">🚤 Ponton & Bateau Privé</span>
-            <span class="map-pill" data-i18n="t.coordonnees-gps-directes">📍 Coordonnées GPS directes</span>
-          </div>
-          <a href="https://wa.me/2250767696318?text=Bonjour%20!%20Pouvez-vous%20m'envoyer%20la%20localisation%20GPS%20exacte%20de%20la%20villa%20sur%20WhatsApp%20?" 
-             target="_blank" 
-             class="btn btn-gold" 
-             style="font-size: 0.85rem; padding: 0.75rem 1.4rem;" data-i18n="t.demander-l-itineraire-gps-sur">
-            Demander l'itinéraire GPS sur WhatsApp
-          </a>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Bannière Lien FAQ -->
-    <div style="background-color: var(--color-white); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 2rem 2.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; box-shadow: var(--shadow-sm);">
+  <!-- 3. Catalogue des véhicules (rendu par js/voitures.js) -->
+  <section class="container voitures-section" id="voitures" aria-labelledby="voituresTitre">
+    <div class="section-header-flex">
       <div>
-        <span class="section-tag" data-i18n="t.besoin-de-reponses-rapides">BESOIN DE RÉPONSES RAPIDES ?</span>
-        <h3 style="font-family: var(--font-serif); font-size: 1.4rem; color: var(--color-forest); margin-bottom: 0.2rem;" data-i18n="t.consultez-notre-foire-aux-questions">Consultez notre Foire Aux Questions</h3>
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0;" data-i18n="t.decouvrez-tout-sur-les-acomptes">Découvrez tout sur les acomptes, les horaires d'arrivée/départ, les cautions et les équipements inclus.</p>
+        <span class="section-tag" data-i18n="t.voitures-tag">NOTRE FLOTTE</span>
+        <h2 class="section-title" id="voituresTitre" data-i18n="t.voitures-choisir">Choisissez Votre Véhicule</h2>
       </div>
-      <a href="faq.html" class="btn btn-forest" style="white-space: nowrap;" data-i18n="t.acceder-a-la-faq">
-        Accéder à la FAQ &rarr;
-      </a>
+    </div>
+    <div class="voitures-filtres" data-voitures-filtres></div>
+    <p class="voitures-compte" data-voitures-compte aria-live="polite"></p>
+    <div class="voitures-grille" id="vehiculesGrid" data-voitures-grille>
+      <p class="voitures-chargement">Chargement des véhicules…</p>
     </div>
   </section>
 
-  <!-- 4. Bandeau Newsletter Ocre Doré -->
+  <!-- 4. Comment ça marche -->
+  <section class="voitures-etapes-section">
+    <div class="container">
+      <div class="voitures-etapes-tete">
+        <span class="section-tag" data-i18n="t.voitures-simple">SIMPLE ET SANS SURPRISE</span>
+        <h2 class="section-title" data-i18n="t.voitures-comment">Comment Louer</h2>
+      </div>
+      <ol class="voitures-etapes">
+        <li><strong data-i18n="t.voitures-etape1">Choisissez</strong><p data-i18n="t.voitures-etape1-texte">Le véhicule, vos dates, le lieu de prise en charge, avec ou sans chauffeur : l’estimation se calcule en direct.</p></li>
+        <li><strong data-i18n="t.voitures-etape2">Demandez</strong><p data-i18n="t.voitures-etape2-texte">Votre demande arrive à la conciergerie. Rien n’est payé en ligne.</p></li>
+        <li><strong data-i18n="t.voitures-etape3">Recevez la confirmation</strong><p data-i18n="t.voitures-etape3-texte">Nous vérifions la disponibilité et vous confirmons sur WhatsApp, avec les modalités de paiement et de remise du véhicule.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 5. Bandeau Newsletter Ocre Doré -->
   <section class="newsletter-ochre-section">
     <div class="container">
       <div class="newsletter-ochre-inner">
@@ -218,15 +150,15 @@
         </div>
 
         <form class="newsletter-ochre-form" action="/api/newsletter" method="post" data-newsletter-form>
-          <input type="email" id="newsletterEmail_contact" name="email" autocomplete="email" aria-label="Votre adresse email" placeholder="Entrez votre adresse email..." class="newsletter-ochre-input" required>
-          <input type="tel" id="newsletterPhone_contact" name="phone" autocomplete="tel" inputmode="tel" maxlength="40" aria-label="Votre numéro WhatsApp avec indicatif pays, facultatif" placeholder="WhatsApp : +225…" title="Votre numéro WhatsApp avec son indicatif pays, par exemple +225 07 07 12 34 56. Facultatif." class="newsletter-ochre-input newsletter-ochre-phone">
+          <input type="email" id="newsletterEmail_voitures" name="email" autocomplete="email" aria-label="Votre adresse email" placeholder="Entrez votre adresse email..." class="newsletter-ochre-input" required>
+          <input type="tel" id="newsletterPhone_voitures" name="phone" autocomplete="tel" inputmode="tel" maxlength="40" aria-label="Votre numéro WhatsApp avec indicatif pays, facultatif" placeholder="WhatsApp : +225…" title="Votre numéro WhatsApp avec son indicatif pays, par exemple +225 07 07 12 34 56. Facultatif." class="newsletter-ochre-input newsletter-ochre-phone">
           <button type="submit" class="btn-newsletter-subscribe" data-i18n="t.s-inscrire">S'inscrire</button>
         </form>
       </div>
     </div>
   </section>
 
-  <!-- 5. Footer Structuré -->
+  <!-- 6. Footer Structuré -->
   <footer class="site-footer">
     <div class="container">
       <div class="footer-top">
@@ -238,8 +170,8 @@
               <span class="logo-subtitle">Détente & Loisirs • Assinie</span>
             </div>
           </div>
-          <p data-i18n="t.location-de-residences-de-vacances">
-            Location de résidences de vacances avec piscine, villas d'exception pieds dans l'eau et conciergerie nautique à Assinie, Côte d'Ivoire.
+          <p data-i18n="t.villas-privees-avec-piscine-residences">
+            Villas privées avec piscine, résidences de vacances et organisation d'activités nautiques d'exception à Assinie.
           </p>
         </div>
 
@@ -259,13 +191,12 @@
         </div>
 
         <div class="footer-col">
-          <h4 data-i18n="t.moyens-de-paiement">Moyens de Paiement</h4>
+          <h4 data-i18n="t.loisirs-a-assinie">Loisirs à Assinie</h4>
           <ul class="footer-links-list">
-            <li><a href="contact.html">Wave Côte d'Ivoire</a></li>
-            <li><a href="contact.html">Orange Money</a></li>
-            <li><a href="contact.html">MTN Mobile Money</a></li>
-            <li><a href="contact.html" data-i18n="t.virement-bancaire">Virement bancaire</a></li>
-            <li><a href="contact.html" data-i18n="t.especes-a-l-arrivee">Espèces à l'arrivée</a></li>
+            <li><a href="loisirs.html" data-i18n="t.balade-bateau-vers-la-passe">Balade Bateau vers La Passe</a></li>
+            <li><a href="loisirs.html" data-i18n="t.jet-ski-bouee-tractee">Jet Ski & Bouée Tractée</a></li>
+            <li><a href="loisirs.html" data-i18n="t.parc-national-des-iles-ehotiles">Parc National des Îles Éhotilés</a></li>
+            <li><a href="loisirs.html" data-i18n="t.randonnee-quad-sur-la-plage">Randonnée Quad sur la Plage</a></li>
           </ul>
         </div>
 
@@ -311,6 +242,9 @@
   <script src="js/i18n.js?v=20260919a"></script>
   <script src="js/data.js?v=20260912a"></script>
   <script src="js/app.js?v=20260917b"></script>
+  <script src="js/location-voitures.js?v=20260919a"></script>
+  <script src="js/voitures.js?v=20260919b"></script>
+  <script src="js/avis.js?v=20260919a"></script>
   <script src="js/premium.js?v=20260913g"></script>
   <script src="js/pwa.js?v=20260914a" defer></script>
 </body>

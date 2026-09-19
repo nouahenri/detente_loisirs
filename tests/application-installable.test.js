@@ -7,7 +7,7 @@ const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const lire = fichier => fs.readFileSync(path.join(root, fichier), 'utf8');
-const PAGES = ['index.html', 'residences.html', 'terrains.html', 'loisirs.html', 'devis.html', 'contact.html', 'faq.html', 'confidentialite.html'];
+const PAGES = ['index.html', 'residences.html', 'terrains.html', 'loisirs.html', 'devis.html', 'contact.html', 'faq.html', 'confidentialite.html', 'voitures.html'];
 
 test('manifeste : installable (nom, démarrage, plein écran, couleurs, icônes 192/512 + maskable existantes)', () => {
   const m = JSON.parse(lire('manifest.webmanifest'));

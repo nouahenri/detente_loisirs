@@ -1,0 +1,151 @@
+/* =========================================================================
+   Page « Location de voitures » (17/09/2026) — rendu par js/voitures.js.
+   Couleurs de la marque (css/refonte.css) : bleu nuit, or, surfaces claires.
+   ========================================================================= */
+
+.voitures-section { margin: 3.5rem auto 4.5rem; }
+
+.voitures-bouton {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+  min-height: 44px; padding: .7rem 1.25rem; border: 0; border-radius: 999px;
+  background: var(--bleu-nuit, #151837); color: #fff; font: inherit; font-weight: 700; font-size: .92rem;
+  text-decoration: none; cursor: pointer; transition: background .2s, transform .2s;
+}
+.voitures-bouton:hover { background: var(--bleu-nuit-clair, #232859); transform: translateY(-1px); }
+.voitures-bouton:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.voitures-bouton:focus-visible, .voitures-puces button:focus-visible, .vehicule-card-visuel:focus-visible { outline: 3px solid rgba(232, 185, 4, .6); outline-offset: 2px; }
+
+/* --- Filtres --- */
+.voitures-filtres { display: grid; gap: 1rem; margin: 1.5rem 0 .6rem; }
+.voitures-puces { display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .25rem; scrollbar-width: none; }
+.voitures-puces::-webkit-scrollbar { display: none; }
+.voitures-puces button {
+  flex: 0 0 auto; min-height: 40px; padding: .5rem 1rem; border: 1px solid var(--trait-fort, rgba(21,24,55,.22)); border-radius: 999px;
+  background: #fff; color: var(--bleu-nuit, #151837); font: inherit; font-size: .86rem; font-weight: 700; cursor: pointer;
+}
+.voitures-puces button.active { background: var(--bleu-nuit, #151837); border-color: var(--bleu-nuit, #151837); color: #fff; }
+.voitures-selects { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.voitures-filtre { display: grid; gap: .3rem; font-size: .74rem; font-weight: 700; color: var(--texte-doux, #5a5f6b); text-transform: uppercase; letter-spacing: .04em; }
+.voitures-filtre select {
+  min-height: 44px; padding: .55rem .8rem; border: 1px solid var(--trait-fort, rgba(21,24,55,.22)); border-radius: 12px;
+  background: #fff; color: var(--texte, #141414); font: inherit; font-size: .92rem; font-weight: 600; text-transform: none; letter-spacing: 0;
+}
+.voitures-compte { margin: .4rem 0 1rem; color: var(--texte-doux, #5a5f6b); font-size: .9rem; }
+
+/* --- Cartes --- */
+.voitures-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1.5rem; }
+.voitures-chargement, .voitures-aucun { grid-column: 1 / -1; color: var(--texte-doux, #5a5f6b); }
+.voitures-vide { grid-column: 1 / -1; display: grid; justify-items: start; gap: 1rem; padding: 2rem; border: 1px dashed var(--trait-fort, rgba(21,24,55,.22)); border-radius: 20px; background: #fff; }
+.vehicule-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--trait, rgba(21,24,55,.12)); border-radius: 20px; background: #fff; box-shadow: 0 6px 22px rgba(21, 24, 55, .06); transition: transform .25s, box-shadow .25s; }
+.vehicule-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(21, 24, 55, .12); }
+.vehicule-card-visuel { position: relative; display: block; width: 100%; aspect-ratio: 16 / 10; padding: 0; border: 0; background: var(--surface-2, #f0f2f7); cursor: pointer; overflow: hidden; }
+.vehicule-card-visuel img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s; }
+.vehicule-card:hover .vehicule-card-visuel img { transform: scale(1.04); }
+.vehicule-card-sans-photo { display: grid; place-items: center; height: 100%; font-size: 3rem; }
+.vehicule-card-badge { position: absolute; top: .8rem; left: .8rem; padding: .3rem .7rem; border-radius: 999px; background: var(--or, #e8b904); color: var(--bleu-nuit, #151837); font-size: .74rem; font-weight: 800; }
+.vehicule-card-mode { position: absolute; right: .8rem; bottom: .8rem; padding: .3rem .7rem; border-radius: 999px; background: rgba(14, 16, 38, .78); color: #fff; font-size: .74rem; font-weight: 700; }
+.vehicule-card-corps { display: flex; flex: 1; flex-direction: column; gap: .55rem; padding: 1.1rem 1.2rem 1.25rem; }
+.vehicule-card-categorie { color: var(--or-texte, #7f6300); font-size: .74rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.vehicule-card-titre { margin: 0; color: var(--bleu-nuit, #151837); font-size: 1.2rem; line-height: 1.25; }
+.vehicule-card-specs { display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin: 0; padding: 0; list-style: none; color: var(--texte-doux, #5a5f6b); font-size: .86rem; }
+.vehicule-card-specs li::before { content: "•"; margin-right: .4rem; color: var(--or, #e8b904); }
+.vehicule-card .avis-resume { margin: 0; }
+.vehicule-card-pied { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .8rem; margin-top: auto; padding-top: .7rem; border-top: 1px solid var(--trait, rgba(21,24,55,.12)); }
+.vehicule-card-prix { margin: 0; color: var(--texte-doux, #5a5f6b); font-size: .8rem; }
+.vehicule-card-prix strong { color: var(--bleu-nuit, #151837); font-size: 1.15rem; }
+.vehicule-card-bouton { padding: .6rem 1.05rem; font-size: .86rem; }
+
+/* --- Comment ça marche --- */
+.voitures-etapes-section { margin-bottom: 5rem; padding: 4rem 0; border-top: 1px solid var(--trait, rgba(21,24,55,.12)); border-bottom: 1px solid var(--trait, rgba(21,24,55,.12)); background: #fff; }
+.voitures-etapes-tete { max-width: 720px; margin: 0 auto 2.5rem; text-align: center; }
+.voitures-etapes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin: 0; padding: 0; list-style: none; counter-reset: etape; }
+.voitures-etapes li { position: relative; padding: 1.6rem 1.4rem 1.4rem 4.2rem; border-radius: 18px; background: var(--page, #f8f9fc); counter-increment: etape; }
+.voitures-etapes li::before { content: counter(etape); position: absolute; top: 1.4rem; left: 1.3rem; display: grid; place-items: center; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--or, #e8b904); color: var(--bleu-nuit, #151837); font-weight: 800; }
+.voitures-etapes strong { display: block; margin-bottom: .35rem; color: var(--bleu-nuit, #151837); font-size: 1.05rem; }
+.voitures-etapes p { margin: 0; color: var(--texte-doux, #5a5f6b); font-size: .92rem; line-height: 1.55; }
+
+/* --- Fiche en fenêtre --- */
+.vehicule-fenetre { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 1.5rem; background: rgba(14, 16, 38, .62); overflow-y: auto; }
+.vehicule-fiche { position: relative; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); width: min(1120px, 100%); max-height: calc(100vh - 3rem); overflow: hidden; border-radius: 24px; background: #fff; box-shadow: 0 30px 80px rgba(0, 0, 0, .35); }
+.vehicule-fermer { position: absolute; top: .9rem; right: .9rem; z-index: 2; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .92); color: var(--bleu-nuit, #151837); font-size: 1.6rem; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
+.vehicule-galerie { display: flex; flex-direction: column; min-height: 0; background: var(--bleu-nuit-fonce, #0e1026); }
+.vehicule-galerie-principale { flex: 1; width: 100%; min-height: 0; object-fit: cover; }
+.vehicule-galerie-vide { display: grid; flex: 1; place-items: center; font-size: 4rem; }
+.vehicule-galerie-vignettes { display: flex; gap: .4rem; padding: .6rem; overflow-x: auto; }
+.vehicule-galerie-vignettes button { flex: 0 0 64px; height: 48px; border: 2px solid transparent; border-radius: 8px; background-size: cover; background-position: center; cursor: pointer; opacity: .7; }
+.vehicule-galerie-vignettes button.active { border-color: var(--or, #e8b904); opacity: 1; }
+.vehicule-contenu { overflow-y: auto; padding: 1.8rem 1.8rem 2rem; }
+.vehicule-categorie { color: var(--or-texte, #7f6300); font-size: .76rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.vehicule-contenu h2 { margin: .3rem 3rem .4rem 0; color: var(--bleu-nuit, #151837); font-size: 1.7rem; line-height: 1.2; }
+.vehicule-accroche { margin: 0 0 .8rem; color: var(--texte-doux, #5a5f6b); }
+.vehicule-caracteristiques { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; padding: 0; list-style: none; }
+.vehicule-caracteristiques li { padding: .3rem .7rem; border-radius: 999px; background: var(--surface-2, #f0f2f7); font-size: .82rem; font-weight: 600; }
+.vehicule-bloc-fiche { padding: 1rem 0; border-top: 1px solid var(--trait, rgba(21,24,55,.12)); }
+.vehicule-bloc-fiche h3, .vehicule-reservation h3 { margin: 0 0 .5rem; color: var(--bleu-nuit, #151837); font-size: 1.05rem; }
+.vehicule-bloc-fiche p { margin: .2rem 0; color: var(--texte-doux, #5a5f6b); font-size: .92rem; line-height: 1.55; }
+.vehicule-tarifs { width: 100%; border-collapse: collapse; font-size: .92rem; }
+.vehicule-tarifs th, .vehicule-tarifs td { padding: .45rem 0; border-bottom: 1px dashed var(--trait, rgba(21,24,55,.12)); text-align: left; }
+.vehicule-tarifs td { text-align: right; font-weight: 700; color: var(--bleu-nuit, #151837); }
+.vehicule-tarifs th { font-weight: 600; color: var(--texte-doux, #5a5f6b); }
+.vehicule-equipements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem 1rem; margin: 0; padding: 0; list-style: none; font-size: .9rem; }
+.vehicule-equipements li::before { content: "✓"; margin-right: .45rem; color: #1f8f5a; font-weight: 800; }
+.vehicule-note { margin: .35rem 0; color: var(--texte-doux, #5a5f6b); font-size: .8rem; }
+
+/* --- Réservation --- */
+.vehicule-reservation { display: grid; gap: .85rem; margin-top: .6rem; padding: 1.2rem; border-radius: 18px; background: var(--page, #f8f9fc); }
+.vehicule-reservation fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.vehicule-reservation legend { margin-bottom: .35rem; padding: 0; color: var(--bleu-nuit, #151837); font-size: .82rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.vehicule-reservation label { display: grid; gap: .3rem; color: var(--texte-doux, #5a5f6b); font-size: .8rem; font-weight: 700; }
+.vehicule-reservation input:not([type="checkbox"]), .vehicule-reservation select, .vehicule-reservation textarea {
+  width: 100%; min-height: 44px; padding: .55rem .75rem; border: 1px solid var(--trait-fort, rgba(21,24,55,.22)); border-radius: 12px;
+  background: #fff; color: var(--texte, #141414); font: inherit; font-size: .95rem; font-weight: 500;
+}
+.vehicule-reservation textarea { min-height: 64px; resize: vertical; }
+.vehicule-grille-champs { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.vehicule-grille-champs fieldset { display: grid; grid-template-columns: 1.4fr 1fr; gap: .5rem; }
+.vehicule-grille-champs fieldset legend { grid-column: 1 / -1; }
+.vehicule-case { display: flex !important; align-items: flex-start; gap: .55rem; color: var(--texte, #141414) !important; font-size: .9rem !important; font-weight: 600 !important; }
+.vehicule-case input { width: 20px; height: 20px; margin-top: .1rem; flex: 0 0 auto; accent-color: var(--bleu-nuit, #151837); }
+.vehicule-case[hidden] { display: none !important; }
+.vehicule-options { display: grid; gap: .4rem; }
+.vehicule-estimation { padding: .9rem 1rem; border: 1px solid var(--trait, rgba(21,24,55,.12)); border-radius: 14px; background: #fff; }
+.vehicule-estimation:empty { display: none; }
+.vehicule-estimation h4 { margin: 0 0 .5rem; color: var(--bleu-nuit, #151837); font-size: .92rem; }
+.vehicule-estimation ul { display: grid; gap: .3rem; margin: 0 0 .5rem; padding: 0; list-style: none; font-size: .88rem; }
+.vehicule-estimation li, .vehicule-total, .vehicule-caution { display: flex; justify-content: space-between; gap: 1rem; }
+.vehicule-estimation li span { color: var(--texte-doux, #5a5f6b); }
+.vehicule-total { margin: .4rem 0 0; padding-top: .5rem; border-top: 1px solid var(--trait, rgba(21,24,55,.12)); color: var(--bleu-nuit, #151837); font-size: 1.05rem; }
+.vehicule-caution { margin: .2rem 0 0; color: var(--texte-doux, #5a5f6b); font-size: .86rem; }
+.vehicule-erreur-estimation, .vehicule-erreur { margin: .2rem 0; color: #b3261e; font-size: .9rem; font-weight: 700; }
+.vehicule-erreur:empty { display: none; }
+.vehicule-occupations { font-size: .86rem; color: var(--texte-doux, #5a5f6b); }
+.vehicule-occupations ul { margin: .2rem 0 0; padding-left: 1.1rem; }
+.vehicule-conditions { font-size: .86rem; color: var(--texte-doux, #5a5f6b); }
+.vehicule-conditions summary { cursor: pointer; font-weight: 700; color: var(--bleu-nuit, #151837); }
+.vehicule-envoyer { width: 100%; min-height: 50px; font-size: 1rem; }
+.vehicule-merci { margin-top: .6rem; padding: 1.4rem; border-radius: 18px; background: #e8f6ee; color: #14532d; }
+.vehicule-merci h3 { margin: 0 0 .4rem; color: #14532d; }
+.vehicule-wa { margin-top: .8rem; background: #1fae55; }
+.vehicule-wa:hover { background: #178a43; }
+
+@media (max-width: 900px) {
+  .voitures-selects { grid-template-columns: 1fr 1fr; }
+  .voitures-etapes { grid-template-columns: 1fr; }
+  /* Bloc et non grille : la fiche prend la hauteur de son contenu, la fenêtre défile. */
+  .vehicule-fenetre { display: block; padding: 0; }
+  .vehicule-fiche { grid-template-columns: 1fr; max-height: none; min-height: 100%; border-radius: 0; overflow: visible; }
+  .vehicule-galerie { max-height: none; }
+  /* Pas de hauteur de rangée sur mobile : la photo a sa propre hauteur. */
+  .vehicule-galerie-principale { flex: none; height: 34vh; min-height: 200px; }
+  .vehicule-galerie-vide { flex: none; height: 26vh; }
+  .vehicule-contenu { overflow: visible; padding: 1.3rem 1rem 2rem; }
+}
+@media (max-width: 560px) {
+  .voitures-grille { grid-template-columns: 1fr; }
+  .vehicule-grille-champs { grid-template-columns: 1fr; }
+  .vehicule-equipements { grid-template-columns: 1fr; }
+  .vehicule-contenu h2 { font-size: 1.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vehicule-card, .vehicule-card-visuel img, .voitures-bouton { transition: none; }
+}
