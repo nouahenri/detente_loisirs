@@ -57,9 +57,9 @@ export default function Explorer() {
     const ordonner = (modeles: Modele[]) => trier(modeles, recherche.tri, m => m.valeurPrix, m => m.valeurTaille);
     return [
       { cle: 'villas' as const, titre: t('groupe.villas'), data: ordonner(resultats.villas.map(v => modeleVilla(v, ctx))) },
-      { cle: 'terrains' as const, titre: t('groupe.terrains'), data: ordonner(resultats.terrains.map(x => modeleTerrain(x, ctx))) },
       { cle: 'activites' as const, titre: t('groupe.activites'), data: ordonner(resultats.activites.map(a => modeleActivite(a, ctx))) },
       { cle: 'voitures' as const, titre: t('groupe.voitures'), data: ordonner(resultats.voitures.map(v => modeleVehicule(v, ctx))) },
+      { cle: 'terrains' as const, titre: t('groupe.terrains'), data: ordonner(resultats.terrains.map(x => modeleTerrain(x, ctx))) },
       { cle: 'publications' as const, titre: t('groupe.publications'), data: ordonner(resultats.publications.map(p => modelePublication(p, ctx))) },
     ].filter(sec => sec.data.length && (recherche.segment === 'tout' || recherche.segment === sec.cle));
   }, [resultats, refs, t, langue, recherche.segment, recherche.tri]);
@@ -69,7 +69,7 @@ export default function Explorer() {
     ? { villas: resultats.villas.length, terrains: resultats.terrains.length, activites: resultats.activites.length, voitures: resultats.voitures.length, publications: resultats.publications.length, tout: 0 }
     : { villas: 0, terrains: 0, activites: 0, voitures: 0, publications: 0, tout: 0 };
   comptes.tout = comptes.villas + comptes.terrains + comptes.activites + comptes.voitures + comptes.publications;
-  const segments: [Segment, string][] = [['tout', t('segment.tout')], ['villas', t('rubrique.villas')], ['terrains', t('rubrique.terrains')], ['activites', t('rubrique.activites')], ['voitures', t('rubrique.voitures')], ['publications', t('rubrique.publications')]];
+  const segments: [Segment, string][] = [['tout', t('segment.tout')], ['villas', t('rubrique.villas')], ['activites', t('rubrique.activites')], ['voitures', t('rubrique.voitures')], ['terrains', t('rubrique.terrains')], ['publications', t('rubrique.publications')]];
 
   // Carte : proposée dès qu'un terrain affiché est géolocalisé.
   const terrainsGeolocalises = (resultats?.terrains ?? []).filter(x => estNombre(x.latitude) && estNombre(x.longitude));

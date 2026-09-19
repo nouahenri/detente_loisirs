@@ -40,11 +40,12 @@ export default function Accueil() {
 
   const refs = donnees?.refs ?? null;
   const ctx = { refs, t, langue };
+  // Même ordre que le menu du site : Résidences, Activités, Voitures, Terrains, Actus.
   const rubriques: { segment: Segment; icone: NomIcone; nom: string; nb: number }[] = donnees ? [
     { segment: 'villas', icone: 'home-outline', nom: t('rubrique.villas'), nb: donnees.villas.length },
-    { segment: 'terrains', icone: 'map-outline', nom: t('rubrique.terrains'), nb: donnees.terrains.length },
     { segment: 'activites', icone: 'boat-outline', nom: t('rubrique.activites'), nb: donnees.activites.length },
     { segment: 'voitures', icone: 'car-sport-outline', nom: t('rubrique.voitures'), nb: donnees.vehicules.length },
+    { segment: 'terrains', icone: 'map-outline', nom: t('rubrique.terrains'), nb: donnees.terrains.length },
     { segment: 'publications', icone: 'logo-facebook', nom: t('rubrique.publications'), nb: donnees.publications.length },
   ] : [];
 
