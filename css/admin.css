@@ -1359,12 +1359,17 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .notif-envoi header time { font-size:.75rem; color:var(--muted, #6b6f80); white-space:nowrap; }
 .notif-envoi p { margin:.35rem 0; font-size:.85rem; line-height:1.45; white-space:pre-line; overflow-wrap:anywhere; }
 .notif-envoi footer { font-size:.75rem; color:var(--muted, #6b6f80); }
-.proprietaire-biens-resume { font-size:.78rem; color:var(--muted, #6b6f80); text-align:right; }
-.proprietaire-biens { display:grid; gap:.8rem; margin:.4rem 0 .8rem; padding:.8rem; border:1px solid var(--line); border-radius:14px; max-height:340px; overflow:auto; }
-.proprietaire-biens legend { padding:0 .3rem; font-size:.82rem; font-weight:700; }
-.proprietaire-groupe { display:grid; gap:.3rem; }
-.proprietaire-groupe strong { font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted, #6b6f80); }
-.proprietaire-groupe label { display:flex; align-items:flex-start; gap:.45rem; font-size:.85rem; font-weight:500; }
+.editor-proprietaire { margin:1rem 0; padding:.9rem 1rem 1rem; border:1px dashed var(--line); border-radius:14px; background:#fbfaf6; }
+.editor-proprietaire legend { padding:0 .35rem; font-size:.82rem; font-weight:800; }
+.editor-proprietaire .compta-aide { margin:.1rem 0 .7rem; }
+.proprietaire-ligne { cursor:default; }
+.proprietaire-biens-liste { display:flex; flex-wrap:wrap; gap:.35rem .8rem; margin-top:.35rem; }
+.proprietaire-bien { font-size:.8rem; }
+.proprietaire-bien em { font-style:normal; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted, #6b6f80); margin-right:.2rem; }
+.lien-annonce { padding:0; border:0; background:none; font:inherit; font-weight:700; color:var(--ink, #151837); text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.proprietaire-manquants { margin-top:1rem; padding:.8rem 1rem; border-radius:14px; background:#fff8e1; }
+.proprietaire-manquants summary { cursor:pointer; font-weight:700; color:#6b5200; }
+.proprietaire-manquants > div { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin-top:.6rem; }
 @media (min-width: 980px) {
   .notif-grille { grid-template-columns:minmax(0, 1.1fr) minmax(0, 1fr); }
 }

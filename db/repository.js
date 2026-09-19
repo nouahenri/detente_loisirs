@@ -54,6 +54,12 @@ function parseArray(value) {
   return [];
 }
 
+/** Colonne `proprietaire` (JSON) : objet non vide ou null. Colonne absente avant la migration : null. */
+function proprietaireDeLigne(value) {
+  const objet = parseObject(value);
+  return objet && Object.values(objet).some(Boolean) ? objet : null;
+}
+
 function parseObject(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value;
   if (typeof value === 'string' && value) {
@@ -144,6 +150,8 @@ function villaFromRow(row) {
     // « Publier sur Facebook » (NULL = jamais enregistrée).
     etat: row.etat || 'active',
     facebook: row.facebook === null || row.facebook === undefined ? null : Boolean(Number(row.facebook)),
+    // Propriétaire du bien (19/09/2026) : visible seulement dans le studio.
+    proprietaire: proprietaireDeLigne(row.proprietaire),
   };
 }
 
@@ -151,8 +159,8 @@ const VILLA_UPSERT = `INSERT INTO villas
   (id, name, tagline, category, category_label, environment, location, description, price_per_night, price_euro,
    weekend_package, capacity, bedrooms, bathrooms, beds, status, badge, visible, featured,
    rating, reviews_count, images, features, highlights, sort_order,
-   localisation_id, localisation_precision, badge_id, equipements, translations, etat, facebook)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+   localisation_id, localisation_precision, badge_id, equipements, translations, etat, facebook, proprietaire)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     name=VALUES(name), tagline=VALUES(tagline), category=VALUES(category),
     category_label=VALUES(category_label), environment=VALUES(environment),
@@ -165,7 +173,7 @@ const VILLA_UPSERT = `INSERT INTO villas
     highlights=VALUES(highlights), sort_order=VALUES(sort_order),
     localisation_id=VALUES(localisation_id), localisation_precision=VALUES(localisation_precision),
     badge_id=VALUES(badge_id), equipements=VALUES(equipements), translations=VALUES(translations),
-    etat=VALUES(etat), facebook=VALUES(facebook)`;
+    etat=VALUES(etat), facebook=VALUES(facebook), proprietaire=VALUES(proprietaire)`;
 
 function villaParams(item, index) {
   return [
@@ -180,7 +188,8 @@ function villaParams(item, index) {
     jsonColumn(item.images), jsonColumn(item.features), jsonColumn(item.highlights), index,
     item.localisationId || null, item.localisationPrecision || '', item.badgeId || null, jsonColumn(item.equipements),
     JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {}),
-    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null
+    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null,
+    item.proprietaire ? JSON.stringify(item.proprietaire) : null
   ];
 }
 
@@ -223,6 +232,8 @@ function terrainFromRow(row) {
     // « Publier sur Facebook » (NULL = jamais enregistrée).
     etat: row.etat || 'active',
     facebook: row.facebook === null || row.facebook === undefined ? null : Boolean(Number(row.facebook)),
+    // Propriétaire du bien (19/09/2026) : visible seulement dans le studio.
+    proprietaire: proprietaireDeLigne(row.proprietaire),
   };
 }
 
@@ -230,8 +241,8 @@ const TERRAIN_UPSERT = `INSERT INTO terrains
   (id, reference, title, location, district, area_sqm, price_total, price_per_sqm, price_euro,
    land_status, land_status_label, utilities, status, description, images, highlights,
    visible, featured, badge, latitude, longitude, sort_order,
-   localisation_id, localisation_precision, badge_id, translations, etat, facebook)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+   localisation_id, localisation_precision, badge_id, translations, etat, facebook, proprietaire)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     reference=VALUES(reference), title=VALUES(title), location=VALUES(location),
     district=VALUES(district), area_sqm=VALUES(area_sqm), price_total=VALUES(price_total),
@@ -243,7 +254,7 @@ const TERRAIN_UPSERT = `INSERT INTO terrains
     longitude=VALUES(longitude), sort_order=VALUES(sort_order),
     localisation_id=VALUES(localisation_id), localisation_precision=VALUES(localisation_precision),
     badge_id=VALUES(badge_id), translations=VALUES(translations),
-    etat=VALUES(etat), facebook=VALUES(facebook)`;
+    etat=VALUES(etat), facebook=VALUES(facebook), proprietaire=VALUES(proprietaire)`;
 
 function terrainParams(item, index) {
   // Sécurité de dernier rempart : les prix dérivés sont recalculés ici aussi,
@@ -264,7 +275,8 @@ function terrainParams(item, index) {
     index,
     item.localisationId || null, item.localisationPrecision || '', item.badgeId || null,
     JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {}),
-    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null
+    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null,
+    item.proprietaire ? JSON.stringify(item.proprietaire) : null
   ];
 }
 
@@ -300,14 +312,16 @@ function activityFromRow(row) {
     // « Publier sur Facebook » (NULL = jamais enregistrée).
     etat: row.etat || 'active',
     facebook: row.facebook === null || row.facebook === undefined ? null : Boolean(Number(row.facebook)),
+    // Propriétaire du bien (19/09/2026) : visible seulement dans le studio.
+    proprietaire: proprietaireDeLigne(row.proprietaire),
   };
 }
 
 const ACTIVITY_UPSERT = `INSERT INTO activities
   (id, title, subtitle, description, image, images, duration, price, price_amount, price_unit,
    group_price_amount, group_size, badge, visible, featured, sort_order, badge_id,
-   price_prefix, price_suffix, translations, etat, facebook)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+   price_prefix, price_suffix, translations, etat, facebook, proprietaire)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     title=VALUES(title), subtitle=VALUES(subtitle), description=VALUES(description),
     image=VALUES(image), images=VALUES(images), duration=VALUES(duration), price=VALUES(price),
@@ -315,7 +329,7 @@ const ACTIVITY_UPSERT = `INSERT INTO activities
     group_price_amount=VALUES(group_price_amount), group_size=VALUES(group_size),
     badge=VALUES(badge), visible=VALUES(visible), featured=VALUES(featured), sort_order=VALUES(sort_order),
     badge_id=VALUES(badge_id), price_prefix=VALUES(price_prefix), price_suffix=VALUES(price_suffix),
-    translations=VALUES(translations), etat=VALUES(etat), facebook=VALUES(facebook)`;
+    translations=VALUES(translations), etat=VALUES(etat), facebook=VALUES(facebook), proprietaire=VALUES(proprietaire)`;
 
 function activityParams(item, index) {
   return [
@@ -330,7 +344,8 @@ function activityParams(item, index) {
     item.badgeId || null,
     item.pricePrefix || '', item.priceSuffix || '',
     JSON.stringify(item.translations && typeof item.translations === 'object' ? item.translations : {}),
-    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null
+    etatAnnonce(item), item.facebook === true ? 1 : item.facebook === false ? 0 : null,
+    item.proprietaire ? JSON.stringify(item.proprietaire) : null
   ];
 }
 

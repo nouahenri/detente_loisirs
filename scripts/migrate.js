@@ -177,7 +177,11 @@ async function main() {
       ['terrains', 'etat', "VARCHAR(20) NOT NULL DEFAULT 'active' AFTER `translations`"],
       ['terrains', 'facebook', 'TINYINT(1) NULL DEFAULT NULL AFTER `etat`'],
       ['activities', 'etat', "VARCHAR(20) NOT NULL DEFAULT 'active' AFTER `featured`"],
-      ['activities', 'facebook', 'TINYINT(1) NULL DEFAULT NULL AFTER `etat`']
+      ['activities', 'facebook', 'TINYINT(1) NULL DEFAULT NULL AFTER `etat`'],
+      // Propriétaire du bien (db/migration-proprietaires-annonces.sql).
+      ['villas', 'proprietaire', 'JSON NULL AFTER `facebook`'],
+      ['terrains', 'proprietaire', 'JSON NULL AFTER `facebook`'],
+      ['activities', 'proprietaire', 'JSON NULL AFTER `facebook`']
     ];
     for (const [table, column, definition] of additions) {
       const [existing] = await connection.execute(

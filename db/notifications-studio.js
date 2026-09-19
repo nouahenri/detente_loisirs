@@ -1,9 +1,11 @@
 /**
- * Notifications envoyées depuis le studio (Messages → Notifications de l'app)
- * et carnet des propriétaires — demande du 19/09/2026.
+ * Notifications envoyées depuis le studio (Messages → Notifications de l'app),
+ * demande du 19/09/2026.
  *
  * Audiences : tous les téléphones inscrits, les demandeurs, les employés, les
- * propriétaires (tous, ceux d'un type d'annonce, ou un propriétaire précis).
+ * propriétaires des biens (tous, ceux d'un type d'annonce, ou un propriétaire
+ * précis). Les propriétaires se renseignent dans la fiche de chaque annonce
+ * (studio seulement) : `proprietairesDesAnnonces` les regroupe par numéro.
  *
  * Identification (décision du propriétaire) : le NUMÉRO DU PROFIL de l'app,
  * transmis quand la personne active les notifications. Il est rapproché des
@@ -14,14 +16,17 @@
  *
  * Canaux : notification push (service Expo) aux téléphones qui ont un jeton ;
  * sinon l'app relève ses messages d'elle-même (GET /api/app/messages, « veille »).
- * E-mail en plus aux contacts de l'audience qui ont une adresse (employés,
- * propriétaires ; demandeurs : seulement ceux qui ont accepté nos offres).
+ * E-mail en plus aux contacts de l'audience qui ont une adresse (employés ;
+ * demandeurs : seulement ceux qui ont accepté nos offres). La fiche du
+ * propriétaire d'un bien ne porte pas d'e-mail : notification seulement.
  *
- * Stockage : tables `proprietaires`, `app_abonnes`, `app_messages`
+ * Stockage : tables `app_abonnes` et `app_messages`
  * (db/migration-notifications-contacts.sql), sinon data/notifications-studio.json.
+ * La table `proprietaires` de cette migration n'est plus utilisée : depuis la
+ * précision du propriétaire (19/09/2026), le propriétaire se saisit dans la
+ * fiche de chaque annonce (db/fiches.js → proprietaireAnnonce).
  */
 
-const crypto = require('crypto');
 const jsonStore = require('./json-store');
 
 const FICHIER = 'notifications-studio.json';
@@ -50,33 +55,39 @@ const estJetonExpo = j => typeof j === 'string' && j.length <= 200 && /^Expo(nen
 // ---------------------------------------------------------------------------
 
 /**
- * Propriétaire : nom requis, un moyen de contact au moins, annonces
- * rattachées parmi celles du catalogue (`annoncesConnues` : Set « kind:id »).
+ * Propriétaires des biens, lus dans les fiches d'annonces (villas, voitures,
+ * activités, terrains) et regroupés : même numéro (téléphone ou WhatsApp) ou,
+ * à défaut, même nom = même personne. `id` sert au ciblage d'un propriétaire.
  */
-function validerProprietaire(source = {}, { existant = null, annoncesConnues = null, maintenant = new Date() } = {}) {
-  const erreurs = [];
-  const nom = texte(source.nom, 120);
-  const prenom = texte(source.prenom, 80);
-  const email = texte(source.email, 180).toLowerCase();
-  const telephone = texte(source.telephone, 40);
-  const whatsapp = texte(source.whatsapp, 40);
-  if (!nom) erreurs.push('Le nom du propriétaire est requis.');
-  if (email && !emailValide(email)) erreurs.push('Adresse e-mail invalide.');
-  if (!email && !cleTelephone(telephone) && !cleTelephone(whatsapp)) erreurs.push('Indiquez au moins un téléphone, un WhatsApp ou un e-mail.');
-  const vues = new Set();
-  const annonces = (Array.isArray(source.annonces) ? source.annonces : [])
-    .map(a => ({ kind: String(a?.kind || ''), id: texte(a?.id, 120) }))
-    .filter(a => TYPES_ANNONCE.includes(a.kind) && a.id && !vues.has(`${a.kind}:${a.id}`) && vues.add(`${a.kind}:${a.id}`))
-    .filter(a => !annoncesConnues || annoncesConnues.has(`${a.kind}:${a.id}`) || (existant?.annonces || []).some(x => x.kind === a.kind && x.id === a.id));
-  const horodatage = new Date(maintenant).toISOString();
-  return {
-    erreurs,
-    proprietaire: erreurs.length ? null : {
-      id: existant?.id || crypto.randomUUID(), prenom, nom, email, telephone, whatsapp, annonces,
-      notes: texte(source.notes, 1000), actif: source.actif !== false && source.actif !== 'false',
-      creeLe: existant?.creeLe || horodatage, majLe: horodatage
+function proprietairesDesAnnonces(contenu) {
+  const c = contenu && typeof contenu === 'object' ? contenu : {};
+  const groupes = new Map();
+  const sources = [['villa', c.villas, a => a.name], ['vehicle', c.vehicles, a => a.name], ['activity', c.activities, a => a.title], ['terrain', c.terrains, a => a.title || a.reference]];
+  for (const [kind, liste, titre] of sources) {
+    for (const annonce of Array.isArray(liste) ? liste : []) {
+      const p = annonce && annonce.proprietaire;
+      if (!p || typeof p !== 'object') continue;
+      const nomComplet = [p.prenom, p.nom].map(v => texte(v, 120)).filter(Boolean).join(' ');
+      const cle = cleTelephone(p.telephone) || cleTelephone(p.whatsapp) || nomComplet.toLowerCase();
+      if (!cle) continue;
+      const id = `p-${cle.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}`;
+      if (!groupes.has(id)) groupes.set(id, { id, prenom: texte(p.prenom, 80), nom: texte(p.nom, 120), telephone: texte(p.telephone, 40), whatsapp: texte(p.whatsapp, 40), email: '', actif: true, annonces: [] });
+      const g = groupes.get(id);
+      // Coordonnées complétées d'une fiche à l'autre (une fiche peut n'avoir que le WhatsApp).
+      for (const champ of ['prenom', 'nom', 'telephone', 'whatsapp']) if (!g[champ] && p[champ]) g[champ] = texte(p[champ], champ === 'nom' ? 120 : 80);
+      g.annonces.push({ kind, id: annonce.id, titre: texte(titre(annonce), 120), etat: annonce.etat || 'active' });
     }
-  };
+  }
+  return [...groupes.values()].sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`, 'fr'));
+}
+
+/** Annonces dont le propriétaire n'est pas renseigné (rappel dans le studio). */
+function annoncesSansProprietaire(contenu) {
+  const c = contenu && typeof contenu === 'object' ? contenu : {};
+  return [['villa', c.villas, a => a.name], ['vehicle', c.vehicles, a => a.name], ['activity', c.activities, a => a.title], ['terrain', c.terrains, a => a.title || a.reference]]
+    .flatMap(([kind, liste, titre]) => (Array.isArray(liste) ? liste : [])
+      .filter(a => a && a.id && !(a.proprietaire && Object.values(a.proprietaire).some(Boolean)) && (a.etat || 'active') !== 'archivee')
+      .map(a => ({ kind, id: a.id, titre: texte(titre(a), 120) })));
 }
 
 /** Inscription d'un téléphone : identifiant de l'app, jeton Expo facultatif, numéro du profil. */
@@ -110,7 +121,7 @@ function validerMessage(source = {}) {
   const audience = {
     cible,
     type: cible === 'proprietaires' && TYPES_ANNONCE.includes(a.type) ? a.type : 'tous',
-    proprietaireId: cible === 'proprietaires' ? texte(a.proprietaireId, 36) : ''
+    proprietaireId: cible === 'proprietaires' ? texte(a.proprietaireId, 90) : ''
   };
   return { erreurs, message: erreurs.length ? null : { titre, corps, audience, email: source.email !== false && cible !== 'tous' } };
 }
@@ -236,7 +247,6 @@ const json = (valeur, repli) => {
 function lireFichier() {
   const brut = jsonStore.read(FICHIER, {});
   return {
-    proprietaires: Array.isArray(brut?.proprietaires) ? brut.proprietaires : [],
     abonnes: Array.isArray(brut?.abonnes) ? brut.abonnes : [],
     messages: Array.isArray(brut?.messages) ? brut.messages : []
   };
@@ -253,11 +263,6 @@ async function enBaseOuFichier(requeteBase, modifierFichier) {
   return resultat;
 }
 
-const proprietaireDepuisLigne = l => ({
-  id: l.id, prenom: l.prenom || '', nom: l.nom, email: l.email || '', telephone: l.telephone || '', whatsapp: l.whatsapp || '',
-  annonces: json(l.annonces, []), notes: l.notes || '', actif: Boolean(Number(l.actif)),
-  creeLe: versIso(l.created_at), majLe: versIso(l.updated_at)
-});
 const abonneDepuisLigne = l => ({
   visiteur: l.visiteur, jeton: l.jeton || '', telephone: l.telephone || '', cleTelephone: l.cle_telephone || '', nom: l.nom || '',
   langue: l.langue || 'fr', plateforme: l.plateforme || '', inscritLe: versIso(l.inscrit_le), vuLe: versIso(l.vu_le)
@@ -267,17 +272,15 @@ const messageDepuisLigne = l => ({
   bilan: json(l.bilan, {}), creePar: l.cree_par || '', creeLe: versIso(l.created_at)
 });
 
-/** { proprietaires, abonnes, messages } — messages du plus récent au plus ancien. */
+/** { abonnes, messages } — messages du plus récent au plus ancien. */
 async function tout() {
   if (utiliserBase()) {
     try {
-      const [[proprietaires], [abonnes], [messages]] = await Promise.all([
-        repo().query('SELECT * FROM proprietaires ORDER BY nom, prenom'),
+      const [[abonnes], [messages]] = await Promise.all([
         repo().query('SELECT * FROM app_abonnes ORDER BY vu_le DESC'),
         repo().query(`SELECT * FROM app_messages ORDER BY created_at DESC LIMIT ${MESSAGES_GARDES}`)
       ]);
       return {
-        proprietaires: proprietaires.map(proprietaireDepuisLigne),
         abonnes: abonnes.map(abonneDepuisLigne),
         messages: messages.map(messageDepuisLigne)
       };
@@ -287,25 +290,6 @@ async function tout() {
   }
   const donnees = lireFichier();
   return { ...donnees, messages: donnees.messages.slice().sort((a, b) => String(b.creeLe).localeCompare(String(a.creeLe))) };
-}
-
-async function enregistrerProprietaire(p) {
-  return enBaseOuFichier(async r => {
-    await r.query(`INSERT INTO proprietaires (id, prenom, nom, email, telephone, whatsapp, annonces, notes, actif, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE prenom=VALUES(prenom), nom=VALUES(nom), email=VALUES(email),
-      telephone=VALUES(telephone), whatsapp=VALUES(whatsapp), annonces=VALUES(annonces), notes=VALUES(notes), actif=VALUES(actif)`,
-    [p.id, p.prenom, p.nom, p.email, p.telephone, p.whatsapp, JSON.stringify(p.annonces || []), p.notes, p.actif ? 1 : 0, versMysql(p.creeLe)]);
-    return p;
-  }, donnees => {
-    const index = donnees.proprietaires.findIndex(x => x.id === p.id);
-    if (index >= 0) donnees.proprietaires[index] = p; else donnees.proprietaires.push(p);
-    return p;
-  });
-}
-
-async function supprimerProprietaire(id) {
-  return enBaseOuFichier(async r => (await r.query('DELETE FROM proprietaires WHERE id = ?', [String(id)]))[0]?.affectedRows || 0,
-    donnees => { const avant = donnees.proprietaires.length; donnees.proprietaires = donnees.proprietaires.filter(p => p.id !== String(id)); return avant - donnees.proprietaires.length; });
 }
 
 async function enregistrerAbonne(a) {
@@ -351,7 +335,7 @@ async function enregistrerMessage(m) {
 
 module.exports = {
   FICHIER, CIBLES, TYPES_ANNONCE, TITRE_MAX, CORPS_MAX,
-  cleTelephone, validerProprietaire, validerAbonne, validerMessage,
+  cleTelephone, validerAbonne, validerMessage, proprietairesDesAnnonces, annoncesSansProprietaire,
   personnesDe, destinataires, libelleAudience, messagesPour, messagesExpo,
-  configure, tout, enregistrerProprietaire, supprimerProprietaire, enregistrerAbonne, retirerAbonne, oublierJetons, enregistrerMessage
+  configure, tout, enregistrerAbonne, retirerAbonne, oublierJetons, enregistrerMessage
 };

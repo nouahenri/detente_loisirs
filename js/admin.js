@@ -2169,7 +2169,7 @@
           </fieldset>
           <div class="form-grid notif-proprietaires" data-notif-proprietaires hidden>
             <label>Annonces<select name="type"><option value="tous">Tous les propriétaires</option>${Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([id, libelle]) => `<option value="${id}">Propriétaires des ${libelle.toLowerCase()}</option>`).join('')}</select></label>
-            <label>Ou un propriétaire précis<select name="proprietaireId"><option value="">—</option>${d.proprietaires.filter(p => p.actif).map(p => `<option value="${esc(p.id)}">${esc(nomComplet(p))}</option>`).join('')}</select></label>
+            <label>Ou un propriétaire précis<select name="proprietaireId"><option value="">—</option>${d.proprietaires.filter(p => p.actif).map(p => `<option value="${esc(p.id)}">${esc(nomComplet(p) || p.telephone || p.whatsapp)} · ${p.annonces.length} bien${p.annonces.length > 1 ? 's' : ''}</option>`).join('')}</select></label>
           </div>
           <label class="notif-email" data-notif-email hidden><input type="checkbox" name="email" checked> <span>Envoyer aussi par e-mail aux contacts qui ont une adresse <small data-notif-email-note></small></span></label>
           <p class="notif-apercu" data-notif-apercu aria-live="polite"></p>
@@ -2218,66 +2218,30 @@
     });
   }
 
-  /** Carnet des propriétaires, rattachés à leurs annonces. */
+  /**
+   * Propriétaires des biens (19/09/2026) : vue récapitulative. Ils se
+   * saisissent dans la fiche de chaque annonce (Villas, Voitures, Activités,
+   * Terrains) ; cette vue les regroupe par numéro, avec leurs biens, et
+   * signale les annonces dont le propriétaire manque.
+   */
   function renderProprietaires() {
     const d = gestionMessages.donnees;
     const hote = $('#proprietairesVue');
     if (!d || !hote) return;
-    hote.innerHTML = `<div class="compta-section-tete"><h3>Propriétaires</h3><button type="button" data-proprietaire-nouveau>＋ Propriétaire</button></div>
-      <p class="compta-aide">Rattachez chaque propriétaire à ses établissements, véhicules, activités ou terrains. Depuis « Notifications de l’app », vous pourrez leur écrire : sur l’app s’ils l’utilisent avec le même numéro, et par e-mail.</p>
+    const lienAnnonce = a => `<button type="button" class="lien-annonce" data-ouvrir-annonce="${esc(a.kind)}|${esc(a.id)}">${esc(a.titre || a.id)}</button>`;
+    const sans = d.annoncesSansProprietaire || [];
+    hote.innerHTML = `<div class="compta-section-tete"><h3>Propriétaires des biens</h3></div>
+      <p class="compta-aide">Le propriétaire se renseigne dans la fiche de chaque annonce (Villas, Voitures, Activités, Terrains), puis « Publier les changements ». Ses coordonnées restent dans le studio : elles ne sont jamais montrées sur le site ni dans l’application. Depuis « Notifications de l’app », vous pouvez écrire aux propriétaires qui utilisent l’app avec le même numéro.</p>
       <div class="content-table">${d.proprietaires.length ? d.proprietaires.map(p => {
-        const biens = Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([kind, libelle]) => { const n = (p.annonces || []).filter(a => a.kind === kind).length; return n ? `${n} ${libelle.toLowerCase()}` : ''; }).filter(Boolean).join(', ');
-        const contacts = [p.telephone, p.whatsapp && p.whatsapp !== p.telephone ? `WhatsApp ${p.whatsapp}` : '', p.email].filter(Boolean).join(' · ');
-        return `<div class="compta-ligne" role="button" tabindex="0" data-proprietaire="${esc(p.id)}"><span class="compta-avatar" aria-hidden="true">${esc((p.prenom || p.nom || '?').slice(0, 1).toUpperCase())}</span><div class="compta-ligne-texte"><strong>${esc(nomComplet(p))}</strong><small>${esc(contacts)}</small></div>${p.actif ? '' : '<span class="compta-statut">Inactif</span>'}<span class="proprietaire-biens-resume">${esc(biens || 'Aucune annonce')}</span></div>`;
-      }).join('') : '<div class="empty">Aucun propriétaire enregistré.</div>'}</div>`;
-    $('[data-proprietaire-nouveau]', hote).addEventListener('click', () => ouvrirProprietaire(null));
-    $$('[data-proprietaire]', hote).forEach(ligne => {
-      const ouvrir = () => ouvrirProprietaire(d.proprietaires.find(p => p.id === ligne.dataset.proprietaire));
-      ligne.addEventListener('click', ouvrir);
-      ligne.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); ouvrir(); } });
-    });
-  }
-
-  function ouvrirProprietaire(proprietaire) {
-    const p = proprietaire || { actif: true, annonces: [] };
-    const rattachee = (kind, id) => (p.annonces || []).some(a => a.kind === kind && a.id === id);
-    const annonces = gestionMessages.donnees?.annonces || [];
-    const groupes = Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([kind, libelle]) => {
-      const liste = annonces.filter(a => a.kind === kind);
-      if (!liste.length) return '';
-      return `<div class="proprietaire-groupe"><strong>${libelle}</strong>${liste.map(a => `<label><input type="checkbox" name="annonce" value="${esc(kind)}|${esc(a.id)}" ${rattachee(kind, a.id) ? 'checked' : ''}> <span>${esc(a.titre || a.id)}</span></label>`).join('')}</div>`;
-    }).join('');
-    ouvrirTiroirCompta({
-      surtitre: 'MESSAGES · PROPRIÉTAIRES', titre: proprietaire ? nomComplet(proprietaire) : 'Nouveau propriétaire', supprimable: Boolean(proprietaire),
-      recharger: chargerNotifications,
-      champs: `<div class="form-grid">
-          <label>Nom<input name="nom" maxlength="120" required value="${esc(p.nom || '')}"></label>
-          <label>Prénom<input name="prenom" maxlength="80" value="${esc(p.prenom || '')}"></label>
-          <label>E-mail<input type="email" name="email" maxlength="180" value="${esc(p.email || '')}"></label>
-          <label>Téléphone<input type="tel" name="telephone" maxlength="40" value="${esc(p.telephone || '')}"></label>
-          <label>WhatsApp<input type="tel" name="whatsapp" maxlength="40" value="${esc(p.whatsapp || '')}"></label>
-        </div>
-        <div class="toggle-row"><label><input type="checkbox" name="actif" ${p.actif !== false ? 'checked' : ''}> Actif (reçoit les notifications)</label></div>
-        <fieldset class="proprietaire-biens"><legend>Annonces rattachées</legend>${groupes || '<p class="compta-aide">Aucune annonce publiée.</p>'}</fieldset>
-        <label>Notes<textarea name="notes" rows="3" maxlength="1000">${esc(p.notes || '')}</textarea></label>`,
-      enregistrer: async formulaire => {
-        if (!formulaire.reportValidity()) throw new Error('Complétez les champs requis');
-        const e = formulaire.elements;
-        const corps = {
-          nom: e.nom.value, prenom: e.prenom.value, email: e.email.value, telephone: e.telephone.value, whatsapp: e.whatsapp.value,
-          notes: e.notes.value, actif: e.actif.checked,
-          annonces: $$('[name="annonce"]:checked', formulaire).map(c => { const i = c.value.indexOf('|'); return { kind: c.value.slice(0, i), id: c.value.slice(i + 1) }; })
-        };
-        await api(proprietaire ? `/api/admin/proprietaires/${encodeURIComponent(proprietaire.id)}` : '/api/admin/proprietaires', { method: proprietaire ? 'PATCH' : 'POST', body: JSON.stringify(corps) });
-        toast(proprietaire ? 'Propriétaire mis à jour' : 'Propriétaire ajouté');
-      },
-      supprimer: async () => {
-        if (!confirm(`Supprimer ${nomComplet(proprietaire)} du carnet ?`)) return false;
-        await api(`/api/admin/proprietaires/${encodeURIComponent(proprietaire.id)}`, { method: 'DELETE' });
-        toast('Propriétaire supprimé');
-        return true;
-      }
-    });
+        const contacts = [p.telephone, p.whatsapp && p.whatsapp !== p.telephone ? `WhatsApp ${p.whatsapp}` : ''].filter(Boolean).join(' · ');
+        return `<div class="compta-ligne proprietaire-ligne"><span class="compta-avatar" aria-hidden="true">${esc((p.prenom || p.nom || '?').slice(0, 1).toUpperCase())}</span><div class="compta-ligne-texte"><strong>${esc(nomComplet(p) || 'Sans nom')}</strong><small>${esc(contacts || 'Aucun numéro renseigné')}</small><span class="proprietaire-biens-liste">${p.annonces.map(a => `<span class="proprietaire-bien"><em>${esc(TYPES_ANNONCE_PROPRIETAIRE[a.kind] || a.kind)}</em> ${lienAnnonce(a)}</span>`).join('')}</span></div></div>`;
+      }).join('') : '<div class="empty">Aucun propriétaire renseigné dans les fiches d’annonces.</div>'}</div>
+      ${sans.length ? `<details class="proprietaire-manquants"><summary>${sans.length} annonce${sans.length > 1 ? 's' : ''} sans propriétaire renseigné</summary><div>${sans.map(a => `<span class="proprietaire-bien"><em>${esc(TYPES_ANNONCE_PROPRIETAIRE[a.kind] || a.kind)}</em> ${lienAnnonce(a)}</span>`).join('')}</div></details>` : ''}`;
+    // Un bien s'ouvre dans sa fiche, où se modifie son propriétaire.
+    $$('[data-ouvrir-annonce]', hote).forEach(bouton => bouton.addEventListener('click', () => {
+      const [kind, ...reste] = bouton.dataset.ouvrirAnnonce.split('|');
+      openEditor(kind, reste.join('|'));
+    }));
   }
 
   function chargerMessages() {
@@ -2565,7 +2529,19 @@
       : (Array.isArray(data.images) && data.images.length ? data.images : [data.image])).filter(Boolean);
     const heading = isVilla ? 'Villa' : isTerrain ? 'Terrain' : isVehicle ? 'Véhicule' : 'Activité';
     const fields = isVilla ? villaFields(data) : isTerrain ? terrainFields(data) : isVehicle ? vehicleFields(data) : activityFields(data);
-    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div>${id && list.some(item => item.id === id) ? barreGestionAnnonce(source) : ''}<div class="editor-fields">${fields}${id && list.some(item => item.id === id) ? '<section class="avis-studio" data-avis-studio aria-live="polite"><h3>Avis des visiteurs</h3><p class="avis-studio-vide">Chargement…</p></section>' : ''}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
+    // Propriétaire du bien (19/09/2026) : la plateforme est intermédiaire entre
+    // le client et le propriétaire. Studio seulement : le serveur le retire de
+    // tout ce que voient le site et l'application.
+    const proprietaire = data.proprietaire || {};
+    const blocProprietaire = `<fieldset class="editor-proprietaire"><legend>Propriétaire du bien</legend>
+      <p class="compta-aide">Visible seulement dans le studio : jamais affiché sur le site ni dans l’application. Sert à le joindre et à lui envoyer des notifications (Messages → Notifications de l’app).</p>
+      <div class="form-grid">
+        <label>Nom<input name="proprietaireNom" maxlength="120" autocomplete="off" value="${esc(proprietaire.nom || '')}"></label>
+        <label>Prénom<input name="proprietairePrenom" maxlength="80" autocomplete="off" value="${esc(proprietaire.prenom || '')}"></label>
+        <label>Téléphone<input type="tel" name="proprietaireTelephone" maxlength="40" autocomplete="off" value="${esc(proprietaire.telephone || '')}"></label>
+        <label>WhatsApp<input type="tel" name="proprietaireWhatsapp" maxlength="40" autocomplete="off" value="${esc(proprietaire.whatsapp || '')}"></label>
+      </div></fieldset>`;
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop"><form class="editor-drawer"><div class="editor-head"><div><span class="eyebrow">${id ? 'MODIFICATION':'NOUVEAU CONTENU'}</span><h2>${heading}</h2></div><button type="button" data-close-editor>×</button></div>${id && list.some(item => item.id === id) ? barreGestionAnnonce(source) : ''}<div class="editor-fields">${fields}${blocProprietaire}${id && list.some(item => item.id === id) ? '<section class="avis-studio" data-avis-studio aria-live="polite"><h3>Avis des visiteurs</h3><p class="avis-studio-vide">Chargement…</p></section>' : ''}</div><div class="editor-actions"><button type="button" data-close-editor>Annuler</button><button class="primary" type="submit">Enregistrer</button></div></form></div>`);
     const backdrop = $('.editor-backdrop');
     const close = () => { document.removeEventListener('keydown', onKeydown); backdrop.remove(); };
     const onKeydown = event => { if (event.key === 'Escape') close(); };
@@ -2648,6 +2624,9 @@
       event.preventDefault();
       const form = event.currentTarget;
       const values = Object.fromEntries(new FormData(form));
+      // Propriétaire du bien : mis à part, il ne se mélange pas aux champs de la fiche.
+      const saisieProprietaire = { nom: values.proprietaireNom, prenom: values.proprietairePrenom, telephone: values.proprietaireTelephone, whatsapp: values.proprietaireWhatsapp };
+      ['proprietaireNom', 'proprietairePrenom', 'proprietaireTelephone', 'proprietaireWhatsapp'].forEach(cle => delete values[cle]);
       // Cases multiples : Object.fromEntries n'en garderait que la dernière.
       values.equipements = $$('[name="equipements"]:checked', form).map(input => input.value);
       const normalizedId = String(values.id || '').trim().toLowerCase();
@@ -2666,6 +2645,8 @@
         : isVehicle ? normalizeVehicle(values, data, gallery)
         : normalizeActivity(values, data, gallery);
       item.translations = lireTraductions(form, type);
+      const proprietaireNettoye = Object.fromEntries(Object.entries(saisieProprietaire).map(([cle, valeur]) => [cle, String(valeur || '').trim()]));
+      item.proprietaire = Object.values(proprietaireNettoye).some(Boolean) ? proprietaireNettoye : null;
       if (type === 'activity') item.price = texteTarifActivite(item);
       const index = list.findIndex(existing => existing.id === id);
       if (index >= 0) list[index] = item; else list.unshift(item);

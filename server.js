@@ -788,7 +788,11 @@ function validateTerrains(payload, errors, warnings) {
  */
 function gestionAnnonce(item) {
   const { shareToFacebook, ...reste } = item;
-  return { ...reste, etat: SYNC.etatAnnonce(item), facebook: item.facebook === true ? true : item.facebook === false ? false : null };
+  return {
+    ...reste, etat: SYNC.etatAnnonce(item), facebook: item.facebook === true ? true : item.facebook === false ? false : null,
+    // Propriétaire du bien (19/09/2026) : studio seulement, voir contenuPublic.
+    proprietaire: FICHES.proprietaireAnnonce(item.proprietaire)
+  };
 }
 
 function appliquerReferentiels(item, referentiels, errors, options) {
@@ -959,7 +963,8 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
  * complet sur GET /api/admin/content.
  */
 function contenuPublic(contenu) {
-  const actives = liste => (Array.isArray(liste) ? liste.filter(item => SYNC.etatAnnonce(item) === 'active') : liste);
+  // Annonces actives seulement, et jamais le propriétaire du bien (studio seulement).
+  const actives = liste => (Array.isArray(liste) ? liste.filter(item => SYNC.etatAnnonce(item) === 'active').map(FICHES.sansProprietaire) : liste);
   return { ...contenu, villas: actives(contenu.villas), terrains: actives(contenu.terrains), activities: actives(contenu.activities), vehicles: actives(contenu.vehicles) };
 }
 
@@ -1277,9 +1282,6 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['GET', /^\/api\/admin\/export$/, 'leads:export'],
   ['GET', /^\/api\/admin\/notifications$/, 'notifications:manage'],
   ['POST', /^\/api\/admin\/notifications(\/apercu)?$/, 'notifications:manage'],
-  ['POST', /^\/api\/admin\/proprietaires$/, 'notifications:manage'],
-  ['PATCH', /^\/api\/admin\/proprietaires\/[^/]+$/, 'notifications:manage'],
-  ['DELETE', /^\/api\/admin\/proprietaires\/[^/]+$/, 'notifications:manage'],
   ['GET', /^\/api\/admin\/location$/, 'location:manage'],
   ['POST', /^\/api\/admin\/location\/(reservations|indisponibilites)$/, 'location:manage'],
   ['PATCH', /^\/api\/admin\/location\/(reservations|indisponibilites)\/[^/]+$/, 'location:manage'],
@@ -3185,32 +3187,19 @@ async function handleApi(req, res, url) {
   }
 
   // ---- Notifications de l'app et propriétaires (19/09/2026) -------------
-  if (url.pathname === '/api/admin/notifications' || url.pathname === '/api/admin/notifications/apercu' || url.pathname === '/api/admin/proprietaires' || url.pathname.startsWith('/api/admin/proprietaires/')) {
+  if (url.pathname === '/api/admin/notifications' || url.pathname === '/api/admin/notifications/apercu') {
     try {
       const acteur = actorLabel(actor);
       const donnees = await NS.tout();
-      if (url.pathname.startsWith('/api/admin/proprietaires')) {
-        const id = url.pathname.split('/')[4] ? decodeURIComponent(url.pathname.split('/')[4]) : null;
-        const existant = id ? donnees.proprietaires.find(p => p.id === id) : null;
-        if (id && !existant) return json(res, 404, { ok: false, error: 'Propriétaire introuvable.' });
-        if (req.method === 'DELETE') {
-          await NS.supprimerProprietaire(id);
-          audit('proprietaire.supprime', { id, nom: existant.nom }, acteur);
-          return json(res, 200, { ok: true });
-        }
-        const { proprietaire, erreurs } = NS.validerProprietaire(await parseBody(req, 50_000), { existant, annoncesConnues: annoncesDuCatalogue(await lireContenuBrut()) });
-        if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
-        await NS.enregistrerProprietaire(proprietaire);
-        audit(existant ? 'proprietaire.modifie' : 'proprietaire.cree', { id: proprietaire.id, annonces: proprietaire.annonces.length }, acteur);
-        return json(res, existant ? 200 : 201, { ok: true, proprietaire });
-      }
-      const contexte = await contexteNotifications(donnees);
+      const contenu = await lireContenuBrut();
+      // Propriétaires des biens : lus dans les fiches d'annonces (19/09/2026).
+      const proprietaires = NS.proprietairesDesAnnonces(contenu);
+      const contexte = await contexteNotifications(donnees, proprietaires);
       if (req.method === 'GET') {
-        const contenu = await lireContenuBrut();
         return json(res, 200, {
           ok: true,
-          proprietaires: donnees.proprietaires,
-          annonces: listeAnnoncesStudio(contenu),
+          proprietaires,
+          annoncesSansProprietaire: NS.annoncesSansProprietaire(contenu),
           abonnes: {
             total: donnees.abonnes.length,
             identifies: donnees.abonnes.filter(a => a.cleTelephone).length,
@@ -3222,7 +3211,7 @@ async function handleApi(req, res, url) {
           })),
           messages: donnees.messages.slice(0, 50).map(m => ({
             id: m.id, titre: m.titre, corps: m.corps, creeLe: m.creeLe, creePar: m.creePar, bilan: m.bilan,
-            audience: NS.libelleAudience(m.audience, donnees.proprietaires)
+            audience: NS.libelleAudience(m.audience, proprietaires)
           })),
           pushActif: Boolean(process.env.EXPO_ACCESS_TOKEN) || donnees.abonnes.some(a => a.jeton)
         });
@@ -3232,12 +3221,12 @@ async function handleApi(req, res, url) {
         const audience = message ? message.audience : null;
         if (!audience) return json(res, 422, { ok: false, error: erreurs[0] });
         const d = NS.destinataires(audience, contexte);
-        return json(res, 200, { ok: true, telephones: d.abonnes.length, push: d.abonnes.filter(a => a.jeton).length, emails: d.emails.length, personnes: d.personnes, libelle: NS.libelleAudience(audience, donnees.proprietaires) });
+        return json(res, 200, { ok: true, telephones: d.abonnes.length, push: d.abonnes.filter(a => a.jeton).length, emails: d.emails.length, personnes: d.personnes, libelle: NS.libelleAudience(audience, proprietaires) });
       }
       if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
       const envoye = await envoyerMessageStudio(message, { contexte, acteur, req });
       audit('notifications.envoyees', { id: envoye.id, audience: envoye.audience, bilan: envoye.bilan }, acteur);
-      return json(res, 201, { ok: true, message: { ...envoye, destinataires: undefined, audience: NS.libelleAudience(envoye.audience, donnees.proprietaires) } });
+      return json(res, 201, { ok: true, message: { ...envoye, destinataires: undefined, audience: NS.libelleAudience(envoye.audience, proprietaires) } });
     } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
   }
 
@@ -4545,31 +4534,12 @@ async function envoyerLotsExpo(lots, origine) {
   return { envoyes, perimes: perimes.length };
 }
 
-/** Annonces du catalogue « kind:id » (propriétaires rattachés à des annonces existantes). */
-function annoncesDuCatalogue(contenu) {
-  const c = contenu && typeof contenu === 'object' ? contenu : {};
-  const cles = new Set();
-  [['villa', c.villas], ['vehicle', c.vehicles], ['activity', c.activities], ['terrain', c.terrains]]
-    .forEach(([kind, liste]) => (Array.isArray(liste) ? liste : []).forEach(item => { if (item?.id) cles.add(`${kind}:${item.id}`); }));
-  return cles;
-}
-
-/** Annonces proposées dans la fiche d'un propriétaire, par type. */
-function listeAnnoncesStudio(contenu) {
-  const c = contenu && typeof contenu === 'object' ? contenu : {};
-  const liste = (kind, items, titre) => (Array.isArray(items) ? items : []).filter(x => x?.id).map(x => ({ kind, id: x.id, titre: text(titre(x), 120) }));
-  return [
-    ...liste('villa', c.villas, v => v.name), ...liste('vehicle', c.vehicles, v => v.name),
-    ...liste('activity', c.activities, a => a.title), ...liste('terrain', c.terrains, t => t.title || t.reference)
-  ];
-}
-
-/** Données de ciblage : téléphones inscrits, demandes, employés, propriétaires. */
-async function contexteNotifications(donnees) {
+/** Données de ciblage : téléphones inscrits, demandes, employés, propriétaires des biens. */
+async function contexteNotifications(donnees, proprietaires) {
   const [leads, compta] = await Promise.all([store.readLeads().catch(() => []), COMPTA.tout().catch(() => ({ employes: [] }))]);
   const suivis = readJSON(APP_NOTIF_FILE, {}).demandes || {};
   return {
-    abonnes: donnees.abonnes, leads, employes: compta.employes || [], proprietaires: donnees.proprietaires,
+    abonnes: donnees.abonnes, leads, employes: compta.employes || [], proprietaires,
     jetonsDemandes: Object.fromEntries(Object.entries(suivis).map(([id, d]) => [id, d?.jeton]).filter(([, j]) => j))
   };
 }

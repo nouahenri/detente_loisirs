@@ -98,7 +98,28 @@ function nettoyerTraductions(source, type) {
   return resultat;
 }
 
+/**
+ * Propriétaire du bien (19/09/2026) : la plateforme est intermédiaire entre
+ * les clients et les propriétaires. Nom, prénom, téléphone et WhatsApp se
+ * saisissent dans la fiche de l'annonce (villa, voiture, activité, terrain),
+ * au studio SEULEMENT : `sansProprietaire` les retire de tout ce que voient
+ * le site et l'application. Renvoie null quand rien n'est renseigné.
+ */
+function proprietaireAnnonce(source) {
+  const s = source && typeof source === 'object' ? source : {};
+  const champ = (valeur, max) => String(valeur ?? '').trim().replace(/\s+/g, ' ').slice(0, max);
+  const proprietaire = { nom: champ(s.nom, 120), prenom: champ(s.prenom, 80), telephone: champ(s.telephone, 40), whatsapp: champ(s.whatsapp, 40) };
+  return Object.values(proprietaire).some(Boolean) ? proprietaire : null;
+}
+
+/** Annonce telle que la voient les visiteurs : sans son propriétaire. */
+function sansProprietaire(annonce) {
+  if (!annonce || typeof annonce !== 'object' || !('proprietaire' in annonce)) return annonce;
+  const { proprietaire, ...publique } = annonce;
+  return publique;
+}
+
 module.exports = {
   CADRES, UNITES_TARIF, LANGUES_TRADUITES, TEXTES_TARIF, CHAMPS_TRADUISIBLES,
-  formaterMontant, texteTarifActivite, nettoyerTraductions
+  formaterMontant, texteTarifActivite, nettoyerTraductions, proprietaireAnnonce, sansProprietaire
 };
