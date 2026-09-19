@@ -87,7 +87,9 @@ const ROLE_PERMISSIONS = {
     'facebook:read', 'facebook:write',
     'backup:manage', 'audit:read', 'users:manage',
     // Comptabilité (17/09/2026) : salaires et finances, propriétaire seulement.
-    'compta:manage'
+    'compta:manage',
+    // Location de voitures (17/09/2026) : planning et réservations.
+    'location:manage'
   ],
   editeur: [
     'dashboard:view',
@@ -97,7 +99,8 @@ const ROLE_PERMISSIONS = {
   commercial: [
     'dashboard:view',
     'leads:read', 'leads:write', 'leads:export',
-    'newsletter:read', 'newsletter:write'
+    'newsletter:read', 'newsletter:write',
+    'location:manage'
   ]
 };
 
@@ -114,6 +117,7 @@ const CATALOGUE_PERMISSIONS = [
   { groupe: 'Clients', permissions: [['leads:read', 'Consulter les demandes'], ['leads:write', 'Traiter les demandes et bloquer des demandeurs'], ['leads:export', 'Exporter les demandes']] },
   { groupe: 'Newsletter', permissions: [['newsletter:read', 'Consulter abonnés et campagnes'], ['newsletter:write', 'Envoyer des campagnes']] },
   { groupe: 'Facebook', permissions: [['facebook:read', 'Consulter les publications'], ['facebook:write', 'Publier et synchroniser']] },
+  { groupe: 'Location de voitures', permissions: [['location:manage', 'Planning, réservations, indisponibilités et réglages de location']] },
   { groupe: 'Finances', permissions: [['compta:manage', 'Comptabilité : entrées, sorties, salaires']] },
   { groupe: 'Administration', permissions: [['backup:manage', 'Sauvegardes et exports'], ['audit:read', 'Journal d’audit'], ['users:manage', 'Utilisateurs, rôles et permissions']] }
 ];

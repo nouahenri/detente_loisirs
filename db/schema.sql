@@ -537,3 +537,75 @@ CREATE TABLE IF NOT EXISTS `compta_parametres` (
   `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`type`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------
+-- LOCATION DE VOITURES (17/09/2026)
+-- Définitions identiques à db/migration-location-voitures.sql.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `vehicles` (
+  `id`            VARCHAR(80)     NOT NULL,
+  `name`          VARCHAR(160)    NOT NULL,
+  `category`      VARCHAR(40)     NOT NULL DEFAULT '',
+  `price_per_day` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `visible`       TINYINT(1)      NOT NULL DEFAULT 1,
+  `featured`      TINYINT(1)      NOT NULL DEFAULT 0,
+  `etat`          VARCHAR(20)     NOT NULL DEFAULT 'active' COMMENT 'active, suspendue, archivee',
+  `sort_order`    INT             NOT NULL DEFAULT 0,
+  `donnees`       JSON            NULL,
+  `created_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_vehicles_ordre` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `location_reservations` (
+  `id`               CHAR(36)        NOT NULL,
+  `vehicule_id`      VARCHAR(80)     NOT NULL,
+  `vehicule_nom`     VARCHAR(160)    NOT NULL DEFAULT '',
+  `lead_id`          VARCHAR(36)     NOT NULL DEFAULT '' COMMENT 'demande liée (menu Demandes)',
+  `statut`           VARCHAR(20)     NOT NULL DEFAULT 'demande' COMMENT 'demande, confirmee, en_cours, terminee, annulee',
+  `debut`            DATETIME        NOT NULL,
+  `fin`              DATETIME        NOT NULL,
+  `chauffeur`        TINYINT(1)      NOT NULL DEFAULT 0,
+  `lieu_prise`       VARCHAR(80)     NOT NULL DEFAULT '',
+  `lieu_retour`      VARCHAR(80)     NOT NULL DEFAULT '',
+  `options`          JSON            NULL,
+  `jours`            SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `montant`          BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `caution`          BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `client_nom`       VARCHAR(120)    NOT NULL DEFAULT '',
+  `client_telephone` VARCHAR(40)     NOT NULL DEFAULT '',
+  `client_email`     VARCHAR(180)    NOT NULL DEFAULT '',
+  `notes`            VARCHAR(1000)   NOT NULL DEFAULT '',
+  `source`           VARCHAR(10)     NOT NULL DEFAULT 'site' COMMENT 'site, app, studio',
+  `cree_par`         VARCHAR(120)    NOT NULL DEFAULT '',
+  `modifie_par`      VARCHAR(120)    NOT NULL DEFAULT '',
+  `created_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_location_reservations_vehicule` (`vehicule_id`, `debut`),
+  KEY `idx_location_reservations_statut` (`statut`),
+  KEY `idx_location_reservations_lead` (`lead_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `location_indisponibilites` (
+  `id`          CHAR(36)     NOT NULL,
+  `vehicule_id` VARCHAR(80)  NOT NULL,
+  `motif`       VARCHAR(20)  NOT NULL DEFAULT 'entretien' COMMENT 'entretien, panne, usage_interne, autre',
+  `debut`       DATETIME     NOT NULL,
+  `fin`         DATETIME     NOT NULL,
+  `notes`       VARCHAR(500) NOT NULL DEFAULT '',
+  `cree_par`    VARCHAR(120) NOT NULL DEFAULT '',
+  `created_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_location_indisponibilites_vehicule` (`vehicule_id`, `debut`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `location_reglages` (
+  `id`         VARCHAR(20)  NOT NULL,
+  `donnees`    JSON         NULL,
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

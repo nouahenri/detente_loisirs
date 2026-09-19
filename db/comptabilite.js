@@ -21,6 +21,7 @@ const jsonStore = require('./json-store');
 const CATEGORIES = [
   { id: 'sejour', sens: 'entree', libelle: 'Locations & séjours' },
   { id: 'activites', sens: 'entree', libelle: 'Activités & loisirs' },
+  { id: 'location_vehicules', sens: 'entree', libelle: 'Location de véhicules' },
   { id: 'terrain', sens: 'entree', libelle: 'Ventes de terrains' },
   { id: 'commission', sens: 'entree', libelle: 'Commissions perçues' },
   { id: 'autre_recette', sens: 'entree', libelle: 'Autres recettes' },
@@ -296,6 +297,7 @@ function chargesDuMois(charges, periode, ecritures, { acteur = '', maintenant = 
 function categorieDeDemande(lead) {
   if (lead?.type === 'terrain' || lead?.terrainRef) return 'terrain';
   if (lead?.type === 'devis-activites') return 'activites';
+  if (lead?.type === 'location-voiture') return 'location_vehicules';
   return 'sejour';
 }
 

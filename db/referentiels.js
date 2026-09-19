@@ -233,9 +233,9 @@ function resoudreBien(bien, referentiels) {
  * Nombre de fiches qui utilisent une entrée : une entrée utilisée ne peut
  * pas être supprimée (on la désactive), sous peine de fiches orphelines.
  */
-function compterUsages(type, id, { villas = [], terrains = [], activities = [], fiches = [] } = {}) {
+function compterUsages(type, id, { villas = [], terrains = [], activities = [], vehicles = [], fiches = [] } = {}) {
   const cle = String(id);
-  const tous = [...villas, ...terrains, ...activities, ...fiches];
+  const tous = [...villas, ...terrains, ...activities, ...vehicles, ...fiches];
   if (type === 'localisations') return tous.filter(bien => bien?.localisationId === cle).length;
   if (type === 'badges') return tous.filter(bien => bien?.badgeId === cle).length;
   if (type === 'categories') return [...villas, ...fiches].filter(bien => bien?.category === cle).length;

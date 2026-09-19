@@ -340,6 +340,42 @@ async function listActivities() {
 }
 
 // --------------------------------------------------------------------------
+// VÉHICULES — location de voitures (17/09/2026)
+// La fiche complète (tarifs, chauffeur, caution, équipements, traductions…)
+// est gardée en JSON ; les colonnes à part servent au tri et à la lecture.
+// --------------------------------------------------------------------------
+function vehicleFromRow(row) {
+  return {
+    ...parseObject(row.donnees),
+    id: row.id, name: row.name, category: row.category,
+    visible: Boolean(row.visible), featured: Boolean(row.featured), etat: row.etat || 'active'
+  };
+}
+
+const VEHICLE_UPSERT = `INSERT INTO vehicles (id, name, category, price_per_day, visible, featured, etat, sort_order, donnees)
+  VALUES (?,?,?,?,?,?,?,?,?)
+  ON DUPLICATE KEY UPDATE name=VALUES(name), category=VALUES(category), price_per_day=VALUES(price_per_day),
+    visible=VALUES(visible), featured=VALUES(featured), etat=VALUES(etat), sort_order=VALUES(sort_order), donnees=VALUES(donnees)`;
+
+function vehicleParams(item, index) {
+  return [
+    item.id, item.name || '', item.category || '', Number(item.pricePerDay) || 0,
+    bool(item.visible !== false), bool(item.featured), etatAnnonce(item), index, JSON.stringify(item)
+  ];
+}
+
+/** Véhicules du catalogue ; null tant que la table n'existe pas (migration à passer). */
+async function listVehicles() {
+  try {
+    const [rows] = await query('SELECT * FROM vehicles ORDER BY sort_order ASC, name ASC');
+    return rows.map(vehicleFromRow);
+  } catch (error) {
+    if (tableAbsente(error)) return null;
+    throw error;
+  }
+}
+
+// --------------------------------------------------------------------------
 // AVIS & FAQ
 // --------------------------------------------------------------------------
 const REVIEW_UPSERT = `INSERT INTO reviews
@@ -538,11 +574,12 @@ async function semerReferentiels(defauts, connection) {
 // CONTENU COMPLET (équivalent de data/site-content.json)
 // --------------------------------------------------------------------------
 async function readContent() {
-  const [villas, terrains, activities, reviews, faq, settings, facebookPosts] = await Promise.all([
-    listVillas(), listTerrains(), listActivities(), listReviews(), listFaq(), getSettings(), listFacebookPosts(20, { toutesVideos: true })
+  const [villas, terrains, activities, reviews, faq, settings, facebookPosts, vehicles] = await Promise.all([
+    listVillas(), listTerrains(), listActivities(), listReviews(), listFaq(), getSettings(), listFacebookPosts(20, { toutesVideos: true }), listVehicles()
   ]);
   return {
-    villas, terrains, activities, reviews, faq, settings, facebookPosts,
+    // `vehicles` vaut null sans la table : server.js reprend alors le miroir JSON.
+    villas, terrains, activities, vehicles, reviews, faq, settings, facebookPosts,
     updatedAt: settings.updatedAt || new Date().toISOString()
   };
 }
@@ -572,6 +609,16 @@ async function writeContent(content) {
     for (let index = 0; index < activities.length; index += 1) await connection.execute(ACTIVITY_UPSERT, activityParams(activities[index], index));
     await keep('activities', activities.map(item => item.id));
 
+    // Véhicules : table créée par db/migration-location-voitures.sql. Tant
+    // qu'elle manque, ils ne vivent que dans le miroir JSON (écrit ensuite).
+    const [tableVehicules] = await connection.execute(
+      "SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'vehicles'");
+    if (Number(tableVehicules[0]?.n) > 0) {
+      const vehicles = content.vehicles || [];
+      for (let index = 0; index < vehicles.length; index += 1) await connection.execute(VEHICLE_UPSERT, vehicleParams(vehicles[index], index));
+      await keep('vehicles', vehicles.map(item => item.id));
+    }
+
     const reviews = content.reviews || [];
     const reviewIds = [];
     for (let index = 0; index < reviews.length; index += 1) {
@@ -591,7 +638,7 @@ async function writeContent(content) {
     await keep('faq', faqIds);
 
     await saveSettings({ ...(content.settings || {}), updatedAt: content.updatedAt || new Date().toISOString() }, connection);
-    return { villas: villas.length, terrains: terrains.length, activities: activities.length };
+    return { villas: villas.length, terrains: terrains.length, activities: activities.length, vehicles: (content.vehicles || []).length };
   });
 }
 
@@ -1019,7 +1066,7 @@ module.exports = {
   query, transaction,
   // contenu
   readContent, writeContent,
-  listVillas, listTerrains, getTerrain, listActivities, listReviews, listFaq,
+  listVillas, listTerrains, getTerrain, listActivities, listVehicles, listReviews, listFaq,
   getSettings, saveSettings,
   // référentiels
   listReferentiels, saveReferentiel, ordonnerReferentiel, deleteReferentiel, semerReferentiels,
@@ -1032,5 +1079,5 @@ module.exports = {
   appendAudit, listAudit, acquireLock, releaseLock,
   // exposés pour les scripts d'import
   VILLA_UPSERT, villaParams, TERRAIN_UPSERT, terrainParams,
-  ACTIVITY_UPSERT, activityParams, REVIEW_UPSERT, reviewParams, FAQ_UPSERT, faqParams
+  ACTIVITY_UPSERT, activityParams, VEHICLE_UPSERT, vehicleParams, REVIEW_UPSERT, reviewParams, FAQ_UPSERT, faqParams
 };

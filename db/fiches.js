@@ -65,7 +65,9 @@ function texteTarifActivite(activite, langue = 'fr') {
 const CHAMPS_TRADUISIBLES = {
   villa: { tagline: 240, description: 8000, beds: 160, features: [40, 160], highlights: [20, 160] },
   terrain: { title: 160, description: 8000, highlights: [20, 160] },
-  activity: { title: 160, subtitle: 240, description: 8000, duration: 80, pricePrefix: 80, priceSuffix: 80 }
+  activity: { title: 160, subtitle: 240, description: 8000, duration: 80, pricePrefix: 80, priceSuffix: 80 },
+  // Location de voitures (17/09/2026).
+  vehicle: { tagline: 240, description: 8000, features: [30, 160] }
 };
 
 /**

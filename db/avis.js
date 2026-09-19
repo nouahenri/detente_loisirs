@@ -21,7 +21,7 @@ const crypto = require('crypto');
 const jsonStore = require('./json-store');
 
 const FICHIER = 'avis.json';
-const TYPES = ['villa', 'terrain', 'activity'];
+const TYPES = ['villa', 'terrain', 'activity', 'vehicle'];
 const STATUTS = ['visible', 'masque'];
 
 const texte = (valeur, max) => String(valeur ?? '').replace(/\s+/g, ' ').trim().slice(0, max);

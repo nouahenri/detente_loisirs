@@ -22,6 +22,8 @@ const SYNC = require('./db/synchro-facebook');
 const DEMANDEURS = require('./db/demandeurs');
 const AVIS = require('./db/avis');
 const COMPTA = require('./db/comptabilite');
+const LOC = require('./db/location');
+const LV = require('./js/location-voitures.js');
 
 const PORT = Number(process.env.PORT || 3456);
 const ROOT = __dirname;
@@ -228,6 +230,7 @@ newsletter.configure({ isDbReady: dbEnabled });
 DEMANDEURS.configure({ isDbReady: dbEnabled });
 AVIS.configure({ isDbReady: dbEnabled });
 COMPTA.configure({ isDbReady: dbEnabled });
+LOC.configure({ isDbReady: dbEnabled });
 mailer.configure({ isDbReady: dbEnabled });
 
 /** Exécute une opération MySQL sans jamais faire tomber la requête HTTP. */
@@ -257,6 +260,7 @@ async function biensPourUsages(referentiels) {
     villas: Array.isArray(contenu.villas) ? contenu.villas : [],
     terrains: Array.isArray(contenu.terrains) ? contenu.terrains : [],
     activities: Array.isArray(contenu.activities) ? contenu.activities : [],
+    vehicles: Array.isArray(contenu.vehicles) ? contenu.vehicles : [],
     fiches: [...fiches.values()]
   };
 }
@@ -264,12 +268,19 @@ async function biensPourUsages(referentiels) {
 /** Contenu tel qu’il est stocké, base d’abord puis miroir JSON. */
 async function lireContenuBrut() {
   const fromDb = await tryDb('lecture du contenu', repo => repo.readContent());
-  if (fromDb && (fromDb.villas.length || fromDb.terrains.length || fromDb.activities.length)) {
+  if (fromDb && (fromDb.villas.length || fromDb.terrains.length || fromDb.activities.length || fromDb.vehicles?.length)) {
     if (!Array.isArray(fromDb.terrains)) fromDb.terrains = [];
+    // Véhicules (17/09/2026) : table absente tant que la migration n'est pas
+    // passée — ils viennent alors du miroir JSON, où ils sont toujours écrits.
+    if (!Array.isArray(fromDb.vehicles)) {
+      const miroir = readJSON(CONTENT_FILE, {});
+      fromDb.vehicles = Array.isArray(miroir.vehicles) ? miroir.vehicles : [];
+    }
     return fromDb;
   }
   const content = readJSON(CONTENT_FILE, {});
   if (!Array.isArray(content.terrains)) content.terrains = [];
+  if (!Array.isArray(content.vehicles)) content.vehicles = [];
   return content;
 }
 
@@ -305,6 +316,7 @@ const store = {
     contenu.villas = resoudre(contenu.villas);
     contenu.terrains = resoudre(contenu.terrains);
     contenu.activities = resoudre(contenu.activities);
+    contenu.vehicles = resoudre(contenu.vehicles);
     if (Array.isArray(contenu.facebookPosts)) {
       contenu.facebookPosts = contenu.facebookPosts.map(post => (post && post.fiche
         ? { ...post, fiche: REF.resoudreBien(post.fiche, referentiels) }
@@ -923,8 +935,16 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
     { nom: item.name || `Villa ${index + 1}`, avecCategorie: true, avecStatutVilla: true, avecLocalisation: true, avecEquipements: true })));
   const activitiesRattachees = activities.map((item, index) => gestionAnnonce(appliquerReferentiels(item, referentiels, errors,
     { nom: item.title || `Activité ${index + 1}` })));
+  // Location de voitures (17/09/2026) : fiches validées par db/location.js.
+  const vehiculesVus = new Set();
+  const vehicles = (Array.isArray(payload.vehicles) ? payload.vehicles : []).slice(0, 100).map((item, index) => {
+    const vehicule = LOC.validerVehicule(item, index, { vus: vehiculesVus, errors, warnings });
+    vehicule.translations = FICHES.nettoyerTraductions(item?.translations, 'vehicle');
+    const { facebook, ...sansFacebook } = gestionAnnonce(appliquerReferentiels(vehicule, referentiels, errors, { nom: vehicule.name || `Véhicule ${index + 1}` }));
+    return sansFacebook;
+  });
   return {
-    content: { villas: villasRattachees, terrains, activities: activitiesRattachees, reviews: Array.isArray(payload.reviews) ? payload.reviews.slice(0, 100) : [],
+    content: { villas: villasRattachees, terrains, activities: activitiesRattachees, vehicles, reviews: Array.isArray(payload.reviews) ? payload.reviews.slice(0, 100) : [],
       faq: Array.isArray(payload.faq) ? payload.faq.slice(0, 100) : [], settings,
       facebookPosts: Array.isArray(payload.facebookPosts) ? publicationsSansFiche(payload.facebookPosts.slice(0, 20)) : [], updatedAt: new Date().toISOString() },
     errors, warnings
@@ -938,7 +958,7 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
  */
 function contenuPublic(contenu) {
   const actives = liste => (Array.isArray(liste) ? liste.filter(item => SYNC.etatAnnonce(item) === 'active') : liste);
-  return { ...contenu, villas: actives(contenu.villas), terrains: actives(contenu.terrains), activities: actives(contenu.activities) };
+  return { ...contenu, villas: actives(contenu.villas), terrains: actives(contenu.terrains), activities: actives(contenu.activities), vehicles: actives(contenu.vehicles) };
 }
 
 /**
@@ -954,20 +974,58 @@ async function avecAvis(contenu) {
   const ajouter = (kind, liste) => (Array.isArray(liste)
     ? liste.map(item => ({ ...item, avis: resumes.get(`${kind}:${item.id}`) || vide }))
     : liste);
-  return { ...contenu, villas: ajouter('villa', contenu.villas), terrains: ajouter('terrain', contenu.terrains), activities: ajouter('activity', contenu.activities) };
+  return { ...contenu, villas: ajouter('villa', contenu.villas), terrains: ajouter('terrain', contenu.terrains), activities: ajouter('activity', contenu.activities), vehicles: ajouter('vehicle', contenu.vehicles) };
 }
 
 /** Annonce en ligne (active et visible) : seule une telle annonce reçoit des avis. */
 async function annonceEnLigne(kind, id) {
   const contenu = await lireContenuBrut();
-  const liste = contenu[{ villa: 'villas', terrain: 'terrains', activity: 'activities' }[kind]];
+  const liste = contenu[{ villa: 'villas', terrain: 'terrains', activity: 'activities', vehicle: 'vehicles' }[kind]];
   const item = Array.isArray(liste) ? liste.find(entree => entree?.id === id) : null;
   return Boolean(item && item.visible !== false && SYNC.etatAnnonce(item) === 'active');
 }
 
-/** Vrai quand un contenu n'a ni villa, ni terrain, ni activité. */
+/**
+ * Location de voitures : la demande (Demandes du studio) et la réservation
+ * (planning) avancent ensemble.
+ *  · statut de la demande → réservation : « confirmé » confirme (planning
+ *    vérifié), « archivé » annule une réservation pas encore commencée ;
+ *  · statut de la réservation → demande : confirmée ⇒ demande confirmée
+ *    (vente à encaisser en comptabilité), annulée ⇒ demande archivée.
+ */
+async function synchroniserReservationDeDemande(leadId, statutDemande, acteur) {
+  if (!['confirme', 'archive'].includes(statutDemande)) return null;
+  const donnees = await LOC.tout().catch(() => null);
+  const reservation = donnees?.reservations.find(r => r.leadId === leadId);
+  if (!reservation) return null;
+  const cible = statutDemande === 'confirme'
+    ? (['demande', 'annulee'].includes(reservation.statut) ? 'confirmee' : null)
+    : (['demande', 'confirmee'].includes(reservation.statut) ? 'annulee' : null);
+  if (!cible) return null;
+  let actuelle = reservation;
+  // Une réservation annulée repasse d'abord en demande avant d'être confirmée.
+  if (actuelle.statut === 'annulee' && cible === 'confirmee') actuelle = { ...actuelle, statut: 'demande' };
+  const change = LOC.changerStatut(actuelle, cible, { ...donnees, acteur });
+  if (change.erreur) return { erreur: `Réservation du véhicule : ${change.erreur}` };
+  await LOC.enregistrerReservation(change.reservation);
+  audit('location.reservation_suivie', { id: reservation.id, lead: leadId, statut: cible }, acteur);
+  return { reservation: change.reservation };
+}
+
+async function repercuterSurDemande(reservation, avant) {
+  if (!reservation.leadId || (avant && avant.statut === reservation.statut && avant.montant === reservation.montant)) return;
+  const statutDemande = { confirmee: 'confirme', en_cours: 'confirme', terminee: 'confirme', annulee: 'archive' }[reservation.statut];
+  const patch = {};
+  if (statutDemande) patch.status = statutDemande;
+  if (!avant || avant.montant !== reservation.montant) patch.amount = reservation.montant;
+  if (!Object.keys(patch).length) return;
+  const lead = await store.updateLead(reservation.leadId, patch).catch(() => null);
+  if (lead && patch.status) notifierSuiviDemandeApp(lead).catch(() => {});
+}
+
+/** Vrai quand un contenu n'a ni villa, ni terrain, ni activité, ni véhicule. */
 function catalogueVide(contenu) {
-  return ['villas', 'terrains', 'activities'].every(cle => !(Array.isArray(contenu?.[cle]) && contenu[cle].length));
+  return ['villas', 'terrains', 'activities', 'vehicles'].every(cle => !(Array.isArray(contenu?.[cle]) && contenu[cle].length));
 }
 
 function json(res, status, payload, extraHeaders = {}) {
@@ -1216,6 +1274,11 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['DELETE', /^\/api\/admin\/whatsapp\/campagnes\/[^/]+$/, 'leads:write'],
   ['POST', /^\/api\/admin\/whatsapp\/stop$/, 'leads:write'],
   ['GET', /^\/api\/admin\/export$/, 'leads:export'],
+  ['GET', /^\/api\/admin\/location$/, 'location:manage'],
+  ['POST', /^\/api\/admin\/location\/(reservations|indisponibilites)$/, 'location:manage'],
+  ['PATCH', /^\/api\/admin\/location\/(reservations|indisponibilites)\/[^/]+$/, 'location:manage'],
+  ['DELETE', /^\/api\/admin\/location\/(reservations|indisponibilites)\/[^/]+$/, 'location:manage'],
+  ['PUT', /^\/api\/admin\/location\/reglages$/, 'location:manage'],
   ['GET', /^\/api\/admin\/compta$/, 'compta:manage'],
   ['GET', /^\/api\/admin\/compta\/export$/, 'compta:manage'],
   ['POST', /^\/api\/admin\/compta\/(ecritures|employes|charges|paie|charges-du-mois|justificatifs)$/, 'compta:manage'],
@@ -2646,7 +2709,59 @@ async function handleApi(req, res, url) {
   if (req.method === 'GET' && url.pathname === '/api/content') {
     // `terrains` fait partie du contrat d'API : la clé existe toujours,
     // même si le stockage est antérieur à la rubrique.
-    return json(res, 200, await avecAvis(contenuPublic(await store.readContent())));
+    const contenu = await avecAvis(contenuPublic(await store.readContent()));
+    // Location de voitures : lieux de prise en charge, options, horaires et
+    // conditions, pour que le site et l'app calculent la même estimation.
+    const reglagesLocation = await LOC.tout().then(donnees => donnees.reglages).catch(() => null);
+    return json(res, 200, { ...contenu, location: LOC.reglagesPublics(reglagesLocation) });
+  }
+
+  // --- Location de voitures : disponibilités et demande (17/09/2026) -------
+  if (req.method === 'GET' && url.pathname === '/api/location/disponibilites') {
+    const vehiculeId = text(url.searchParams.get('vehicule'), 80);
+    const vehicule = (contenuPublic(await lireContenuBrut()).vehicles || []).find(v => v.id === vehiculeId && v.visible !== false);
+    if (!vehicule) return json(res, 404, { ok: false, error: 'Véhicule introuvable.' });
+    try {
+      const donnees = await LOC.tout();
+      return json(res, 200, { ok: true, vehicule: vehicule.id, occupations: LOC.occupationsPubliques(vehicule.id, donnees) });
+    } catch (error) { return json(res, 503, { ok: false, error: 'Disponibilités momentanément indisponibles.' }); }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/location/demande') {
+    const limite = rateLimit(req, 'location-demande', 10);
+    if (!limite.allowed) return json(res, 429, { ok: false, error: 'Trop de demandes envoyées. Merci de réessayer dans quelques minutes.' });
+    try {
+      const payload = await parseBody(req, 20_000);
+      const vehicule = (contenuPublic(await lireContenuBrut()).vehicles || []).find(v => v.id === text(payload.vehicule, 80) && v.visible !== false) || null;
+      const donnees = await LOC.tout();
+      const { reservation, devis, erreur, statut } = LOC.preparerDemande(payload, { vehicule, ...donnees });
+      if (erreur) return json(res, statut || 422, { ok: false, error: erreur, devis: devis || null });
+      const lead = {
+        id: crypto.randomUUID(), type: 'location-voiture',
+        name: reservation.client.nom, email: reservation.client.email, phone: reservation.client.telephone,
+        villa: text(`Location · ${vehicule.name}`, 160), terrainRef: '', terrainId: '',
+        dates: text(`${LOC.formatDate(devis.debut)} → ${LOC.formatDate(devis.fin)}`, 160), amount: devis.total,
+        message: text([LOC.recapitulatif(vehicule, devis), reservation.notes ? `Message du client : ${reservation.notes}` : ''].filter(Boolean).join('\n\n'), 2000),
+        status: 'nouveau', createdAt: new Date().toISOString()
+      };
+      const restriction = DEMANDEURS.restrictionPour(await DEMANDEURS.lister().catch(() => []), lead);
+      if (restriction) {
+        audit('lead.refuse_restriction', { restriction: restriction.id, type: restriction.type, ip: clientIp(req) });
+        return json(res, 403, { ok: false, error: DEMANDEURS.MESSAGE_REFUS });
+      }
+      await store.createLead(lead);
+      reservation.leadId = lead.id;
+      await LOC.enregistrerReservation(reservation);
+      audit('location.demande', { reservation: reservation.id, lead: lead.id, vehicule: vehicule.id, montant: devis.total, source: reservation.source });
+      if (NOTIF.estJetonExpo(payload.appareil)) {
+        const memoire = readJSON(APP_NOTIF_FILE, {});
+        const demandes = memoire.demandes && typeof memoire.demandes === 'object' ? memoire.demandes : {};
+        writeJSON(APP_NOTIF_FILE, { ...memoire, demandes: { ...demandes, [lead.id]: { jeton: payload.appareil, langue: text(payload.langue, 5) || 'fr', statut: lead.status, le: lead.createdAt } } });
+      }
+      notifyNewLead(lead, req).catch(() => {});
+      confirmLeadToClient(lead, req).catch(() => {});
+      return json(res, 201, { ok: true, lead, reservation: { id: reservation.id, statut: reservation.statut }, devis });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
   }
 
   // --- Avis des visiteurs sur les annonces (17/09/2026) --------------------
@@ -3010,6 +3125,86 @@ async function handleApi(req, res, url) {
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
 
+  // ---- Location de voitures (17/09/2026) --------------------------------
+  if (url.pathname === '/api/admin/location' || url.pathname.startsWith('/api/admin/location/')) {
+    try {
+      const donnees = await LOC.tout();
+      const contenu = await lireContenuBrut();
+      const vehicules = Array.isArray(contenu.vehicles) ? contenu.vehicles : [];
+      const acteur = actorLabel(actor);
+      if (req.method === 'GET' && url.pathname === '/api/admin/location') {
+        return json(res, 200, {
+          ok: true, ...donnees,
+          vehicules: vehicules.map(v => ({ id: v.id, name: v.name, category: v.category, driverMode: v.driverMode, etat: SYNC.etatAnnonce(v), visible: v.visible !== false, images: (v.images || []).slice(0, 1), pricePerDay: v.pricePerDay })),
+          statuts: LV.STATUTS, transitions: LV.TRANSITIONS, motifs: LV.MOTIFS_INDISPONIBILITE
+        });
+      }
+      if (req.method === 'PUT' && url.pathname === '/api/admin/location/reglages') {
+        const { reglages, erreurs } = LOC.validerReglages(await parseBody(req, 50_000));
+        if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+        await LOC.enregistrerReglages(reglages);
+        audit('location.reglages', { lieux: reglages.lieux.length, options: reglages.options.length }, acteur);
+        return json(res, 200, { ok: true, reglages });
+      }
+      const route = url.pathname.match(/^\/api\/admin\/location\/(reservations|indisponibilites)(?:\/([^/]+))?$/);
+      if (!route) return json(res, 404, { ok: false, error: 'Route API inconnue' });
+      const [, collection, idBrut] = route;
+      const id = idBrut ? decodeURIComponent(idBrut) : null;
+
+      if (collection === 'indisponibilites') {
+        const existante = id ? donnees.indisponibilites.find(b => b.id === id) : null;
+        if (id && !existante) return json(res, 404, { ok: false, error: 'Indisponibilité introuvable.' });
+        if (req.method === 'DELETE') {
+          await LOC.supprimerIndisponibilite(id);
+          audit('location.indisponibilite_supprimee', { id }, acteur);
+          return json(res, 200, { ok: true });
+        }
+        const payload = await parseBody(req, 10_000);
+        const { indisponibilite, erreurs } = LOC.validerIndisponibilite(payload, { existante, vehicules, acteur });
+        if (erreurs.length) return json(res, 422, { ok: false, error: erreurs[0], errors: erreurs });
+        // Une réservation confirmée sur la période : on prévient, sauf confirmation explicite.
+        const gene = donnees.reservations.find(r => r.vehiculeId === indisponibilite.vehiculeId && LV.STATUTS_BLOQUANTS.includes(r.statut) && LV.chevauche(r, indisponibilite));
+        if (gene && payload.forcer !== true) {
+          return json(res, 409, { ok: false, conflit: true, error: `Une réservation confirmée (${gene.client?.nom || 'client'}, ${LOC.formatDate(gene.debut)} → ${LOC.formatDate(gene.fin)}) tombe sur cette période.` });
+        }
+        await LOC.enregistrerIndisponibilite(indisponibilite);
+        audit(existante ? 'location.indisponibilite_modifiee' : 'location.indisponibilite_creee', { id: indisponibilite.id, vehicule: indisponibilite.vehiculeId, motif: indisponibilite.motif }, acteur);
+        return json(res, existante ? 200 : 201, { ok: true, indisponibilite });
+      }
+
+      const existante = id ? donnees.reservations.find(r => r.id === id) : null;
+      if (id && !existante) return json(res, 404, { ok: false, error: 'Réservation introuvable.' });
+      if (req.method === 'DELETE') {
+        await LOC.supprimerReservation(id);
+        audit('location.reservation_supprimee', { id, lead: existante.leadId }, acteur);
+        return json(res, 200, { ok: true });
+      }
+      const payload = await parseBody(req, 20_000);
+      let reservation = existante;
+      const champsModifies = ['vehiculeId', 'debut', 'fin', 'chauffeur', 'lieuPrise', 'lieuRetour', 'options', 'client', 'notes', 'montant'].some(cle => payload[cle] !== undefined);
+      if (!existante || champsModifies) {
+        const resultat = LOC.validerReservationStudio(payload, { existante, vehicules, reglages: donnees.reglages, acteur });
+        if (resultat.erreurs.length) return json(res, 422, { ok: false, error: resultat.erreurs[0], errors: resultat.erreurs });
+        reservation = resultat.reservation;
+      }
+      const statutVise = payload.statut && payload.statut !== reservation.statut ? payload.statut : null;
+      if (statutVise) {
+        const change = LOC.changerStatut(reservation, statutVise, { ...donnees, acteur });
+        if (change.erreur) return json(res, 409, { ok: false, error: change.erreur });
+        reservation = change.reservation;
+      } else if (existante && LV.STATUTS_BLOQUANTS.includes(reservation.statut)) {
+        // Dates d'une réservation déjà confirmée : le planning doit rester cohérent.
+        const occupees = LV.occupations(reservation.vehiculeId, donnees.reservations, donnees.indisponibilites, { battementHeures: donnees.reglages.battementHeures, ignorer: reservation.id });
+        const gene = LV.conflit(occupees, reservation.debut, reservation.fin);
+        if (gene) return json(res, 409, { ok: false, error: `Ces dates chevauchent ${gene.type === 'indisponibilite' ? 'une indisponibilité' : 'une autre réservation confirmée'} (${LOC.formatDate(gene.debut)} → ${LOC.formatDate(gene.fin)}).` });
+      }
+      await LOC.enregistrerReservation(reservation);
+      await repercuterSurDemande(reservation, existante);
+      audit(existante ? 'location.reservation_modifiee' : 'location.reservation_creee', { id: reservation.id, statut: reservation.statut, vehicule: reservation.vehiculeId, montant: reservation.montant }, acteur);
+      return json(res, existante ? 200 : 201, { ok: true, reservation });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/admin/leads') {
     const [leads, restrictions] = await Promise.all([store.readLeads(), DEMANDEURS.lister().catch(() => [])]);
     return json(res, 200, { ok: true, leads: leads.map(lead => ({ ...lead, restriction: DEMANDEURS.restrictionPour(restrictions, lead) })) });
@@ -3019,6 +3214,11 @@ async function handleApi(req, res, url) {
     try {
       const id = decodeURIComponent(url.pathname.split('/').pop());
       const payload = await parseBody(req);
+      // Demande de location de voiture : la réservation suit le statut de la
+      // demande (confirmée ⇒ dates bloquées, archivée ⇒ annulée). Un
+      // chevauchement du planning refuse la confirmation.
+      const synchro = await synchroniserReservationDeDemande(id, payload.status, actorLabel(actor));
+      if (synchro?.erreur) return json(res, 409, { ok: false, error: synchro.erreur });
       const lead = await store.updateLead(id, payload);
       if (!lead) return json(res, 404, { ok: false, error: 'Demande introuvable' });
       audit('lead.updated', { id, status: lead.status, amount: lead.amount }, actorLabel(actor));
