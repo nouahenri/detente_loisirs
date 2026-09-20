@@ -22,7 +22,7 @@
  * Module sans dépendance ni accès disque : server.js s'occupe du stockage.
  */
 
-const TYPES = ['localisations', 'categories', 'equipements', 'badges', 'statuts'];
+const TYPES = ['localisations', 'categories', 'equipements', 'equipements-voiture', 'badges', 'statuts'];
 const LANGUES = ['fr', 'en', 'es'];
 
 /** Codes de statut dont dépend le fonctionnement du site : jamais créés ni supprimés. */
@@ -74,6 +74,32 @@ const DEFAUTS = {
     ['television', 'Télévision', 'Television', 'Televisión'],
     ['menage', 'Ménage / gouvernante', 'Housekeeping', 'Servicio de limpieza'],
     ['chef', 'Chef cuisinier', 'Chef', 'Cocinero']
+  ].map(([id, fr, en, es], index) => ({ id, libelle: libelles(fr, en, es), ordre: index + 1, actif: true })),
+  /*
+   * Équipements des véhicules (demande du 19/09/2026) : liste à part, car
+   * « piscine » ou « ponton » n'ont rien à faire sur une voiture. Le studio
+   * les coche sur la fiche du véhicule — plus de saisie libre — et le site
+   * affiche le libellé dans la langue du visiteur.
+   */
+  'equipements-voiture': [
+    ['climatisation', 'Climatisation', 'Air conditioning', 'Aire acondicionado'],
+    ['gps', 'GPS', 'GPS', 'GPS'],
+    ['bluetooth', 'Bluetooth', 'Bluetooth', 'Bluetooth'],
+    ['autoradio', 'Autoradio', 'Car stereo', 'Radio del coche'],
+    ['usb', 'Prise USB', 'USB socket', 'Toma USB'],
+    ['carplay', 'Apple CarPlay / Android Auto', 'Apple CarPlay / Android Auto', 'Apple CarPlay / Android Auto'],
+    ['camera-recul', 'Caméra de recul', 'Reversing camera', 'Cámara de marcha atrás'],
+    ['radar-recul', 'Radar de recul', 'Parking sensors', 'Sensores de aparcamiento'],
+    ['airbags', 'Airbags', 'Airbags', 'Airbags'],
+    ['abs', 'ABS', 'ABS', 'ABS'],
+    ['regulateur', 'Régulateur de vitesse', 'Cruise control', 'Control de crucero'],
+    ['vitres-electriques', 'Vitres électriques', 'Electric windows', 'Elevalunas eléctricos'],
+    ['demarrage-sans-cle', 'Démarrage sans clé', 'Keyless start', 'Arranque sin llave'],
+    ['sieges-cuir', 'Sièges cuir', 'Leather seats', 'Asientos de cuero'],
+    ['toit-ouvrant', 'Toit ouvrant', 'Sunroof', 'Techo solar'],
+    ['quatre-roues-motrices', '4 roues motrices', 'Four-wheel drive', 'Tracción a las cuatro ruedas'],
+    ['galerie-toit', 'Galerie de toit', 'Roof rack', 'Baca'],
+    ['attelage', 'Attelage remorque', 'Tow bar', 'Enganche de remolque']
   ].map(([id, fr, en, es], index) => ({ id, libelle: libelles(fr, en, es), ordre: index + 1, actif: true })),
   badges: [
     ['disponible', 'Disponible', 'Available', 'Disponible'],
@@ -240,6 +266,7 @@ function compterUsages(type, id, { villas = [], terrains = [], activities = [], 
   if (type === 'badges') return tous.filter(bien => bien?.badgeId === cle).length;
   if (type === 'categories') return [...villas, ...fiches].filter(bien => bien?.category === cle).length;
   if (type === 'equipements') return [...villas, ...fiches].filter(bien => Array.isArray(bien?.equipements) && bien.equipements.includes(cle)).length;
+  if (type === 'equipements-voiture') return vehicles.filter(bien => Array.isArray(bien?.equipements) && bien.equipements.includes(cle)).length;
   return 0;
 }
 

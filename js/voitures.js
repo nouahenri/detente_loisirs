@@ -95,6 +95,21 @@
   const locale = () => ({ fr: "fr-FR", en: "en-GB", es: "es-ES" }[langue()]);
   const prix = v => `${new Intl.NumberFormat(locale()).format(Math.round(Number(v) || 0))} FCFA`;
   const champ = (item, cle) => { const traduit = item?.translations?.[langue()]?.[cle]; return (Array.isArray(traduit) ? traduit.length : traduit) ? traduit : item?.[cle]; };
+
+  /*
+   * Équipements affichés sur la fiche (19/09/2026) : ils sont cochés dans le
+   * studio et traduits par le référentiel « Équipements voitures ». Une fiche
+   * enregistrée avant ce changement n'a que ses anciennes lignes libres :
+   * elles restent affichées tant qu'elle n'est pas rouverte dans le studio.
+   */
+  const equipementsLisibles = v => {
+    const coches = Array.isArray(v?.equipements) ? v.equipements : [];
+    if (coches.length && typeof libelleReferentiel === "function") {
+      const libelles = coches.map(id => libelleReferentiel("equipements-voiture", id, "")).filter(Boolean);
+      if (libelles.length) return libelles;
+    }
+    return champ(v, "features") || [];
+  };
   const dateLisible = iso => { try { return new Intl.DateTimeFormat(locale(), { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }).format(new Date(iso)); } catch { return iso; } };
 
   const etat = { vehicules: [], reglages: LV.normaliserReglages(null), filtres: { categorie: "", conduite: "", boite: "", places: 0, tri: "prix" }, charge: false };
@@ -254,7 +269,7 @@
       t("placesN", v.seats || 5), LV.libelle(LV.BOITES, v.transmission, langue()), LV.libelle(LV.CARBURANTS, v.fuel, langue()),
       v.doors ? t("portes", v.doors) : "", v.luggage ? t("bagages", v.luggage) : "", v.airConditioning !== false ? t("clim") : ""
     ].filter(Boolean);
-    const features = champ(v, "features") || [];
+    const features = equipementsLisibles(v);
     const description = champ(v, "description");
     document.body.insertAdjacentHTML("beforeend", `<div class="vehicule-fenetre" role="dialog" aria-modal="true" aria-labelledby="vehiculeFenetreTitre">
       <div class="vehicule-fiche">

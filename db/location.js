@@ -79,6 +79,10 @@ function validerVehicule(item = {}, index = 0, { vus = new Set(), errors = [], w
     extraKmPrice: montant(item.extraKmPrice, 100_000),
     minDays: entier(item.minDays, 1, 30, 1),
     tagline: texte(item.tagline, 240), description: texte(item.description, 8000),
+    // Équipements cochés dans le studio (19/09/2026) : les identifiants sont
+    // vérifiés contre le référentiel « equipements-voiture » par server.js,
+    // qui recalcule ensuite `features` (les libellés affichés sur la fiche).
+    equipements: (Array.isArray(item.equipements) ? item.equipements : []).slice(0, 60).map(valeur => texte(valeur, 80)).filter(Boolean),
     features: liste(item.features, 30, 160),
     images,
     visible: item.visible !== false, featured: Boolean(item.featured),

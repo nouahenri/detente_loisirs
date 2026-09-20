@@ -20,7 +20,10 @@ const hote = valeur => JSON.parse(JSON.stringify(valeur));
 test('sans source : valeurs initiales complètes', () => {
   const refs = REF.normaliserReferentiels(null);
   // Catégories : thèmes seulement depuis le 13/09/2026 (lagune, océan, piscine retirés).
-  assert.deepEqual(REF.TYPES.map(type => refs[type].length), [3, 2, 14, 18, 6]);
+  // Équipements voitures : liste à part depuis le 19/09/2026 (18 entrées).
+  assert.deepEqual(REF.TYPES.map(type => refs[type].length), [3, 2, 14, 18, 18, 6]);
+  assert.ok(refs['equipements-voiture'].some(e => e.id === 'camera-recul'), 'la liste des voitures est bien celle des véhicules');
+  assert.ok(!refs['equipements-voiture'].some(e => e.id === 'piscine'), 'aucun équipement de villa dans la liste des voitures');
 });
 
 test('une liste vide reste vide (tout supprimé dans le studio), sauf les statuts fixes', () => {

@@ -842,12 +842,22 @@ function appliquerReferentiels(item, referentiels, errors, options) {
   }
 
   if (avecEquipements) {
+    // `avecEquipements` porte le référentiel à utiliser : les villas et les
+    // publications cochent « equipements » (piscine, Wi-Fi…), les véhicules
+    // « equipements-voiture » (GPS, caméra de recul…). `true` = villas.
+    const typeEquipements = avecEquipements === true ? 'equipements' : avecEquipements;
     const equipements = [];
     (Array.isArray(item?.equipements) ? item.equipements : []).slice(0, 60).forEach(valeur => {
-      const code = reference(valeur, 'equipements', 'équipement');
+      const code = reference(valeur, typeEquipements, 'équipement');
       if (code && !equipements.includes(code)) equipements.push(code);
     });
     resultat.equipements = equipements;
+    // Équipements du véhicule cochés dans le studio (19/09/2026) : la liste
+    // affichée sur la fiche est recalculée depuis le référentiel, jamais
+    // saisie. L'application mobile et les anciennes pages lisent `features`.
+    if (typeEquipements === 'equipements-voiture') {
+      resultat.features = equipements.map(code => REF.libelleDe(REF.trouver(referentiels, typeEquipements, code))).filter(Boolean);
+    }
   }
   return resultat;
 }
@@ -946,7 +956,8 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
   const vehicles = (Array.isArray(payload.vehicles) ? payload.vehicles : []).slice(0, 100).map((item, index) => {
     const vehicule = LOC.validerVehicule(item, index, { vus: vehiculesVus, errors, warnings });
     vehicule.translations = FICHES.nettoyerTraductions(item?.translations, 'vehicle');
-    const { facebook, ...sansFacebook } = gestionAnnonce(appliquerReferentiels(vehicule, referentiels, errors, { nom: vehicule.name || `Véhicule ${index + 1}` }));
+    const { facebook, ...sansFacebook } = gestionAnnonce(appliquerReferentiels(vehicule, referentiels, errors,
+      { nom: vehicule.name || `Véhicule ${index + 1}`, avecEquipements: 'equipements-voiture' }));
     return sansFacebook;
   });
   return {
@@ -3134,7 +3145,8 @@ async function handleApi(req, res, url) {
     return json(res, 200, { ok: true, referentiels, usages });
   }
 
-  const routeReferentiel = url.pathname.match(/^\/api\/admin\/referentiels\/([a-z]+)(?:\/([^/]+))?$/);
+  // Le tiret est admis dans le type : « equipements-voiture » (19/09/2026).
+  const routeReferentiel = url.pathname.match(/^\/api\/admin\/referentiels\/([a-z-]+)(?:\/([^/]+))?$/);
   if (routeReferentiel && REF.TYPES.includes(routeReferentiel[1])) {
     const type = routeReferentiel[1];
     if (req.method === 'POST' && !routeReferentiel[2]) {

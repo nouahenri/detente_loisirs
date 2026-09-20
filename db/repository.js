@@ -464,6 +464,7 @@ const TABLES_REFERENTIELS = {
   localisations: 'ref_localisations',
   categories: 'ref_categories',
   equipements: 'ref_equipements',
+  'equipements-voiture': 'ref_equipements_voiture',
   badges: 'ref_badges',
   statuts: 'ref_statuts'
 };

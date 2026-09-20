@@ -686,6 +686,7 @@
     localisations: 'Les villes, communes ou villages où se trouvent vos biens. Sur chaque annonce, vous choisissez la ville dans cette liste, puis vous précisez le repère à côté (« Km 8 », « bord de lagune »).',
     categories: 'Les thèmes de séjour (événements, escapade en amoureux…). Ils s’ajoutent aux onglets de la page « Nos Résidences » et au menu « Type de résidence » de la recherche. Le bord de lagune ou d’océan se choisit dans le Cadre de la fiche, la piscine se coche dans ses Équipements : ce ne sont pas des catégories.',
     equipements: 'Ce que propose le bien (piscine, Wi-Fi…). Vous les cochez sur chaque villa ou publication, et le site s’en sert pour filtrer : une villa avec « Piscine » cochée apparaît dans « Piscines Privées ».',
+    'equipements-voiture': 'Ce qu’offre un véhicule (climatisation, GPS, caméra de recul…). Vous les cochez sur la fiche de la voiture : la liste affichée sur le site vient de là, traduite automatiquement, et ne se saisit plus à la main.',
     badges: 'La petite étiquette affichée sur la photo d’une annonce (« Coup de Cœur », « Plage Privée »…).',
     statuts: 'L’état d’un bien : disponible, sur demande ou indisponible pour une villa ; disponible, réservé ou vendu pour un terrain. Le site en dépend (un terrain vendu disparaît du site, une villa indisponible ne peut plus être choisie dans le devis), donc on ne peut ni en ajouter ni en supprimer. Vous pouvez seulement changer le texte montré aux visiteurs, par exemple « Réservé » en « Sous compromis ».'
   };
@@ -1070,7 +1071,7 @@
       <label>Accroche<input name="tagline" maxlength="240" value="${esc(item.tagline)}" placeholder="ex. Le confort pour vos trajets Abidjan ⇄ Assinie"></label>
       <label>Description<textarea name="description" rows="5" maxlength="8000">${esc(item.description)}</textarea></label>
       ${mediaFields()}
-      <label>Équipements (un par ligne : GPS, Bluetooth, caméra de recul…)<textarea name="features" rows="5">${esc((item.features || []).join('\n'))}</textarea></label>
+      ${champsEquipementsVehicule(item)}
       ${champsTraductions('vehicle', item)}`;
   }
 
@@ -1109,7 +1110,10 @@
       pricePerDay: n(v.pricePerDay), pricePerDayWeek: n(v.pricePerDayWeek), pricePerDayMonth: n(v.pricePerDayMonth), minDays: n(v.minDays, 1),
       kmIncludedPerDay: n(v.kmIncludedPerDay), extraKmPrice: n(v.extraKmPrice),
       badgeId: v.badgeId || '', badge: libelleRef(trouverRef('badges', v.badgeId)),
-      tagline: v.tagline, description: v.description, features: lines(v.features),
+      tagline: v.tagline, description: v.description,
+      // Équipements cochés (19/09/2026) : le serveur en déduit `features`,
+      // la liste affichée sur la fiche, traduite depuis le référentiel.
+      equipements: Array.isArray(v.equipements) ? v.equipements : [],
       visible: v.visible === 'yes', featured: v.featured === 'yes', images: gallery.slice(0, 12)
     };
   }
@@ -2806,9 +2810,9 @@
   // ---------------------------------------------------------------------
   const TYPES_REFERENTIELS = {
     localisations: 'Localisations', categories: 'Catégories', equipements: 'Équipements',
-    badges: 'Badges', statuts: 'Statuts'
+    'equipements-voiture': 'Équipements voitures', badges: 'Badges', statuts: 'Statuts'
   };
-  const refs = () => state.referentiels || { localisations: [], categories: [], equipements: [], badges: [], statuts: [] };
+  const refs = () => state.referentiels || { localisations: [], categories: [], equipements: [], 'equipements-voiture': [], badges: [], statuts: [] };
   const libelleRef = entree => (entree ? (entree.nom !== undefined ? entree.nom : (entree.libelle?.fr || '')) : '');
   const trouverRef = (type, id) => (id ? refs()[type].find(entree => entree.id === String(id)) || null : null);
 
@@ -2858,11 +2862,43 @@
     return `<label>Badge<select name="badgeId">${optionsRef('badges', actuel, 'Aucun badge')}</select>${orphelin}</label>`;
   }
 
-  function casesEquipements(cochees) {
+  function casesEquipements(cochees, type = 'equipements', legende = 'Équipements (servent aux filtres du site)') {
     const liste = Array.isArray(cochees) ? cochees : [];
-    const entrees = refs().equipements.filter(entree => entree.actif !== false || liste.includes(entree.id));
+    const entrees = (refs()[type] || []).filter(entree => entree.actif !== false || liste.includes(entree.id));
     if (!entrees.length) return '';
-    return `<fieldset class="toggle-row equipements-row"><legend>Équipements (servent aux filtres du site)</legend>${entrees.map(entree => `<label><input type="checkbox" name="equipements" value="${esc(entree.id)}" ${liste.includes(entree.id) ? 'checked' : ''}> ${esc(libelleRef(entree))}</label>`).join('')}</fieldset>`;
+    return `<fieldset class="toggle-row equipements-row"><legend>${esc(legende)}</legend>${entrees.map(entree => `<label><input type="checkbox" name="equipements" value="${esc(entree.id)}" ${liste.includes(entree.id) ? 'checked' : ''}> ${esc(libelleRef(entree))}</label>`).join('')}</fieldset>`;
+  }
+
+  /*
+   * Équipements d'un véhicule (19/09/2026) : cases à cocher, plus de saisie
+   * libre. Une fiche antérieure n'a que ses anciennes lignes `features` :
+   * elles sont rapprochées des entrées du référentiel (« Air Bag » →
+   * « Airbags », « Gps » → « GPS ») et pré-cochées. Ce qui ne correspond à
+   * rien est annoncé sous les cases plutôt que perdu en silence.
+   */
+  const cleEquipement = valeur => String(valeur ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '').replace(/s$/, '');
+
+  function equipementsVehicule(item) {
+    const entrees = refs()['equipements-voiture'] || [];
+    if (Array.isArray(item.equipements)) return { coches: item.equipements, restes: [] };
+    const parCle = new Map(entrees.flatMap(entree => [[cleEquipement(libelleRef(entree)), entree.id], [cleEquipement(entree.id), entree.id]]));
+    const coches = [];
+    const restes = [];
+    for (const ligne of item.features || []) {
+      const id = parCle.get(cleEquipement(ligne));
+      if (id && !coches.includes(id)) coches.push(id); else if (!id) restes.push(ligne);
+    }
+    return { coches, restes };
+  }
+
+  function champsEquipementsVehicule(item) {
+    const { coches, restes } = equipementsVehicule(item);
+    const cases = casesEquipements(coches, 'equipements-voiture', 'Équipements du véhicule (affichés sur la fiche du site)');
+    if (!cases) return '<p class="editor-note">Aucun équipement dans la liste : ajoutez-en dans Référentiels → Équipements voitures.</p>';
+    return cases + (restes.length
+      ? `<p class="editor-note">Anciennes lignes non reprises : ${esc(restes.join(', '))}. Ajoutez-les dans Référentiels → Équipements voitures pour pouvoir les cocher.</p>`
+      : '');
   }
 
   // ---------------------------------------------------------------------
@@ -2911,7 +2947,9 @@
     terrain: [['title', 'Titre', 'ligne', 160], ['description', 'Description', 'texte', 8000], ['highlights', 'Atouts (un par ligne)', 'liste', 160]],
     activity: [['title', 'Titre', 'ligne', 160], ['subtitle', 'Sous-titre', 'ligne', 240], ['duration', 'Durée', 'ligne', 80],
       ['description', 'Description', 'texte', 8000], ['pricePrefix', 'Mention avant le prix', 'ligne', 80], ['priceSuffix', 'Précision après le prix', 'ligne', 80]],
-    vehicle: [['tagline', 'Accroche', 'ligne', 240], ['description', 'Description', 'texte', 8000], ['features', 'Équipements (un par ligne)', 'liste', 160]]
+    // Les équipements du véhicule ne se traduisent plus ici (19/09/2026) :
+    // ils viennent du référentiel « Équipements voitures », déjà traduit.
+    vehicle: [['tagline', 'Accroche', 'ligne', 240], ['description', 'Description', 'texte', 8000]]
   };
   const LANGUES_TRADUCTION = [['en', 'Anglais', 'EN'], ['es', 'Espagnol', 'ES']];
 

@@ -65,6 +65,20 @@ CREATE TABLE IF NOT EXISTS `ref_equipements` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Équipements des véhicules (19/09/2026) : liste distincte de celle des
+-- hébergements — cochée sur la fiche d'une voiture dans le studio.
+CREATE TABLE IF NOT EXISTS `ref_equipements_voiture` (
+  `id`         VARCHAR(80)  NOT NULL,
+  `libelle_fr` VARCHAR(160) NOT NULL,
+  `libelle_en` VARCHAR(160) NOT NULL DEFAULT '',
+  `libelle_es` VARCHAR(160) NOT NULL DEFAULT '',
+  `ordre`      INT          NOT NULL DEFAULT 0,
+  `actif`      TINYINT(1)   NOT NULL DEFAULT 1,
+  `created_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `ref_badges` (
   `id`         VARCHAR(80)  NOT NULL,
   `libelle_fr` VARCHAR(160) NOT NULL,
