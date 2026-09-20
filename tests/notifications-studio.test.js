@@ -122,7 +122,11 @@ test('utilisateurs de l’app : profil enregistré même sans notifications, lis
   assert.match(server, /\['DELETE', \/\^\\\/api\\\/admin\\\/notifications\\\/abonnes\\\/\[\^\/\]\+\$\/, 'notifications:manage'\]/);
   assert.match(server, /utilisateurs: donnees\.abonnes/, 'la liste part au studio');
   assert.match(server, /joignable: Boolean\(a\.jeton\)/, 'le jeton d’envoi reste interne');
-  assert.match(lire('admin.html'), /data-messages-aller="utilisateurs"/);
+  // Menu à part entière dans la barre latérale, plus une section de Communication (20/09/2026).
+  const admin = lire('admin.html');
+  assert.match(admin, /data-view="appUtilisateurs" data-permission="notifications:manage"/);
+  assert.match(admin, /<section class="admin-view" data-panel="appUtilisateurs">/);
+  assert.doesNotMatch(admin, /data-messages-aller="utilisateurs"/, 'plus de doublon sous Communication');
   const studio = lire('js/admin.js');
   assert.match(studio, /function renderUtilisateursApp\(\)/);
   assert.match(studio, /\/api\/admin\/notifications\/abonnes\//);

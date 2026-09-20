@@ -368,7 +368,8 @@
     terrains:['VENTE DE TERRAIN','Terrains'], activities:['EXPÉRIENCES','Activités & loisirs'],
     vehicles:['LOCATION DE VOITURES','Voitures'], location:['LOCATION DE VOITURES','Planning & réservations'],
     referentiels:['LISTES DE CHOIX','Référentiels'],
-    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['COMMUNICATION','Messagerie push'], newsletter:['RELATION CLIENT','Newsletter'],
+    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['COMMUNICATION','Messagerie push'],
+    appUtilisateurs:['APPLICATION MOBILE','Utilisateurs de l’app'], newsletter:['RELATION CLIENT','Newsletter'],
     facebook:['SOCIAL STUDIO','Publications'], users:['SÉCURITÉ','Utilisateurs'],
     settings:['SITE PUBLIC','Réglages']
   };
@@ -490,6 +491,8 @@
     if (sousMenuMessages) sousMenuMessages.hidden = name !== 'messages';
     // Les contacts viennent des demandes : on relit à chaque ouverture.
     if (name === 'messages') ouvrirSectionMessages();
+    // Utilisateurs de l'app : les profils changent à chaque inscription.
+    if (name === 'appUtilisateurs' && can('notifications:manage')) chargerNotifications('utilisateurs');
     if (name === 'compta' && can('compta:manage')) chargerCompta();
     window.scrollTo({ top:0, behavior:'smooth' });
   }
@@ -2325,7 +2328,7 @@
   // (bouton « Notification » du propriétaire), consommée au premier rendu.
   const gestionMessages = { onglet: 'whatsapp', donnees: null, chargement: null, preselection: null };
   const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read', 'bulle'], ['notifications', 'Notifications de l’app', 'notifications:manage', 'cloche'],
-    ['utilisateurs', 'Utilisateurs de l’app', 'notifications:manage', 'equipe'], ['proprietaires', 'Propriétaires', 'notifications:manage', 'carnet']];
+    ['proprietaires', 'Propriétaires', 'notifications:manage', 'carnet']];
   const TYPES_ANNONCE_PROPRIETAIRE = { villa: 'Résidences', vehicle: 'Véhicules', activity: 'Activités', terrain: 'Terrains' };
   const dateHeureCourte = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(valeur)); } catch { return ''; } };
   const nomComplet = p => [p.prenom, p.nom].filter(Boolean).join(' ');
@@ -2350,20 +2353,24 @@
     if (gestionMessages.onglet === 'whatsapp') chargerMessages(); else chargerNotifications();
   }
 
-  // Les trois sections vivent sur la même réponse : un seul appel les sert.
+  // Ces vues vivent toutes sur la même réponse : un seul appel les sert.
+  // « utilisateurs » a son propre menu dans la barre latérale (20/09/2026) ;
+  // les deux autres sont des sections de Communication.
   const VUES_NOTIFICATIONS = { proprietaires: ['#proprietairesVue', () => renderProprietaires()], utilisateurs: ['#utilisateursVue', () => renderUtilisateursApp()], notifications: ['#notifVue', () => renderNotifications()] };
 
-  function chargerNotifications() {
+  /** `cible` : vue à dessiner ; sans elle, la section ouverte de Communication. */
+  function chargerNotifications(cible) {
     // Section lue à l'arrivée de la réponse : on peut en changer pendant le chargement.
-    const vue = () => VUES_NOTIFICATIONS[gestionMessages.onglet] || VUES_NOTIFICATIONS.notifications;
-    gestionMessages.chargement = gestionMessages.chargement || api('/api/admin/notifications')
-      .then(data => { gestionMessages.donnees = data; vue()[1](); })
-      .catch(error => {
-        const hote = $(vue()[0]);
-        if (hote) hote.innerHTML = `<div class="empty">Indisponible : ${esc(error.message)}</div>`;
-      })
+    const vue = () => VUES_NOTIFICATIONS[cible || gestionMessages.onglet] || VUES_NOTIFICATIONS.notifications;
+    const requete = gestionMessages.chargement || api('/api/admin/notifications')
+      .then(data => { gestionMessages.donnees = data; })
       .finally(() => { gestionMessages.chargement = null; });
-    return gestionMessages.chargement;
+    gestionMessages.chargement = requete;
+    // Chaque appelant dessine SA vue : deux menus peuvent attendre la même réponse.
+    return requete.then(() => vue()[1]()).catch(error => {
+      const hote = $(vue()[0]);
+      if (hote) hote.innerHTML = `<div class="empty">Indisponible : ${esc(error.message)}</div>`;
+    });
   }
 
   /**
@@ -2592,7 +2599,7 @@
       try {
         await api(`/api/admin/notifications/abonnes/${encodeURIComponent(bouton.dataset.userRetirer)}`, { method: 'DELETE' });
         toast('Utilisateur retiré.');
-        await chargerNotifications();
+        await chargerNotifications('utilisateurs');
       } catch (error) { toast(error.message); bouton.disabled = false; }
     });
   }
