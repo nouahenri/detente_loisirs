@@ -14,7 +14,7 @@ import * as TaskManager from 'expo-task-manager';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 
-import { retirerAbonnement, synchroniserAbonnement } from './abonnement';
+import { profilRenseigne, retirerAbonnement, synchroniserAbonnement } from './abonnement';
 import { API } from './config';
 import type { Langue } from './i18n';
 import { CLES_VEILLE, executerVeille } from './veille';
@@ -101,9 +101,13 @@ export async function activerNotifications(langue: Langue, demander = true): Pro
 
 export async function desactiverNotifications(jeton: string | null) {
   if (jeton) await envoyerAuSite('DELETE', { jeton });
-  await retirerAbonnement();
   try { if (await TaskManager.isTaskRegisteredAsync(TACHE_VEILLE)) await BackgroundTask.unregisterTaskAsync(TACHE_VEILLE); } catch { /* déjà retirée */ }
   await AsyncStorage.multiSet([[CLES_VEILLE.active, '0'], [CLES_VEILLE.jeton, '']]).catch(() => {});
+  // Le profil reste connu du site tant qu'un numéro y est enregistré : la
+  // personne a demandé à être rappelée, ce n'est pas la même chose que les
+  // notifications (20/09/2026). Sinon, le site oublie ce téléphone.
+  if (await profilRenseigne()) await synchroniserAbonnement({ force: true });
+  else await retirerAbonnement();
 }
 
 /** Ouvre l'écran visé quand on touche une notification (application ouverte ou fermée). */

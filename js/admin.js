@@ -2324,7 +2324,8 @@
   // `preselection` : renseignée quand on arrive depuis la fiche d'une annonce
   // (bouton « Notification » du propriétaire), consommée au premier rendu.
   const gestionMessages = { onglet: 'whatsapp', donnees: null, chargement: null, preselection: null };
-  const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read', 'bulle'], ['notifications', 'Notifications de l’app', 'notifications:manage', 'cloche'], ['proprietaires', 'Propriétaires', 'notifications:manage', 'carnet']];
+  const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read', 'bulle'], ['notifications', 'Notifications de l’app', 'notifications:manage', 'cloche'],
+    ['utilisateurs', 'Utilisateurs de l’app', 'notifications:manage', 'equipe'], ['proprietaires', 'Propriétaires', 'notifications:manage', 'carnet']];
   const TYPES_ANNONCE_PROPRIETAIRE = { villa: 'Résidences', vehicle: 'Véhicules', activity: 'Activités', terrain: 'Terrains' };
   const dateHeureCourte = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(valeur)); } catch { return ''; } };
   const nomComplet = p => [p.prenom, p.nom].filter(Boolean).join(' ');
@@ -2349,11 +2350,16 @@
     if (gestionMessages.onglet === 'whatsapp') chargerMessages(); else chargerNotifications();
   }
 
+  // Les trois sections vivent sur la même réponse : un seul appel les sert.
+  const VUES_NOTIFICATIONS = { proprietaires: ['#proprietairesVue', () => renderProprietaires()], utilisateurs: ['#utilisateursVue', () => renderUtilisateursApp()], notifications: ['#notifVue', () => renderNotifications()] };
+
   function chargerNotifications() {
+    // Section lue à l'arrivée de la réponse : on peut en changer pendant le chargement.
+    const vue = () => VUES_NOTIFICATIONS[gestionMessages.onglet] || VUES_NOTIFICATIONS.notifications;
     gestionMessages.chargement = gestionMessages.chargement || api('/api/admin/notifications')
-      .then(data => { gestionMessages.donnees = data; if (gestionMessages.onglet === 'proprietaires') renderProprietaires(); else renderNotifications(); })
+      .then(data => { gestionMessages.donnees = data; vue()[1](); })
       .catch(error => {
-        const hote = $(gestionMessages.onglet === 'proprietaires' ? '#proprietairesVue' : '#notifVue');
+        const hote = $(vue()[0]);
         if (hote) hote.innerHTML = `<div class="empty">Indisponible : ${esc(error.message)}</div>`;
       })
       .finally(() => { gestionMessages.chargement = null; });
@@ -2393,6 +2399,11 @@
             <select name="cible">${AUDIENCES.map(([id, libelle]) => `<option value="${id}">${libelle}</option>`).join('')}</select>
             <small data-notif-aide-audience></small>
           </label>
+          <div class="notif-precision" data-notif-personnes hidden>
+            <label class="notif-champ">Une personne précise
+              <select name="personneId"><option value="">— toute l'audience —</option></select>
+            </label>
+          </div>
           <div class="notif-precision" data-notif-proprietaires hidden>
             <label class="notif-champ">Annonces concernées
               <select name="type"><option value="tous">Tous les propriétaires</option>${Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([id, libelle]) => `<option value="${id}">Propriétaires des ${libelle.toLowerCase()}</option>`).join('')}</select>
@@ -2425,12 +2436,13 @@
           </div>
           <p class="notif-parc"><strong>${d.abonnes.push}</strong> appareil${d.abonnes.push > 1 ? 's' : ''} joignable${d.abonnes.push > 1 ? 's' : ''} sur <strong>${d.abonnes.total}</strong> téléphone${d.abonnes.total > 1 ? 's' : ''} inscrit${d.abonnes.total > 1 ? 's' : ''}${d.abonnes.identifies ? ` · ${d.abonnes.identifies} identifié${d.abonnes.identifies > 1 ? 's' : ''} par leur numéro` : ''}.</p>
           ${d.abonnes.push ? '' : '<p class="notif-aide">Aucun appareil ne peut recevoir de notification instantanée : l’application n’est pas encore reliée au service d’envoi (identifiant de projet Expo absent, voir mobile/natif/PUSH.md). En attendant, vos messages restent lisibles dans l’application, à son ouverture.</p>'}
-          ${d.messages.length ? d.messages.map(m => `<article class="notif-envoi"><header><strong>${esc(m.titre)}</strong><time>${esc(dateHeureCourte(m.creeLe))}</time></header><p>${esc(m.corps)}</p><footer>${esc(m.audience)} · ${pluriel(m.bilan?.telephones ?? 0, 'téléphone')}${m.bilan?.push ? ` · ${m.bilan.push} push` : ''}${m.bilan?.emails ? ` · ${m.bilan.emailsEnvoyes || 0} / ${pluriel(m.bilan.emails, 'e-mail')}` : ''}${m.creePar ? ` · par ${esc(m.creePar)}` : ''}</footer></article>`).join('') : '<div class="empty">Aucune notification envoyée.</div>'}
+          ${d.messages.length ? d.messages.map(m => `<article class="notif-envoi"><header><strong>${esc(m.titre)}</strong><time>${esc(dateHeureCourte(m.creeLe))}</time></header><p>${esc(m.corps)}</p><footer>${esc(m.audience)} · ${pluriel(m.bilan?.telephones ?? 0, 'téléphone')}${m.bilan?.push ? ` · ${m.bilan.push} push` : ''}${m.bilan?.pushRefuses ? ` · ${m.bilan.pushRefuses} refusé${m.bilan.pushRefuses > 1 ? 's' : ''} par le service${m.bilan.pushMotif ? ` (${esc(m.bilan.pushMotif)})` : ''}` : ''}${m.bilan?.emails ? ` · ${m.bilan.emailsEnvoyes || 0} / ${pluriel(m.bilan.emails, 'e-mail')}` : ''}${m.creePar ? ` · par ${esc(m.creePar)}` : ''}</footer></article>`).join('') : '<div class="empty">Aucune notification envoyée.</div>'}
         </div>
       </div>`;
 
     const form = $('#notifForm', hote);
-    const audience = () => ({ cible: form.elements.cible.value, type: form.elements.type.value, proprietaireId: form.elements.proprietaireId.value });
+    const audience = () => ({ cible: form.elements.cible.value, type: form.elements.type.value,
+      proprietaireId: form.elements.proprietaireId.value, personneId: form.elements.personneId.value });
     const erreurFormulaire = () => {
       if (form.elements.titre.value.trim().length < 3) return 'Le titre doit contenir au moins 3 caractères.';
       if (!form.elements.corps.value.trim()) return 'Écrivez le message qui s’affichera sur le téléphone.';
@@ -2440,6 +2452,18 @@
     const majApercu = () => {
       const a = audience();
       $('[data-notif-proprietaires]', form).hidden = a.cible !== 'proprietaires';
+      // Demandeurs et employés : même choix d'une personne que pour un
+      // propriétaire (20/09/2026). La liste change avec l'audience.
+      const blocPersonnes = $('[data-notif-personnes]', form);
+      blocPersonnes.hidden = a.cible !== 'demandeurs' && a.cible !== 'employes';
+      if (!blocPersonnes.hidden && blocPersonnes.dataset.pour !== a.cible) {
+        blocPersonnes.dataset.pour = a.cible;
+        const gens = a.cible === 'demandeurs' ? (d.demandeurs || []) : (d.employes || []);
+        const choisi = form.elements.personneId.value;
+        form.elements.personneId.innerHTML = `<option value="">— toute l'audience —</option>`
+          + gens.map(g => `<option value="${esc(g.id)}">${esc(g.nom)}${g.telephone ? ` · ${esc(g.telephone)}` : ''}</option>`).join('');
+        if (gens.some(g => g.id === choisi)) form.elements.personneId.value = choisi;
+      }
       $('[data-notif-email]', form).hidden = a.cible === 'tous';
       $('[data-notif-email-note]', form).textContent = a.cible === 'demandeurs' ? '(seulement ceux qui ont accepté de recevoir nos offres)' : '';
       $('[data-notif-aide-audience]', form).textContent = (AUDIENCES.find(([id]) => id === a.cible) || [])[2] || '';
@@ -2495,6 +2519,79 @@
       try {
         const r = await api('/api/admin/notifications', { method: 'POST', body: JSON.stringify(corps) });
         toast(`Notification envoyée : ${pluriel(r.message.bilan.telephones, 'téléphone')}${r.message.bilan.emails ? `, ${pluriel(r.message.bilan.emailsEnvoyes, 'e-mail')}` : ''}`);
+        await chargerNotifications();
+      } catch (error) { toast(error.message); bouton.disabled = false; }
+    });
+  }
+
+  /**
+   * Utilisateurs de l'application (20/09/2026). L'app envoie le profil dès
+   * qu'un numéro est renseigné — les notifications sont facultatives : une
+   * personne peut s'enregistrer seulement pour être rappelée avec un devis.
+   * Le jeton d'envoi reste côté serveur : la liste dit seulement si le
+   * téléphone est joignable par notification instantanée.
+   */
+  function renderUtilisateursApp() {
+    const d = gestionMessages.donnees;
+    const hote = $('#utilisateursVue');
+    if (!d || !hote) return;
+    const liste = d.utilisateurs || [];
+    const ROLES = { demandeur: 'Demandeur', employe: 'Employé', proprietaire: 'Propriétaire' };
+    const PLATEFORMES = { ios: 'iPhone', android: 'Android', web: 'Navigateur' };
+    const avecNotifs = liste.filter(u => u.notifications).length;
+    const joignables = liste.filter(u => u.joignable).length;
+
+    const ligne = u => {
+      const wa = lienWhatsApp(u.telephone);
+      const meta = [PLATEFORMES[u.plateforme] || '', u.langue ? u.langue.toUpperCase() : '',
+        u.inscritLe ? `inscrit le ${dateHeureCourte(u.inscritLe)}` : '', u.vuLe ? `vu le ${dateHeureCourte(u.vuLe)}` : ''].filter(Boolean).join(' · ');
+      return `<div class="compta-ligne app-user">
+        <span class="compta-avatar" aria-hidden="true">${esc((u.nom || u.telephone || '?').trim().slice(0, 1).toUpperCase())}</span>
+        <div class="compta-ligne-texte">
+          <strong>${esc(u.nom || 'Sans nom')}${u.role ? ` <span class="app-user-role">${esc(ROLES[u.role])}</span>` : ''}</strong>
+          <small>${esc([u.telephone, u.email].filter(Boolean).join(' · ') || 'Aucune coordonnée renseignée')}</small>
+          <small class="app-user-meta">${esc(meta)}</small>
+        </div>
+        <div class="app-user-etat">
+          <span class="app-user-badge${u.notifications ? ' oui' : ''}">${u.notifications ? 'Notifications activées' : 'Sans notifications'}</span>
+          ${u.joignable ? '<span class="app-user-badge oui">Joignable en direct</span>' : ''}
+        </div>
+        <div class="app-user-actions">
+          ${u.telephone ? `<a class="app-user-lien" href="tel:${esc(u.telephone)}">Appeler</a>` : ''}
+          ${wa ? `<a class="app-user-lien" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          ${u.email ? `<a class="app-user-lien" href="mailto:${esc(u.email)}">E-mail</a>` : ''}
+          <button type="button" class="app-user-lien app-user-retrait" data-user-retirer="${esc(u.visiteur)}">Retirer</button>
+        </div>
+      </div>`;
+    };
+
+    hote.innerHTML = `<div class="compta-section-tete"><h3>Utilisateurs de l’application</h3></div>
+      <p class="compta-aide">Les personnes qui ont renseigné leur profil dans l’application, pour être rappelées ou recevoir un devis. Les notifications sont facultatives : celles qui les ont activées apparaissent aussi dans les audiences de « Notifications de l’app ». Retirer un utilisateur efface son profil de nos serveurs ; son application le recréera s’il le renseigne à nouveau.</p>
+      <div class="wa-kpis">
+        <div><strong>${liste.length}</strong><small>profil${liste.length > 1 ? 's' : ''} enregistré${liste.length > 1 ? 's' : ''}</small></div>
+        <div><strong>${avecNotifs}</strong><small>avec notifications</small></div>
+        <div><strong>${joignables}</strong><small>joignable${joignables > 1 ? 's' : ''} en direct</small></div>
+      </div>
+      <input class="app-user-recherche" type="search" aria-label="Rechercher un utilisateur" placeholder="Rechercher un nom, un numéro, un e-mail…" data-users-recherche>
+      <div class="content-table" data-users-liste>${liste.length ? liste.map(ligne).join('')
+    : '<div class="empty">Aucun profil enregistré depuis l’application pour le moment.</div>'}</div>`;
+
+    const conteneur = $('[data-users-liste]', hote);
+    const champ = $('[data-users-recherche]', hote);
+    champ.addEventListener('input', () => {
+      const q = champ.value.trim().toLowerCase();
+      const vus = q ? liste.filter(u => `${u.nom} ${u.telephone} ${u.email}`.toLowerCase().includes(q)) : liste;
+      conteneur.innerHTML = vus.length ? vus.map(ligne).join('') : '<div class="empty">Aucun utilisateur ne correspond.</div>';
+    });
+    conteneur.addEventListener('click', async event => {
+      const bouton = event.target.closest('[data-user-retirer]');
+      if (!bouton) return;
+      const u = liste.find(x => x.visiteur === bouton.dataset.userRetirer);
+      if (!confirm(`Retirer ${u && u.nom ? u.nom : 'cet utilisateur'} de la liste ?`)) return;
+      bouton.disabled = true;
+      try {
+        await api(`/api/admin/notifications/abonnes/${encodeURIComponent(bouton.dataset.userRetirer)}`, { method: 'DELETE' });
+        toast('Utilisateur retiré.');
         await chargerNotifications();
       } catch (error) { toast(error.message); bouton.disabled = false; }
     });

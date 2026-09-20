@@ -184,7 +184,8 @@ export function FournisseurMagasin({ children }: { children: ReactNode }) {
     setCoordonnees(propres);
     ecrireStockage(CLES.coordonnees, propres);
     setDevis(actuel => ({ ...actuel, ...propres }));
-    // Numéro du profil transmis au site si les notifications sont activées.
+    // Coordonnées transmises au site dès qu'un numéro est renseigné : c'est par
+    // lui que la conciergerie rappelle, notifications activées ou non.
     synchroniserAbonnement({ force: true, coordonnees: propres }).catch(() => {});
   }, []);
 

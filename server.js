@@ -1296,6 +1296,8 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['GET', /^\/api\/admin\/export$/, 'leads:export'],
   ['GET', /^\/api\/admin\/notifications$/, 'notifications:manage'],
   ['POST', /^\/api\/admin\/notifications(\/apercu)?$/, 'notifications:manage'],
+  // Utilisateurs de l'app : retrait d'un profil inscrit (20/09/2026).
+  ['DELETE', /^\/api\/admin\/notifications\/abonnes\/[^/]+$/, 'notifications:manage'],
   ['GET', /^\/api\/admin\/location$/, 'location:manage'],
   ['POST', /^\/api\/admin\/location\/(reservations|indisponibilites)$/, 'location:manage'],
   ['PATCH', /^\/api\/admin\/location\/(reservations|indisponibilites)\/[^/]+$/, 'location:manage'],
@@ -3201,6 +3203,17 @@ async function handleApi(req, res, url) {
     } catch (error) { return json(res, 400, { ok: false, error: error.message }); }
   }
 
+  // ---- Utilisateurs de l'app : retrait d'un profil inscrit (20/09/2026) --
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/notifications/abonnes/')) {
+    try {
+      const visiteur = decodeURIComponent(url.pathname.slice('/api/admin/notifications/abonnes/'.length));
+      const retires = await NS.retirerAbonne(visiteur);
+      if (!retires) return json(res, 404, { ok: false, error: 'Utilisateur introuvable.' });
+      audit('app.utilisateur.retire', { visiteur }, actorLabel(actor));
+      return json(res, 200, { ok: true });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
   // ---- Notifications de l'app et propriétaires (19/09/2026) -------------
   if (url.pathname === '/api/admin/notifications' || url.pathname === '/api/admin/notifications/apercu') {
     try {
@@ -3214,14 +3227,39 @@ async function handleApi(req, res, url) {
         return json(res, 200, {
           ok: true,
           proprietaires,
+          // De quoi proposer une personne précise dans le studio : un
+          // demandeur ou un employé se choisit comme un propriétaire.
+          demandeurs: (contexte.leads || []).filter(l => l && l.name).slice(0, 500)
+            .map(l => ({ id: String(l.id), nom: l.name, telephone: l.phone || '', statut: l.status || '' })),
+          employes: (contexte.employes || []).filter(e => e && e.actif !== false)
+            .map(e => ({ id: String(e.id), nom: [e.prenom, e.nom].filter(Boolean).join(' '), telephone: e.telephone || '' })),
           annoncesSansProprietaire: NS.annoncesSansProprietaire(contenu),
           abonnes: {
             total: donnees.abonnes.length,
             identifies: donnees.abonnes.filter(a => a.cleTelephone).length,
             push: donnees.abonnes.filter(a => a.jeton).length
           },
+          // Liste administrable des utilisateurs de l'app (20/09/2026) : ceux
+          // qui ont renseigné leur profil pour être rappelés, notifications
+          // activées ou non. Le jeton Expo reste interne : seul « joignable »
+          // sort. « role » dit si le numéro est déjà connu ailleurs.
+          utilisateurs: donnees.abonnes.slice()
+            .sort((a, b) => String(b.vuLe || '').localeCompare(String(a.vuLe || '')))
+            .slice(0, 500)
+            .map(a => {
+              const cle = a.cleTelephone;
+              const role = !cle ? ''
+                : (contexte.employes || []).some(e => e && e.actif !== false && [e.telephone, e.whatsapp].some(n => NS.cleTelephone(n) === cle)) ? 'employe'
+                  : proprietaires.some(p => [p.telephone, p.whatsapp].some(n => NS.cleTelephone(n) === cle)) ? 'proprietaire'
+                    : (contexte.leads || []).some(l => l && NS.cleTelephone(l.phone) === cle) ? 'demandeur' : '';
+              return {
+                visiteur: a.visiteur, nom: a.nom || '', telephone: a.telephone || '', email: a.email || '',
+                notifications: a.notifications !== false, joignable: Boolean(a.jeton),
+                langue: a.langue || 'fr', plateforme: a.plateforme || '', inscritLe: a.inscritLe, vuLe: a.vuLe, role
+              };
+            }),
           audiences: Object.fromEntries(['tous', 'demandeurs', 'employes', 'proprietaires'].map(cible => {
-            const d = NS.destinataires({ cible, type: 'tous', proprietaireId: '' }, contexte);
+            const d = NS.destinataires({ cible, type: 'tous', proprietaireId: '', personneId: '' }, contexte);
             return [cible, { telephones: d.abonnes.length, emails: d.emails.length, personnes: d.personnes }];
           })),
           messages: donnees.messages.slice(0, 50).map(m => ({
@@ -4525,6 +4563,10 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 async function envoyerLotsExpo(lots, origine) {
   let envoyes = 0;
+  let refuses = 0;
+  // Premier refus d'Expo : ce qui manquait jusqu'ici pour comprendre, depuis
+  // le studio, pourquoi une notification n'est pas arrivée (20/09/2026).
+  let motif = '';
   const perimes = [];
   for (const lot of lots) {
     try {
@@ -4539,14 +4581,30 @@ async function envoyerLotsExpo(lots, origine) {
       });
       const corps = await reponse.json().catch(() => ({}));
       if (!reponse.ok) throw new Error(`Expo ${reponse.status}`);
-      envoyes += lot.length;
+      // Un lot accepté (HTTP 200) peut contenir des refus ticket par ticket :
+      // compter les envois réussis, pas les envois tentés.
+      const tickets = Array.isArray(corps.data) ? corps.data : [];
+      const ok = tickets.filter(ticket => ticket && ticket.status === 'ok').length;
+      envoyes += tickets.length ? ok : lot.length;
+      for (const ticket of tickets) {
+        if (!ticket || ticket.status !== 'error') continue;
+        refuses += 1;
+        if (!motif) motif = text(ticket.details?.error || ticket.message, 120);
+      }
       perimes.push(...NOTIF.jetonsPerimes(lot, corps));
     } catch (error) {
+      refuses += lot.length;
+      if (!motif) motif = text(error.message, 120);
       audit('app.notification_failed', { origine, error: text(error.message, 300) });
     }
   }
-  if (perimes.length) writeJSON(APP_APPAREILS_FILE, NOTIF.retirerAppareils(readJSON(APP_APPAREILS_FILE, {}), perimes));
-  return { envoyes, perimes: perimes.length };
+  if (perimes.length) {
+    writeJSON(APP_APPAREILS_FILE, NOTIF.retirerAppareils(readJSON(APP_APPAREILS_FILE, {}), perimes));
+    // Les téléphones désinstallés quittaient la liste du suivi de demande mais
+    // restaient comptés dans les audiences du studio : ils en sortent aussi.
+    await NS.oublierJetons(perimes).catch(() => {});
+  }
+  return { envoyes, perimes: perimes.length, refuses, motif };
 }
 
 /** Données de ciblage : téléphones inscrits, demandes, employés, propriétaires des biens. */
@@ -4581,6 +4639,8 @@ async function envoyerMessageStudio(saisie, { contexte, acteur, req }) {
     for (let i = 0; i < notifications.length; i += 100) lots.push(notifications.slice(i, i + 100));
     const resultat = await envoyerLotsExpo(lots, 'studio');
     message.bilan.push = resultat.envoyes;
+    message.bilan.pushRefuses = resultat.refuses;
+    message.bilan.pushMotif = resultat.motif;
   }
   if (saisie.email && cible.emails.length) {
     for (const { email, nom } of cible.emails) {

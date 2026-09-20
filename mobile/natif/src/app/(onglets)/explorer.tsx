@@ -69,7 +69,8 @@ export default function Explorer() {
     ? { villas: resultats.villas.length, terrains: resultats.terrains.length, activites: resultats.activites.length, voitures: resultats.voitures.length, publications: resultats.publications.length, tout: 0 }
     : { villas: 0, terrains: 0, activites: 0, voitures: 0, publications: 0, tout: 0 };
   comptes.tout = comptes.villas + comptes.terrains + comptes.activites + comptes.voitures + comptes.publications;
-  const segments: [Segment, string][] = [['tout', t('segment.tout')], ['villas', t('rubrique.villas')], ['activites', t('rubrique.activites')], ['voitures', t('rubrique.voitures')], ['terrains', t('rubrique.terrains')], ['publications', t('rubrique.publications')]];
+  // Mêmes libellés explicites que l'accueil et le menu du site (20/09/2026).
+  const segments: [Segment, string][] = [['tout', t('segment.tout')], ['villas', t('tuile.villas')], ['activites', t('tuile.activites')], ['voitures', t('tuile.voitures')], ['terrains', t('tuile.terrains')], ['publications', t('tuile.publications')]];
 
   // Carte : proposée dès qu'un terrain affiché est géolocalisé.
   const terrainsGeolocalises = (resultats?.terrains ?? []).filter(x => estNombre(x.latitude) && estNombre(x.longitude));
@@ -146,7 +147,7 @@ export default function Explorer() {
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.segments} style={{ marginHorizontal: -16 }}>
           {segments.map(([cle, nom]) => (
-            <Puce key={cle} sombre texte={nom} compte={donnees ? comptes[cle] : undefined} actif={recherche.segment === cle}
+            <Puce key={cle} sombre empile texte={nom} compte={donnees ? comptes[cle] : undefined} actif={recherche.segment === cle}
               onPress={() => { majRecherche({ segment: cle }); liste.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false }); }} />
           ))}
         </ScrollView>

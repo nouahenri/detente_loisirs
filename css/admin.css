@@ -1496,3 +1496,28 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 /* Location → Réglages : lieux « à préciser » (19/09/2026). */
 .loc-precision { align-self:center; padding:.25rem .55rem; border-radius:999px; background:#fff3cd; color:#6b5200; font-size:.72rem; font-weight:700; white-space:nowrap; }
 [data-adresse-studio][hidden] { display:none; }
+
+/* ---------------------------------------------------------------------------
+   UTILISATEURS DE L'APP (Communication, 20/09/2026)
+   Une ligne par profil enregistré depuis le téléphone : qui, comment le
+   joindre, et où il en est des notifications.
+   --------------------------------------------------------------------------- */
+.app-user-recherche { width:100%; margin:.8rem 0; padding:.6rem .9rem; border:1px solid var(--line); border-radius:12px; background:var(--paper); font:inherit; font-size:.85rem; }
+.app-user-recherche:focus { border-color:var(--ink); outline:none; }
+.compta-ligne.app-user { grid-template-columns:44px minmax(0,1fr) auto auto; align-items:center; cursor:default; }
+.app-user .compta-ligne-texte strong { display:flex; align-items:center; gap:.45rem; }
+.app-user-role { padding:.1rem .45rem; border-radius:999px; background:var(--gold); color:var(--ink); font-size:.62rem; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+.app-user-meta { font-size:.68rem !important; }
+.app-user-etat { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.3rem; }
+.app-user-badge { padding:.2rem .55rem; border-radius:999px; background:#f1f2f6; color:var(--muted); font-size:.68rem; font-weight:700; white-space:nowrap; }
+.app-user-badge.oui { background:#e8f6ed; color:#116b35; }
+.app-user-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.35rem; }
+.app-user-lien { padding:.32rem .7rem; border:1px solid var(--line); border-radius:999px; background:var(--paper); color:var(--ink); font-size:.72rem; font-weight:700; text-decoration:none; cursor:pointer; }
+.app-user-lien:hover { border-color:var(--ink); }
+.app-user-retrait { color:#9b2226; }
+.app-user-retrait:hover { border-color:#9b2226; }
+.app-user-retrait[disabled] { opacity:.5; cursor:progress; }
+@media (max-width: 860px) {
+  .compta-ligne.app-user { grid-template-columns:44px minmax(0,1fr); }
+  .app-user-etat, .app-user-actions { grid-column:2 / -1; justify-content:flex-start; }
+}

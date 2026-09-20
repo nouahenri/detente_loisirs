@@ -4,7 +4,7 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { retirerAbonnement, synchroniserAbonnement } from './abonnement';
+import { profilRenseigne, retirerAbonnement, synchroniserAbonnement } from './abonnement';
 import type { Langue } from './i18n';
 import { CLES_VEILLE } from './veille';
 
@@ -33,8 +33,10 @@ export async function activerNotifications(_langue: Langue, demander = true): Pr
 }
 
 export async function desactiverNotifications(_jeton: string | null) {
-  await retirerAbonnement();
   await AsyncStorage.multiSet([[CLES_VEILLE.active, '0'], [CLES_VEILLE.jeton, '']]).catch(() => {});
+  // Comme sur téléphone : le profil survit aux notifications s'il porte un numéro.
+  if (await profilRenseigne()) await synchroniserAbonnement({ force: true });
+  else await retirerAbonnement();
 }
 
 export function useOuvertureNotifications() {}

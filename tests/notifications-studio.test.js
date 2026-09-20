@@ -46,7 +46,12 @@ test('validation : message (titre, corps, audience) et abonné', () => {
   // d'une lettre n'est lisible sur aucun écran verrouillé.
   assert.match(NS.validerMessage({ titre: 'T', corps: 'C', audience: { cible: 'tous' } }).erreurs.join(' '), /au moins 3 caractères/);
   const { message } = NS.validerMessage({ titre: 'Titre', corps: 'C', audience: { cible: 'proprietaires', type: 'vehicle' }, email: true });
-  assert.deepEqual(message.audience, { cible: 'proprietaires', type: 'vehicle', proprietaireId: '' });
+  assert.deepEqual(message.audience, { cible: 'proprietaires', type: 'vehicle', proprietaireId: '', personneId: '' });
+  // Une personne précise : demandeur ou employé visé nommément (20/09/2026).
+  const unSeul = NS.validerMessage({ titre: 'Titre', corps: 'C', audience: { cible: 'demandeurs', personneId: 'lead-7' } }).message;
+  assert.equal(unSeul.audience.personneId, 'lead-7');
+  assert.equal(NS.validerMessage({ titre: 'Titre', corps: 'C', audience: { cible: 'tous', personneId: 'lead-7' } }).message.audience.personneId, '', 'sans objet pour « tous »');
+  assert.match(NS.libelleAudience({ cible: 'demandeurs', personneId: 'lead-7' }), /Un demandeur/);
   // Écran ouvert au clic : « messages » par défaut, valeur inconnue ignorée.
   assert.equal(message.ecran, 'messages');
   assert.equal(NS.validerMessage({ titre: 'Titre', corps: 'C', ecran: 'devis', audience: { cible: 'tous' } }).message.ecran, 'devis');
@@ -83,12 +88,50 @@ test('serveur et studio : routes protégées, permission dédiée, relève publi
   for (const table of ['proprietaires', 'app_abonnes', 'app_messages']) assert.match(migration, new RegExp(`CREATE TABLE IF NOT EXISTS \`${table}\``));
   assert.match(migration, /ADD COLUMN IF NOT EXISTS `prenom`/);
   assert.doesNotMatch(migration, /^\s*(SELECT|SHOW|DROP|TRUNCATE|DELETE)/im, 'import sans requête de contrôle ni suppression');
-  const colonnes = [...migration.matchAll(/^\s+`([a-z_]+)`\s/gm)].map(m => m[1]);
+  // Profil des utilisateurs de l'app (20/09/2026) : deux colonnes de plus.
+  const profil = lire('db/migration-app-abonnes-profil.sql');
+  assert.match(profil, /ALTER TABLE `app_abonnes`/);
+  for (const c of ['email', 'notifications']) assert.match(profil, new RegExp(`ADD COLUMN IF NOT EXISTS \`${c}\``));
+  assert.doesNotMatch(profil, /^\s*(DROP|TRUNCATE|DELETE)/im, 'aucune suppression');
+  const sql = `${migration}\n${profil}`;
+  const colonnes = [...sql.matchAll(/^\s+`([a-z_]+)`\s/gm), ...sql.matchAll(/ADD COLUMN IF NOT EXISTS `([a-z_]+)`/g)].map(m => m[1]);
   const code = lire('db/notifications-studio.js');
   for (const [table] of [['app_abonnes'], ['app_messages']]) {
     const insert = code.match(new RegExp(`INSERT INTO ${table} \\(([^)]+)\\)`))[1].split(',').map(c => c.trim());
     for (const c of insert) assert.ok(colonnes.includes(c), `${table}.${c}`);
   }
+});
+
+// --- Utilisateurs de l'app administrés dans le studio (20/09/2026) ---------
+test('utilisateurs de l’app : profil enregistré même sans notifications, liste et retrait dans le studio', () => {
+  // Une personne qui renseigne son numéro pour être rappelée, sans jeton ni alertes.
+  const { abonne } = NS.validerAbonne({
+    visiteur: 'app-2222222222222222', telephone: '07 07 07 07 07', nom: 'Aya Kouassi',
+    email: 'aya@example.com', notifications: false, plateforme: 'android'
+  });
+  assert.equal(abonne.email, 'aya@example.com');
+  assert.equal(abonne.notifications, false);
+  assert.equal(abonne.jeton, '', 'aucun jeton sans notifications');
+  assert.equal(abonne.cleTelephone, '07070707', 'rapprochement possible avec ses demandes');
+  // E-mail invalide : ignoré plutôt que stocké tel quel.
+  assert.equal(NS.validerAbonne({ visiteur: 'app-2222222222222222', email: 'pas-une-adresse' }).abonne.email, '');
+  // Sans mention : l'ancien comportement (inscrit = notifications actives) tient.
+  assert.equal(NS.validerAbonne({ visiteur: 'app-2222222222222222', jeton: 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]' }).abonne.notifications, true);
+
+  const server = lire('server.js');
+  assert.match(server, /\['DELETE', \/\^\\\/api\\\/admin\\\/notifications\\\/abonnes\\\/\[\^\/\]\+\$\/, 'notifications:manage'\]/);
+  assert.match(server, /utilisateurs: donnees\.abonnes/, 'la liste part au studio');
+  assert.match(server, /joignable: Boolean\(a\.jeton\)/, 'le jeton d’envoi reste interne');
+  assert.match(lire('admin.html'), /data-messages-aller="utilisateurs"/);
+  const studio = lire('js/admin.js');
+  assert.match(studio, /function renderUtilisateursApp\(\)/);
+  assert.match(studio, /\/api\/admin\/notifications\/abonnes\//);
+  // L'app envoie le profil même notifications coupées, et ne l'efface pas en les coupant.
+  const abonnement = lire('mobile/natif/src/donnees/abonnement.ts');
+  assert.match(abonnement, /email: profil\.email/);
+  assert.match(abonnement, /notifications,/);
+  assert.match(abonnement, /export async function profilRenseigne\(\)/);
+  assert.match(lire('mobile/natif/src/donnees/notifications.ts'), /if \(await profilRenseigne\(\)\) await synchroniserAbonnement/);
 });
 
 test('app : inscription avec le numéro du profil, relève dans la veille, écran Messages reçus', () => {

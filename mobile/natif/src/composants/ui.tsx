@@ -14,7 +14,9 @@ export function Icone({ nom, taille = 20, couleur, style }: { nom: NomIcone; tai
   return <Ionicons name={nom} size={taille} color={couleur ?? C.texte} style={style} />;
 }
 
-export function Puce({ texte, actif, onPress, compte, sombre, icone }: { texte: string; actif?: boolean; onPress: () => void; compte?: number; sombre?: boolean; icone?: NomIcone }) {
+// « empile » : libellé centré (deux lignes si le texte contient un saut de ligne)
+// avec le nombre d'annonces dessous — les filtres d'Explorer (20/09/2026).
+export function Puce({ texte, actif, onPress, compte, sombre, icone, empile }: { texte: string; actif?: boolean; onPress: () => void; compte?: number; sombre?: boolean; icone?: NomIcone; empile?: boolean }) {
   const { C } = usePreferences();
   const s = feuille(C);
   const couleurTexte = actif ? (sombre ? C.segmentActifTexte : C.surPrimaire) : sombre ? C.segmentTexte : C.texte;
@@ -23,17 +25,26 @@ export function Puce({ texte, actif, onPress, compte, sombre, icone }: { texte: 
       onPress={() => { vibrerSelection(); onPress(); }}
       accessibilityRole="button"
       accessibilityState={{ selected: Boolean(actif) }}
+      accessibilityLabel={empile ? `${texte.replace('\n', ' ')}${compte !== undefined ? ` (${compte})` : ''}` : undefined}
       style={({ pressed }) => [
         s.puce,
         sombre && s.puceSombre,
+        empile && s.puceEmpilee,
         actif && (sombre ? s.puceSombreActive : s.puceActive),
         pressed && { opacity: 0.8 },
       ]}>
       {icone ? <Icone nom={icone} taille={15} couleur={couleurTexte} /> : null}
-      <Text style={[s.puceTexte, { color: couleurTexte }]}>
-        {texte}
-        {compte !== undefined ? <Text style={{ opacity: 0.55 }}>{`  ${compte}`}</Text> : null}
-      </Text>
+      {empile ? (
+        <View style={s.puceColonne}>
+          {texte.split('\n').map(ligne => <Text key={ligne} style={[s.puceTexteEmpile, { color: couleurTexte }]} numberOfLines={1}>{ligne}</Text>)}
+          {compte !== undefined ? <Text style={[s.puceCompte, { color: couleurTexte }]}>{compte}</Text> : null}
+        </View>
+      ) : (
+        <Text style={[s.puceTexte, { color: couleurTexte }]}>
+          {texte}
+          {compte !== undefined ? <Text style={{ opacity: 0.55 }}>{`  ${compte}`}</Text> : null}
+        </Text>
+      )}
     </Pressable>
   );
 }
@@ -157,6 +168,10 @@ const feuille = creerStyles(C => ({
   puceSombre: { backgroundColor: C.segment, borderColor: 'transparent', minHeight: 34 },
   puceSombreActive: { backgroundColor: C.segmentActif },
   puceTexte: { fontSize: 14, fontWeight: '600' },
+  puceEmpilee: { paddingVertical: 7, paddingHorizontal: 13, borderRadius: 18 },
+  puceColonne: { alignItems: 'center' },
+  puceTexteEmpile: { fontSize: 12.5, lineHeight: 15, fontWeight: '700', textAlign: 'center' },
+  puceCompte: { fontSize: 10.5, lineHeight: 13, fontWeight: '700', opacity: 0.6 },
 
   bouton: { height: 50, paddingHorizontal: 18, borderRadius: 999, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   boutonContour: { borderWidth: 1.5, borderColor: C.bord },

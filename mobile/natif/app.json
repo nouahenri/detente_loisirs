@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Détente & Loisirs",
-    "slug": "detente-loisirs",
+    "owner": "nouahenris-team",
+    "slug": "henriphlippe",
     "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icone.png",
@@ -18,6 +19,11 @@
           "whatsapp",
           "tel",
           "mailto"
+        ],
+        "CFBundleLocalizations": [
+          "fr",
+          "en",
+          "es"
         ]
       }
     },
@@ -100,6 +106,12 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c68bb842-ffaf-46fa-8d55-d1e6b697bff4"
+      }
     }
   }
 }

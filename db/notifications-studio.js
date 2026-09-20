@@ -93,17 +93,27 @@ function annoncesSansProprietaire(contenu) {
       .map(a => ({ kind, id: a.id, titre: texte(titre(a), 120) })));
 }
 
-/** Inscription d'un téléphone : identifiant de l'app, jeton Expo facultatif, numéro du profil. */
+/**
+ * Inscription d'un téléphone : identifiant de l'app, jeton Expo facultatif,
+ * coordonnées du profil (nom, numéro, e-mail).
+ * Depuis le 20/09/2026, l'app envoie aussi le profil de qui n'a PAS activé les
+ * notifications : la personne s'est enregistrée pour être rappelée, le studio
+ * doit la voir. `notifications` dit si elle accepte les alertes.
+ */
 function validerAbonne(source = {}, { existant = null, maintenant = new Date() } = {}) {
   if (!estVisiteur(source.visiteur)) return { erreur: 'Téléphone non identifié.' };
   const horodatage = new Date(maintenant).toISOString();
   const telephone = texte(source.telephone, 40);
+  const jeton = estJetonExpo(source.jeton) ? source.jeton : '';
+  const email = texte(source.email, 180);
   return {
     abonne: {
       visiteur: String(source.visiteur),
-      jeton: estJetonExpo(source.jeton) ? source.jeton : '',
+      jeton,
       telephone, cleTelephone: cleTelephone(telephone),
       nom: texte(source.nom, 120),
+      email: emailValide(email) ? email : '',
+      notifications: source.notifications === undefined ? Boolean(jeton) : Boolean(source.notifications),
       langue: LANGUES.includes(String(source.langue || '').slice(0, 2)) ? String(source.langue).slice(0, 2) : 'fr',
       plateforme: ['ios', 'android', 'web'].includes(source.plateforme) ? source.plateforme : '',
       inscritLe: existant?.inscritLe || horodatage, vuLe: horodatage
@@ -127,7 +137,10 @@ function validerMessage(source = {}) {
   const audience = {
     cible,
     type: cible === 'proprietaires' && TYPES_ANNONCE.includes(a.type) ? a.type : 'tous',
-    proprietaireId: cible === 'proprietaires' ? texte(a.proprietaireId, 90) : ''
+    proprietaireId: cible === 'proprietaires' ? texte(a.proprietaireId, 90) : '',
+    // Une seule personne dans l'audience (20/09/2026) : un demandeur ou un
+    // employé nommément, comme on vise déjà un propriétaire précis.
+    personneId: cible === 'demandeurs' || cible === 'employes' ? texte(a.personneId, 90) : ''
   };
   return { erreurs, message: erreurs.length ? null : { titre, corps, ecran, audience, email: source.email !== false && cible !== 'tous' } };
 }
@@ -143,7 +156,7 @@ function validerMessage(source = {}) {
  */
 function personnesDe(audience, { leads = [], employes = [], proprietaires = [] } = {}) {
   if (audience.cible === 'demandeurs') {
-    return leads.filter(Boolean).map(l => ({
+    return leads.filter(Boolean).filter(l => !audience.personneId || String(l.id) === audience.personneId).map(l => ({
       nom: texte(l.name, 120), cles: new Set([cleTelephone(l.phone)].filter(Boolean)),
       // E-mail aux demandeurs : seulement s'ils ont accepté nos offres.
       email: l.whatsappOptIn === true && emailValide(String(l.email || '')) ? String(l.email).toLowerCase() : '',
@@ -151,7 +164,7 @@ function personnesDe(audience, { leads = [], employes = [], proprietaires = [] }
     }));
   }
   if (audience.cible === 'employes') {
-    return employes.filter(e => e && e.actif !== false).map(e => ({
+    return employes.filter(e => e && e.actif !== false).filter(e => !audience.personneId || String(e.id) === audience.personneId).map(e => ({
       nom: [e.prenom, e.nom].filter(Boolean).join(' '), cles: new Set([cleTelephone(e.telephone), cleTelephone(e.whatsapp)].filter(Boolean)),
       email: emailValide(String(e.email || '')) ? String(e.email).toLowerCase() : ''
     }));
@@ -193,8 +206,9 @@ function destinataires(audience, { abonnes = [], leads = [], employes = [], prop
 /** Libellé lisible d'une audience (historique du studio). */
 function libelleAudience(audience, proprietaires = []) {
   if (audience.cible === 'tous') return 'Tous les utilisateurs de l’app';
-  if (audience.cible === 'demandeurs') return 'Demandeurs';
-  if (audience.cible === 'employes') return 'Employés';
+  // Une personne visée nommément apparaît dans l'historique : « Demandeur : Awa ».
+  if (audience.cible === 'demandeurs') return audience.personneId ? 'Un demandeur' : 'Demandeurs';
+  if (audience.cible === 'employes') return audience.personneId ? 'Un employé' : 'Employés';
   if (audience.proprietaireId) {
     const p = proprietaires.find(x => x.id === audience.proprietaireId);
     return `Propriétaire : ${p ? [p.prenom, p.nom].filter(Boolean).join(' ') : 'supprimé'}`;
@@ -238,7 +252,10 @@ function repo() {
   }
   return depot;
 }
-const tableAbsente = error => error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146;
+// Table absente, ou colonne pas encore ajoutée (migration du profil de l'app,
+// 20/09/2026) : on retombe sur le fichier JSON plutôt que de perdre l'inscription.
+const tableAbsente = error => error?.code === 'ER_NO_SUCH_TABLE' || error?.errno === 1146
+  || error?.code === 'ER_BAD_FIELD_ERROR' || error?.errno === 1054;
 const versIso = valeur => {
   if (!valeur) return null;
   const date = valeur instanceof Date ? valeur : new Date(valeur);
@@ -271,6 +288,7 @@ async function enBaseOuFichier(requeteBase, modifierFichier) {
 
 const abonneDepuisLigne = l => ({
   visiteur: l.visiteur, jeton: l.jeton || '', telephone: l.telephone || '', cleTelephone: l.cle_telephone || '', nom: l.nom || '',
+  email: l.email || '', notifications: l.notifications === undefined ? Boolean(l.jeton) : Boolean(Number(l.notifications)),
   langue: l.langue || 'fr', plateforme: l.plateforme || '', inscritLe: versIso(l.inscrit_le), vuLe: versIso(l.vu_le)
 });
 const messageDepuisLigne = l => ({
@@ -300,10 +318,10 @@ async function tout() {
 
 async function enregistrerAbonne(a) {
   return enBaseOuFichier(async r => {
-    await r.query(`INSERT INTO app_abonnes (visiteur, jeton, telephone, cle_telephone, nom, langue, plateforme, inscrit_le, vu_le)
-      VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE jeton=VALUES(jeton), telephone=VALUES(telephone), cle_telephone=VALUES(cle_telephone),
-      nom=VALUES(nom), langue=VALUES(langue), plateforme=VALUES(plateforme), vu_le=VALUES(vu_le)`,
-    [a.visiteur, a.jeton, a.telephone, a.cleTelephone, a.nom, a.langue, a.plateforme, versMysql(a.inscritLe), versMysql(a.vuLe)]);
+    await r.query(`INSERT INTO app_abonnes (visiteur, jeton, telephone, cle_telephone, nom, email, notifications, langue, plateforme, inscrit_le, vu_le)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE jeton=VALUES(jeton), telephone=VALUES(telephone), cle_telephone=VALUES(cle_telephone),
+      nom=VALUES(nom), email=VALUES(email), notifications=VALUES(notifications), langue=VALUES(langue), plateforme=VALUES(plateforme), vu_le=VALUES(vu_le)`,
+    [a.visiteur, a.jeton, a.telephone, a.cleTelephone, a.nom, a.email || '', a.notifications ? 1 : 0, a.langue, a.plateforme, versMysql(a.inscritLe), versMysql(a.vuLe)]);
     return a;
   }, donnees => {
     const index = donnees.abonnes.findIndex(x => x.visiteur === a.visiteur);

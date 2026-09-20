@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=20260920b">
+  <link rel="stylesheet" href="css/admin.css?v=20260920c">
 </head>
 <body>
   <!-- Écran d'attente affiché le temps que `/api/auth/session` réponde, pour
@@ -114,6 +114,7 @@
         <div class="nav-sous-menu" id="messagesSousMenu" hidden>
           <button type="button" data-messages-aller="whatsapp" data-permission="leads:read">WhatsApp</button>
           <button type="button" data-messages-aller="notifications" data-permission="notifications:manage">Notifications de l’app</button>
+          <button type="button" data-messages-aller="utilisateurs" data-permission="notifications:manage">Utilisateurs de l’app</button>
           <button type="button" data-messages-aller="proprietaires" data-permission="notifications:manage">Propriétaires</button>
         </div>
         <button data-view="newsletter" data-permission="newsletter:read"><span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.6 6.5 8.4 6 8.4-6"/></svg></span> Newsletter</button>
@@ -242,6 +243,9 @@
         <!-- Notifications de l'app et propriétaires (19/09/2026) : rendus par
              js/admin.js → renderNotifications() et renderProprietaires(). -->
         <div data-messages-section="notifications" hidden><div id="notifVue"><div class="empty">Chargement…</div></div></div>
+        <!-- Utilisateurs de l'app (20/09/2026) : profils enregistrés depuis le
+             téléphone, rendus par renderUtilisateursApp(). -->
+        <div data-messages-section="utilisateurs" hidden><div id="utilisateursVue"><div class="empty">Chargement…</div></div></div>
         <div data-messages-section="proprietaires" hidden><div id="proprietairesVue"><div class="empty">Chargement…</div></div></div>
         <div data-messages-section="whatsapp">
         <div class="wa-intro" id="waIntro"></div>
@@ -352,6 +356,6 @@
   <div class="admin-toast" id="adminToast"></div>
   <script src="js/data.js?v=20260912a"></script>
   <script src="js/location-voitures.js?v=20260919b"></script>
-  <script src="js/admin.js?v=20260920d"></script>
+  <script src="js/admin.js?v=20260920g"></script>
 </body>
 </html>
