@@ -20,7 +20,11 @@ test('page : règles partagées chargées avant la page, avis des visiteurs, tex
 
 test('menu et pied de page : lien « Voitures » sur toutes les pages publiques', () => {
   for (const f of ['index.html', 'residences.html', 'terrains.html', 'loisirs.html', 'devis.html', 'faq.html', 'contact.html', 'confidentialite.html', 'voitures.html']) {
-    assert.equal((lire(f).match(/href="voitures\.html"/g) || []).length, 2, f);
+    // Menu et pied de page au minimum ; l'accueil en compte un de plus depuis
+    // que le hero propose la scène « Location de voitures » (20/09/2026).
+    const page = lire(f);
+    assert.ok((page.match(/href="voitures\.html"/g) || []).length >= 2, f);
+    assert.match(page, /<a href="voitures\.html" class="nav-link/, `${f} : lien du menu`);
   }
 });
 

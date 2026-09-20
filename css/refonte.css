@@ -591,8 +591,7 @@ iframe {
 
 /* Voile de lisibilité : les trois images n'ont ni la même luminosité ni le
    même sujet, et le texte blanc doit rester lisible sur chacune. */
-.hero-diaporama::after {
-  content: "";
+.hero-voile {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -602,7 +601,7 @@ iframe {
 .hero-diaporama > .container { position: relative; z-index: 3; }
 
 @media (min-width: 768px) {
-  .hero-diaporama::after {
+  .hero-voile {
     background: linear-gradient(95deg, rgba(8, 10, 26, .86) 0%, rgba(8, 10, 26, .62) 44%, rgba(8, 10, 26, .2) 78%, rgba(8, 10, 26, .05) 100%);
   }
 }
@@ -3745,3 +3744,16 @@ html:not(.motion-ready) .reveal-item {
 .modal-price-weekend strong { color: var(--polish-navy, #151837); font-family: var(--font-serif, "Playfair Display", serif);
   font-size: clamp(1.05rem, 1.6vw, 1.3rem); font-weight: 700; line-height: 1.1; }
 .modal-price-weekend[hidden] { display: none; }
+
+/* ==========================================================================
+   MENU : LIBELLÉS EXPLICITES SUR ÉCRAN ÉTROIT (20/09/2026)
+   Déroulé sur un téléphone, le menu a la place de dire ce que chaque rubrique
+   contient : « Voitures » ne dit pas qu'elles se louent, « Terrains » pas
+   qu'ils se vendent. Sur la barre horizontale du bureau, la place manque :
+   le libellé court reprend la main.
+   ========================================================================== */
+.menu-long { display: none; }
+@media (max-width: 991px) {
+  .nav-links .menu-court { display: none; }
+  .nav-links .menu-long { display: inline; }
+}

@@ -66,7 +66,7 @@ function texteFiche(item, champ) {
        l'image ET le texte ensemble, plutôt qu'une image sous un texte fixe. */
     const slides = [
       { image: 'assets/images/residence-villa-luxe.jpg', cle: 'js.slideVillas', label: 'Villas signature' },
-      { image: 'assets/images/banner-loisirs.jpg', cle: 'js.slideExperiences', label: 'Expériences privées' },
+      { image: 'assets/images/banner-loisirs.jpg', cle: 'js.slideExperiences', label: 'Plage, Détente & Loisirs' },
       { image: 'assets/images/banner-voitures.jpg', cle: 'js.slideVoitures', label: 'Location de voitures' }
     ];
     hero.style.backgroundImage = 'none';
@@ -81,6 +81,13 @@ function texteFiche(item, champ) {
       layer.setAttribute('aria-hidden', 'true');
       couches.appendChild(layer);
     });
+    // Voile de lisibilité : un élément à part, pour ne pas toucher à la vague
+    // décorative de premium.css (.hero-section::after), qu'un simple fond
+    // suffisait à transformer en arc sombre en haut du hero.
+    const voile = document.createElement('div');
+    voile.className = 'hero-voile';
+    voile.setAttribute('aria-hidden', 'true');
+    couches.appendChild(voile);
     hero.prepend(couches);
     hero.insertAdjacentHTML('beforeend', `<div class="hero-slider-ui"><span class="hero-slide-label" data-i18n="${slides[0].cle}">${slides[0].label}</span>${slides.map((_, i) => `<button class="hero-dot${i === 0 ? ' is-active' : ''}" aria-label="Afficher la vue ${i + 1}" data-slide="${i}"></button>`).join('')}</div>`);
     let active = 0;
