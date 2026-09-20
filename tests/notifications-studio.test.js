@@ -93,7 +93,13 @@ test('serveur et studio : routes protégées, permission dédiée, relève publi
   assert.match(profil, /ALTER TABLE `app_abonnes`/);
   for (const c of ['email', 'notifications']) assert.match(profil, new RegExp(`ADD COLUMN IF NOT EXISTS \`${c}\``));
   assert.doesNotMatch(profil, /^\s*(DROP|TRUNCATE|DELETE)/im, 'aucune suppression');
-  const sql = `${migration}\n${profil}`;
+  // Écran ouvert au clic (20/09/2026) : une colonne de plus sur app_messages.
+  const ecran = lire('db/migration-notifications-ecran.sql');
+  assert.match(ecran, /ALTER TABLE `app_messages`/);
+  assert.ok(ecran.includes('ADD COLUMN IF NOT EXISTS `ecran`'), 'migration re-jouable');
+  assert.doesNotMatch(ecran, /^s*(DROP|TRUNCATE|DELETE)/im, 'aucune suppression');
+  const sql = `${migration}\n${profil}
+${ecran}`;
   const colonnes = [...sql.matchAll(/^\s+`([a-z_]+)`\s/gm), ...sql.matchAll(/ADD COLUMN IF NOT EXISTS `([a-z_]+)`/g)].map(m => m[1]);
   const code = lire('db/notifications-studio.js');
   for (const [table] of [['app_abonnes'], ['app_messages']]) {
@@ -201,4 +207,72 @@ test('studio : bloc « Propriétaire du bien » dans l’éditeur des annonces, 
   assert.match(admin, /item\.proprietaire = Object\.values\(proprietaireNettoye\)\.some\(Boolean\) \? proprietaireNettoye : null;/);
   assert.doesNotMatch(admin, /ouvrirProprietaire|\/api\/admin\/proprietaires/);
   assert.match(admin, /openEditor\(kind, reste\.join\('\|'\)\)/, 'un bien s’ouvre dans sa fiche');
+});
+
+// --- Historique : renvoyer et supprimer un envoi (20/09/2026) --------------
+test('historique : l’écran choisi est mémorisé, l’envoi se reprend et se supprime', async () => {
+  const fichier = path.join(__dirname, '..', 'data', NS.FICHIER);
+  const avant = fs.existsSync(fichier) ? fs.readFileSync(fichier) : null;
+  try {
+    // Sans base : le module écrit dans data/notifications-studio.json.
+    const message = {
+      id: 'test-historique-0001', titre: 'Essai', corps: 'Message d’essai', ecran: 'explorer',
+      audience: { cible: 'tous', type: 'tous', proprietaireId: '', personneId: '' },
+      destinataires: [], bilan: { telephones: 0 }, creePar: 'test', creeLe: new Date().toISOString()
+    };
+    await NS.enregistrerMessage(message);
+    const garde = (await NS.tout()).messages.find(m => m.id === message.id);
+    assert.ok(garde, 'l’envoi est dans l’historique');
+    assert.equal(garde.ecran, 'explorer', 'l’écran ouvert au clic est mémorisé pour le renvoi');
+    assert.equal(garde.audience.cible, 'tous', 'l’audience se relit telle qu’elle a été choisie');
+
+    assert.equal(await NS.supprimerMessage(message.id), 1);
+    assert.equal((await NS.tout()).messages.some(m => m.id === message.id), false);
+    assert.equal(await NS.supprimerMessage(message.id), 0, 'supprimer deux fois ne casse rien');
+  } finally {
+    if (avant) fs.writeFileSync(fichier, avant); else if (fs.existsSync(fichier)) fs.unlinkSync(fichier);
+  }
+});
+
+test('studio : l’écran choisi part avec la notification, boutons renvoyer et supprimer', () => {
+  const server = lire('server.js');
+  // L'écran choisi au studio n'arrivait pas jusqu'au message envoyé.
+  assert.match(server, /ecran: saisie.ecran/);
+  assert.match(server, /NS.supprimerMessage/);
+  assert.ok(server.includes("'/api/admin/notifications/messages/'"), 'route de suppression d’un envoi');
+  const admin = lire('js/admin.js');
+  assert.match(admin, /data-notif-renvoyer/);
+  assert.match(admin, /data-notif-supprimer/);
+  assert.ok(admin.includes('/api/admin/notifications/messages/'), 'le studio appelle la route');
+  const css = lire('css/admin.css');
+  assert.ok(css.includes('.notif-renvoyer { background:var(--ink)'), 'renvoyer : bleu de l’application');
+  assert.ok(css.includes('.notif-supprimer { background:var(--gold)'), 'supprimer : or');
+});
+
+// --- Simulateur : ouvrir la fiche de ce qui est choisi (20/09/2026) --------
+test('simulateur : un lien ouvre la fiche de la résidence ou du véhicule choisi', () => {
+  const devis = lire('devis.html');
+  assert.match(devis, /id="simVillaFiche"/);
+  assert.match(devis, /data-i18n="t.voir-la-fiche-de-la-residence"/);
+  // Fermer la fiche ramène au simulateur, la sélection conservée (20/09/2026).
+  assert.ok(lire('js/app.js').includes('residences.html?retour=devis#${encodeURIComponent(selectedVilla.id)}'));
+  assert.ok(lire('js/devis-voiture.js').includes('voitures.html?retour=devis#${encodeURIComponent(v.id)}'));
+  assert.ok(lire('js/app.js').includes('function retourAuDevis('), 'résidence : retour au devis à la fermeture');
+  assert.ok(lire('js/voitures.js').includes('function retourAuDevis('), 'véhicule : retour au devis à la fermeture');
+  assert.ok(lire('js/app.js').includes('retourAuDevis("villa"'), 'la résidence revient choisie');
+  assert.ok(lire('js/voitures.js').includes('devis.html?voiture=${encodeURIComponent(id)}'), 'le véhicule revient choisi');
+  assert.ok(!/id="simVillaFiche"[^>]*target=/.test(devis), 'même onglet : sinon la fermeture ne ramène nulle part');
+  // Toute la saisie survit à l'aller-retour (20/09/2026).
+  const app = lire('js/app.js');
+  assert.ok(app.includes('window.DevisSaisie'), 'la saisie du devis est mise de côté');
+  assert.ok(app.includes('function memoriserSaisieDevis('), 'mise de côté au clic sur la fiche');
+  assert.ok(app.includes('function reprendreSaisieDevis('), 'reprise au retour');
+  assert.ok(app.includes('input[type=checkbox][data-addon-index]'), 'les activités cochées aussi');
+  assert.ok(app.includes('sessionStorage'), 'rien ne survit à la fermeture de l’onglet');
+  assert.ok(app.includes('&reprise=1'), 'le retour demande la reprise');
+  assert.ok(lire('js/voitures.js').includes('&reprise=1'), 'le retour du véhicule aussi');
+  assert.ok(lire('js/devis-voiture.js').includes('memoire()'), 'la voiture garde sa propre saisie');
+  assert.ok(lire('js/devis-voiture.js').includes('reprendre(memoire)'), 'et la reprend');
+  const i18n = lire('js/i18n.js');
+  assert.equal((i18n.match(/"t.voir-la-fiche-de-la-residence"/g) || []).length, 3, 'traduit en français, anglais et espagnol');
 });

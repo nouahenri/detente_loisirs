@@ -1298,6 +1298,8 @@ const ADMIN_ROUTE_PERMISSIONS = [
   ['POST', /^\/api\/admin\/notifications(\/apercu)?$/, 'notifications:manage'],
   // Utilisateurs de l'app : retrait d'un profil inscrit (20/09/2026).
   ['DELETE', /^\/api\/admin\/notifications\/abonnes\/[^/]+$/, 'notifications:manage'],
+  // Retrait d'un envoi de l'historique (20/09/2026).
+  ['DELETE', /^\/api\/admin\/notifications\/messages\/[^/]+$/, 'notifications:manage'],
   ['GET', /^\/api\/admin\/location$/, 'location:manage'],
   ['POST', /^\/api\/admin\/location\/(reservations|indisponibilites)$/, 'location:manage'],
   ['PATCH', /^\/api\/admin\/location\/(reservations|indisponibilites)\/[^/]+$/, 'location:manage'],
@@ -3214,6 +3216,17 @@ async function handleApi(req, res, url) {
     } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
   }
 
+  // ---- Historique : retrait d'un envoi (20/09/2026) ---------------------
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/notifications/messages/')) {
+    try {
+      const id = decodeURIComponent(url.pathname.slice('/api/admin/notifications/messages/'.length));
+      const retires = await NS.supprimerMessage(id);
+      if (!retires) return json(res, 404, { ok: false, error: 'Notification introuvable.' });
+      audit('notifications.supprimee', { id }, actorLabel(actor));
+      return json(res, 200, { ok: true });
+    } catch (error) { return json(res, 400, { ok: false, error: text(error.message, 300) }); }
+  }
+
   // ---- Notifications de l'app et propriétaires (19/09/2026) -------------
   if (url.pathname === '/api/admin/notifications' || url.pathname === '/api/admin/notifications/apercu') {
     try {
@@ -3264,7 +3277,11 @@ async function handleApi(req, res, url) {
           })),
           messages: donnees.messages.slice(0, 50).map(m => ({
             id: m.id, titre: m.titre, corps: m.corps, creeLe: m.creeLe, creePar: m.creePar, bilan: m.bilan,
-            audience: NS.libelleAudience(m.audience, proprietaires)
+            audience: NS.libelleAudience(m.audience, proprietaires),
+            // De quoi remplir à nouveau le formulaire (bouton « Renvoyer »,
+            // 20/09/2026) : l'audience telle qu'elle a été choisie, pas son
+            // libellé, et l'écran ouvert au clic.
+            reprise: { ecran: m.ecran || 'messages', audience: m.audience || { cible: 'tous' } }
           })),
           pushActif: Boolean(process.env.EXPO_ACCESS_TOKEN) || donnees.abonnes.some(a => a.jeton)
         });
@@ -4625,7 +4642,9 @@ async function contexteNotifications(donnees, proprietaires) {
 async function envoyerMessageStudio(saisie, { contexte, acteur, req }) {
   const cible = NS.destinataires(saisie.audience, contexte);
   const message = {
-    id: crypto.randomUUID(), titre: saisie.titre, corps: saisie.corps, audience: saisie.audience,
+    // L'écran choisi au studio n'arrivait pas jusqu'ici : la notification
+    // ouvrait toujours la boîte de réception (corrigé le 20/09/2026).
+    id: crypto.randomUUID(), titre: saisie.titre, corps: saisie.corps, ecran: saisie.ecran, audience: saisie.audience,
     destinataires: cible.abonnes.map(a => a.visiteur), creePar: acteur, creeLe: new Date().toISOString(),
     bilan: { telephones: cible.abonnes.length, push: 0, emails: saisie.email ? cible.emails.length : 0, emailsEnvoyes: 0, personnes: cible.personnes }
   };

@@ -216,8 +216,20 @@
   let fenetre = null;
   let focusAvant = null;
 
+  /**
+   * Fiche ouverte depuis le simulateur (voitures.html?retour=devis#id,
+   * 20/09/2026) : la refermer ramène au devis, véhicule toujours choisi.
+   */
+  function retourAuDevis() {
+    if (new URLSearchParams(location.search).get("retour") !== "devis") return false;
+    const id = decodeURIComponent(location.hash.slice(1));
+    location.href = id ? `devis.html?voiture=${encodeURIComponent(id)}&reprise=1` : "devis.html?reprise=1";
+    return true;
+  }
+
   function fermer() {
     if (!fenetre) return;
+    if (retourAuDevis()) return;
     fenetre.remove();
     fenetre = null;
     document.body.style.overflow = "";

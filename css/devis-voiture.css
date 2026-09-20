@@ -75,6 +75,21 @@
 }
 .sim-voiture-lien[hidden] { display: none; }
 
+/* Lien « Voir la fiche » (20/09/2026), sous la résidence et sous le véhicule
+   choisis : un repère discret qui ouvre la fiche dans un nouvel onglet, pour
+   ne rien perdre du devis en cours. */
+.sim-fiche-lien {
+  display: inline-block;
+  margin-top: .45rem;
+  font-size: .78rem;
+  font-weight: 700;
+  color: #9a7a00;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sim-fiche-lien:hover { color: var(--color-gold, #e8b904); }
+.sim-fiche-lien[hidden] { display: none; }
+
 .sim-voiture label.sim-voiture-case {
   flex-direction: row;
   align-items: flex-start;

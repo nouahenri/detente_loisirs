@@ -23,7 +23,7 @@
 
   const TEXTES = {
     fr: {
-      vehicule: "Véhicule", sansVoiture: "Sans voiture", choisir: "Choisissez un véhicule", des: prix => `dès ${prix} / jour`, surDemande: "tarif sur demande",
+      vehicule: "Véhicule", voirFiche: "Voir la fiche du véhicule ↗", sansVoiture: "Sans voiture", choisir: "Choisissez un véhicule", des: prix => `dès ${prix} / jour`, surDemande: "tarif sur demande",
       modes: { avec: "avec chauffeur", sans: "sans chauffeur", choix: "avec ou sans chauffeur" },
       datesSejour: "Dates reprises de votre séjour : modifiables.", reprendre: "Reprendre les dates du séjour",
       prise: "Prise en charge", retour: "Retour", heure: "Heure", heureAbidjan: "Heures d’Abidjan (GMT)", lieuPrise: "Lieu de prise en charge", lieuRetour: "Lieu de retour", sansFrais: "sans frais", aPreciser: "À préciser", adresses: { domicile: "Adresse du domicile (quartier, rue, repère)", bureau: "Adresse du bureau (quartier, rue, repère)", autre: "Lieu à préciser" },
@@ -38,7 +38,7 @@
         minimum: n => `Location minimale : ${n} jour${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Prise en charge et retour entre ${a} et ${b}.`, lieu: "Choisissez le lieu de prise en charge et de retour.", tarif: "Tarif sur demande : contactez-nous sur WhatsApp." }
     },
     en: {
-      vehicule: "Vehicle", sansVoiture: "No car", choisir: "Choose a vehicle", des: prix => `from ${prix} / day`, surDemande: "price on request",
+      vehicule: "Vehicle", voirFiche: "See the vehicle page ↗", sansVoiture: "No car", choisir: "Choose a vehicle", des: prix => `from ${prix} / day`, surDemande: "price on request",
       modes: { avec: "with driver", sans: "self-drive", choix: "with or without driver" },
       datesSejour: "Dates taken from your stay: you can change them.", reprendre: "Use my stay dates",
       prise: "Pick-up", retour: "Return", heure: "Time", heureAbidjan: "Abidjan time (GMT)", lieuPrise: "Pick-up location", lieuRetour: "Return location", sansFrais: "free", aPreciser: "Please specify", adresses: { domicile: "Home address (area, street, landmark)", bureau: "Office address (area, street, landmark)", autre: "Place to specify" },
@@ -53,7 +53,7 @@
         minimum: n => `Minimum rental: ${n} day${n > 1 ? "s" : ""}.`, horaires: (a, b) => `Pick-up and return between ${a} and ${b}.`, lieu: "Choose the pick-up and return location.", tarif: "Price on request: contact us on WhatsApp." }
     },
     es: {
-      vehicule: "Vehículo", sansVoiture: "Sin coche", choisir: "Elija un vehículo", des: prix => `desde ${prix} / día`, surDemande: "precio a consultar",
+      vehicule: "Vehículo", voirFiche: "Ver la ficha del vehículo ↗", sansVoiture: "Sin coche", choisir: "Elija un vehículo", des: prix => `desde ${prix} / día`, surDemande: "precio a consultar",
       modes: { avec: "con chófer", sans: "sin chófer", choix: "con o sin chófer" },
       datesSejour: "Fechas tomadas de su estancia: puede cambiarlas.", reprendre: "Usar las fechas de mi estancia",
       prise: "Recogida", retour: "Devolución", heure: "Hora", heureAbidjan: "Hora de Abiyán (GMT)", lieuPrise: "Lugar de recogida", lieuRetour: "Lugar de devolución", sansFrais: "sin coste", aPreciser: "A precisar", adresses: { domicile: "Dirección del domicilio (barrio, calle, referencia)", bureau: "Dirección de la oficina (barrio, calle, referencia)", autre: "Lugar a precisar" },
@@ -148,6 +148,9 @@
       : `<option value=""${v ? "" : " selected"}>${esc(t("sansVoiture"))}</option>`;
     let html = `<label class="sim-voiture-champ">${esc(t("vehicule"))}<select class="form-control" data-v="vehiculeId">${premiere}${choix}</select></label>`;
     if (v) {
+      // Fiche du véhicule choisi (20/09/2026) : voitures.html#id, la même
+      // adresse que les liens partagés depuis l'application.
+      html += `<a class="sim-fiche-lien" href="voitures.html?retour=devis#${encodeURIComponent(v.id)}">${esc(t("voirFiche"))}</a>`;
       const heures = creneaux().map(h => `<option value="${h}">${h}</option>`).join("");
       const lieux = etat.reglages.lieux.map(l => `<option value="${esc(l.id)}">${esc(LV.nomLieu(l, langue()))} · ${esc(l.frais ? `+${prix(l.frais)}` : t("sansFrais"))}</option>`).join("");
       const aujourdhui = new Date().toISOString().slice(0, 10);
@@ -321,6 +324,11 @@
     const lieu = (etat.reglages.lieux[0] || {}).id || "";
     Object.assign(etat.saisie, { debutHeure: heureDefaut(), finHeure: heureDefaut(), lieuPrise: lieu, lieuRetour: lieu });
     etat.charge = true;
+    // Retour d'une fiche : la saisie de la voiture est reprise telle quelle.
+    if (window.DevisSaisie && window.DevisSaisie.reprise()) {
+      const memoire = window.DevisSaisie.lire();
+      if (memoire && memoire.voiture && window.DevisVoiture.reprendre(memoire.voiture)) return;
+    }
     // devis.html?voiture=<id> : véhicule présélectionné (depuis la page Voitures).
     const demandee = new URLSearchParams(location.search).get("voiture");
     if (demandee && etat.vehicules.some(v => v.id === demandee)) {
@@ -339,6 +347,24 @@
   // Interface pour js/app.js
   // -------------------------------------------------------------------------
   window.DevisVoiture = {
+    /**
+     * Saisie de la voiture mise de côté avant d'aller voir une fiche, et
+     * reprise au retour (20/09/2026). js/app.js s'occupe du reste du
+     * formulaire ; chacun garde ce qu'il connaît.
+     */
+    memoire() {
+      return { saisie: { ...etat.saisie, options: etat.saisie.options.slice() } };
+    },
+    reprendre(memoire) {
+      const saisie = memoire && memoire.saisie;
+      if (!saisie || !etat.charge) return false;
+      if (saisie.vehiculeId && !etat.vehicules.some(v => v.id === saisie.vehiculeId)) return false;
+      Object.assign(etat.saisie, saisie, { options: Array.isArray(saisie.options) ? saisie.options.slice() : [] });
+      rendre();
+      if (etat.saisie.vehiculeId) chargerOccupations(etat.saisie.vehiculeId);
+      signaler();
+      return true;
+    },
     /** Formule du simulateur : « sejour », « activites » ou « voiture » (voiture seule). */
     definirMode(mode) {
       if (mode === etat.mode) return;

@@ -1428,6 +1428,16 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .notif-parc { margin:0; font-size:.82rem; color:var(--muted); }
 .notif-parc strong { color:var(--ink); }
 .notif-historique .notif-envoi + .notif-envoi { margin-top:.6rem; }
+/* Reprendre ou retirer un envoi (20/09/2026) : bleu de l'application pour
+   refaire, or pour retirer — jamais du rouge, rien n'est envoyé ni perdu
+   chez les personnes déjà prévenues. */
+.notif-envoi-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.7rem; }
+.notif-envoi-actions button { border:0; border-radius:999px; padding:.45rem .9rem; font-size:.72rem; font-weight:800; }
+.notif-renvoyer { background:var(--ink); color:#fff; }
+.notif-renvoyer:hover { background:var(--ink2); }
+.notif-supprimer { background:var(--gold); color:var(--ink); }
+.notif-supprimer:hover { filter:brightness(.93); }
+.notif-envoi-actions button:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
 
 /* =====================================================================
    APERÇU D'UNE ANNONCE (20/09/2026) — la fiche telle que le client la voit,

@@ -1431,9 +1431,102 @@ function ensureVillaModalStructure() {
   return modal;
 }
 
+/* ==========================================================================
+   Saisie du devis mise de côté le temps d'une fiche (20/09/2026)
+
+   Aller voir une résidence ou un véhicule ne doit rien coûter : tout ce qui
+   est déjà renseigné (dates, voyageurs, activités, coordonnées, voiture)
+   part dans sessionStorage au clic sur « Voir la fiche », et revient quand
+   la fermeture de la fiche ramène au devis (?reprise=1). Rien n'est gardé
+   au-delà de l'onglet, ni au-delà d'une heure.
+   ========================================================================== */
+const CLE_SAISIE_DEVIS = "dl:devis-saisie";
+const DUREE_SAISIE_DEVIS = 3600000;
+const repriseDemandee = new URLSearchParams(window.location.search).get("reprise") === "1";
+
+window.DevisSaisie = {
+  /**
+   * Vrai quand on revient d'une fiche ouverte depuis le simulateur. Lu une
+   * fois pour toutes : l'adresse est nettoyée aussitôt la saisie remise en
+   * place, alors que la voiture, elle, se reprend plus tard (ses données
+   * arrivent par le réseau).
+   */
+  reprise() { return repriseDemandee; },
+  lire() {
+    try {
+      const brut = JSON.parse(window.sessionStorage.getItem(CLE_SAISIE_DEVIS) || "null");
+      if (!brut || Date.now() - Number(brut.le) > DUREE_SAISIE_DEVIS) return null;
+      return brut;
+    } catch { return null; }
+  },
+  ecrire(memoire) {
+    try { window.sessionStorage.setItem(CLE_SAISIE_DEVIS, JSON.stringify({ ...memoire, le: Date.now() })); }
+    catch { /* navigation privée, quota : le devis reste juste à resaisir */ }
+  }
+};
+
+/**
+ * Champs du simulateur : tout ce qui se saisit dans l'encadré (formule,
+ * résidence, dates, voyageurs, coordonnées) et les cases des activités, qui
+ * sont dessinées hors de l'encadré et n'ont pas d'identifiant — elles portent
+ * data-addon-index.
+ */
+function champsDuDevis() {
+  const boite = document.querySelector(".simulator-box");
+  return [...(boite ? boite.querySelectorAll("input, select, textarea") : []),
+    ...document.querySelectorAll("input[type=checkbox][data-addon-index]")];
+}
+
+/** Clé de mémorisation d'un champ, stable d'une visite à l'autre. */
+function cleDuChamp(champ) {
+  if (champ.dataset.addonIndex !== undefined) return `activite:${champ.dataset.addonIndex}`;
+  if (champ.type === "radio") return `formule:${champ.name}`;
+  return champ.id || champ.name || "";
+}
+
+function memoriserSaisieDevis() {
+  const champs = {};
+  champsDuDevis().forEach(champ => {
+    const cle = cleDuChamp(champ);
+    if (!cle) return;
+    if (champ.type === "radio") { if (champ.checked) champs[cle] = champ.value; return; }
+    champs[cle] = champ.type === "checkbox" ? champ.checked : champ.value;
+  });
+  const voiture = window.DevisVoiture && window.DevisVoiture.memoire ? window.DevisVoiture.memoire() : null;
+  window.DevisSaisie.ecrire({ champs, voiture });
+}
+
+/** Saisie remise en place au retour d'une fiche. Renvoie false s'il n'y a rien à reprendre. */
+function reprendreSaisieDevis() {
+  const memoire = window.DevisSaisie.reprise() ? window.DevisSaisie.lire() : null;
+  if (!memoire || !memoire.champs) return false;
+  champsDuDevis().forEach(champ => {
+    const cle = cleDuChamp(champ);
+    if (!cle || !(cle in memoire.champs)) return;
+    if (champ.type === "radio") { champ.checked = champ.value === memoire.champs[cle]; return; }
+    if (champ.type === "checkbox") { champ.checked = Boolean(memoire.champs[cle]); return; }
+    // Une résidence retirée du catalogue entre-temps n'est plus dans la liste.
+    if (champ.tagName !== "SELECT" || [...champ.options].some(o => o.value === memoire.champs[cle])) champ.value = memoire.champs[cle];
+  });
+  return true;
+}
+
+/**
+ * Retour au simulateur (20/09/2026) : la fiche ouverte depuis « Calculer un
+ * devis » porte ?retour=devis. La refermer ramène au devis, la résidence ou
+ * le véhicule toujours choisi — le visiteur ne perd pas sa saisie en allant
+ * vérifier les photos.
+ */
+function retourAuDevis(parametre, id) {
+  if (new URLSearchParams(window.location.search).get("retour") !== "devis") return false;
+  window.location.href = id ? `devis.html?${parametre}=${encodeURIComponent(id)}&reprise=1` : "devis.html?reprise=1";
+  return true;
+}
+
 function closeVillaModal() {
   const modal = document.getElementById("villaModal");
   if (!modal) return;
+  if (retourAuDevis("villa", modalActiveVilla && modalActiveVilla.id)) return;
   modal.classList.remove("active");
   modal.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
@@ -1843,6 +1936,16 @@ function initSimulator(villaParam, activityParam) {
       ? null
       : (VILLAS_DATA.find(v => v.id === villaSelect.value) || VILLAS_DATA[0]);
 
+    // Lien « Voir la fiche » (20/09/2026) : residences.html#id ouvre la fiche
+    // de la résidence, comme les liens partagés depuis l'application.
+    const villaFiche = document.getElementById("simVillaFiche");
+    if (villaFiche) {
+      villaFiche.hidden = !selectedVilla;
+      // « retour=devis » : en fermant la fiche, le visiteur revient au devis,
+      // sa résidence toujours choisie (20/09/2026).
+      if (selectedVilla) villaFiche.href = `residences.html?retour=devis#${encodeURIComponent(selectedVilla.id)}`;
+    }
+
     // Calcul des nuits (ou des journées d'activités si aucune résidence)
     const dIn = new Date(checkinInput.value);
     const dOut = new Date(checkoutInput.value);
@@ -2024,11 +2127,28 @@ ${cloture}`;
     }
   });
 
+  // « Voir la fiche » : la saisie part dans l'onglet avant de quitter la page.
+  // Délégation : le lien du véhicule est redessiné à chaque changement.
+  document.addEventListener("click", event => {
+    if (event.target.closest(".sim-fiche-lien")) memoriserSaisieDevis();
+  });
+
   // Le changement de mode redessine le formulaire ET recalcule le total.
   modeRadios.forEach(radio => radio.addEventListener("change", () => {
     appliquerMode();
     calculateTotal();
   }));
+  // Retour d'une fiche : dates, voyageurs, activités et coordonnées repris
+  // avant le premier calcul, puis « reprise » retiré de l'adresse pour que
+  // la page reste partageable.
+  if (reprendreSaisieDevis()) {
+    remplirVillas();
+    appliquerMode();
+    if (window.DevisVoiture) window.DevisVoiture.definirMode(modeActuel());
+    const adresse = new URL(window.location.href);
+    adresse.searchParams.delete("reprise");
+    window.history.replaceState(null, "", adresse.pathname + adresse.search + adresse.hash);
+  }
   appliquerMode();
   // Voiture choisie ou modifiée (js/devis-voiture.js) : total recalculé.
   document.addEventListener("dl:devis-voiture", calculateTotal);

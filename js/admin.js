@@ -2443,7 +2443,7 @@
           </div>
           <p class="notif-parc"><strong>${d.abonnes.push}</strong> appareil${d.abonnes.push > 1 ? 's' : ''} joignable${d.abonnes.push > 1 ? 's' : ''} sur <strong>${d.abonnes.total}</strong> téléphone${d.abonnes.total > 1 ? 's' : ''} inscrit${d.abonnes.total > 1 ? 's' : ''}${d.abonnes.identifies ? ` · ${d.abonnes.identifies} identifié${d.abonnes.identifies > 1 ? 's' : ''} par leur numéro` : ''}.</p>
           ${d.abonnes.push ? '' : '<p class="notif-aide">Aucun appareil ne peut recevoir de notification instantanée : l’application n’est pas encore reliée au service d’envoi (identifiant de projet Expo absent, voir mobile/natif/PUSH.md). En attendant, vos messages restent lisibles dans l’application, à son ouverture.</p>'}
-          ${d.messages.length ? d.messages.map(m => `<article class="notif-envoi"><header><strong>${esc(m.titre)}</strong><time>${esc(dateHeureCourte(m.creeLe))}</time></header><p>${esc(m.corps)}</p><footer>${esc(m.audience)} · ${pluriel(m.bilan?.telephones ?? 0, 'téléphone')}${m.bilan?.push ? ` · ${m.bilan.push} push` : ''}${m.bilan?.pushRefuses ? ` · ${m.bilan.pushRefuses} refusé${m.bilan.pushRefuses > 1 ? 's' : ''} par le service${m.bilan.pushMotif ? ` (${esc(m.bilan.pushMotif)})` : ''}` : ''}${m.bilan?.emails ? ` · ${m.bilan.emailsEnvoyes || 0} / ${pluriel(m.bilan.emails, 'e-mail')}` : ''}${m.creePar ? ` · par ${esc(m.creePar)}` : ''}</footer></article>`).join('') : '<div class="empty">Aucune notification envoyée.</div>'}
+          ${d.messages.length ? d.messages.map(m => `<article class="notif-envoi" data-notif-id="${esc(m.id)}"><header><strong>${esc(m.titre)}</strong><time>${esc(dateHeureCourte(m.creeLe))}</time></header><p>${esc(m.corps)}</p><footer>${esc(m.audience)} · ${pluriel(m.bilan?.telephones ?? 0, 'téléphone')}${m.bilan?.push ? ` · ${m.bilan.push} push` : ''}${m.bilan?.pushRefuses ? ` · ${m.bilan.pushRefuses} refusé${m.bilan.pushRefuses > 1 ? 's' : ''} par le service${m.bilan.pushMotif ? ` (${esc(m.bilan.pushMotif)})` : ''}` : ''}${m.bilan?.emails ? ` · ${m.bilan.emailsEnvoyes || 0} / ${pluriel(m.bilan.emails, 'e-mail')}` : ''}${m.creePar ? ` · par ${esc(m.creePar)}` : ''}</footer><div class="notif-envoi-actions"><button type="button" class="notif-renvoyer" data-notif-renvoyer>Renvoyer</button><button type="button" class="notif-supprimer" data-notif-supprimer>Supprimer</button></div></article>`).join('') : '<div class="empty">Aucune notification envoyée.</div>'}
         </div>
       </div>`;
 
@@ -2511,6 +2511,47 @@
       majApercu();
       form.elements.titre.focus();
     }
+    /*
+     * Historique (20/09/2026) : « Renvoyer » recompose l'envoi dans le
+     * formulaire — audience, personne visée, titre, message, écran — sans
+     * rien expédier : le propriétaire relit, corrige et diffuse lui-même.
+     * « Supprimer » retire l'envoi de l'historique et de la base.
+     */
+    // L'écoute est posée sur l'historique lui-même : il est redessiné à
+    // chaque chargement, l'ancienne part avec lui.
+    $('.notif-historique', hote).addEventListener('click', async event => {
+      const carte = event.target.closest('.notif-envoi');
+      if (!carte) return;
+      const envoi = d.messages.find(m => m.id === carte.dataset.notifId);
+      if (!envoi) return;
+      if (event.target.closest('[data-notif-renvoyer]')) {
+        const a = envoi.reprise?.audience || {};
+        form.elements.cible.value = AUDIENCES.some(([id]) => id === a.cible) ? a.cible : 'tous';
+        form.elements.type.value = a.type || 'tous';
+        form.elements.proprietaireId.value = a.proprietaireId || '';
+        form.elements.titre.value = envoi.titre || '';
+        form.elements.corps.value = envoi.corps || '';
+        form.elements.ecran.value = ECRANS_APP.some(([id]) => id === envoi.reprise?.ecran) ? envoi.reprise.ecran : 'messages';
+        // La liste des personnes est redessinée par l'aperçu : la personne
+        // visée se repose ensuite, une fois ses options présentes.
+        majApercu();
+        if (a.personneId) { form.elements.personneId.value = a.personneId; majApercu(); }
+        form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        form.elements.titre.focus();
+        toast('Notification reprise : relisez-la, puis diffusez-la.');
+        return;
+      }
+      if (event.target.closest('[data-notif-supprimer]')) {
+        if (!confirm(`Supprimer « ${envoi.titre} » de l'historique ?
+Les téléphones qui l'ont déjà reçue la gardent.`)) return;
+        try {
+          await api(`/api/admin/notifications/messages/${encodeURIComponent(envoi.id)}`, { method: 'DELETE' });
+          toast('Notification supprimée.');
+          await chargerNotifications();
+        } catch (error) { toast(error.message); }
+      }
+    });
+
     form.addEventListener('submit', async event => {
       event.preventDefault();
       // Ce qui manque s'écrit sous le bouton, où le regard vient de passer.

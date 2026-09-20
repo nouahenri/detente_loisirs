@@ -292,8 +292,8 @@ const abonneDepuisLigne = l => ({
   langue: l.langue || 'fr', plateforme: l.plateforme || '', inscritLe: versIso(l.inscrit_le), vuLe: versIso(l.vu_le)
 });
 const messageDepuisLigne = l => ({
-  id: l.id, titre: l.titre, corps: l.corps, audience: json(l.audience, { cible: 'tous' }), destinataires: json(l.destinataires, []),
-  bilan: json(l.bilan, {}), creePar: l.cree_par || '', creeLe: versIso(l.created_at)
+  id: l.id, titre: l.titre, corps: l.corps, ecran: l.ecran || 'messages', audience: json(l.audience, { cible: 'tous' }),
+  destinataires: json(l.destinataires, []), bilan: json(l.bilan, {}), creePar: l.cree_par || '', creeLe: versIso(l.created_at)
 });
 
 /** { abonnes, messages } — messages du plus récent au plus ancien. */
@@ -343,11 +343,25 @@ async function oublierJetons(jetons) {
     donnees => { let n = 0; donnees.abonnes.forEach(a => { if (liste.includes(a.jeton)) { a.jeton = ''; n += 1; } }); return n; });
 }
 
+/**
+ * Colonne `ecran` absente : la base n'a pas encore reçu
+ * db/migration-notifications-ecran.sql. On réécrit sans elle plutôt que de
+ * basculer tout l'historique dans le fichier JSON.
+ */
+const colonneAbsente = error => error?.code === 'ER_BAD_FIELD_ERROR' || error?.errno === 1054;
+
 async function enregistrerMessage(m) {
   return enBaseOuFichier(async r => {
-    await r.query(`INSERT INTO app_messages (id, titre, corps, audience, destinataires, bilan, cree_par, created_at)
-      VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE bilan=VALUES(bilan)`,
-    [m.id, m.titre, m.corps, JSON.stringify(m.audience), JSON.stringify(m.destinataires || []), JSON.stringify(m.bilan || {}), m.creePar || '', versMysql(m.creeLe)]);
+    const valeurs = ecran => [m.id, m.titre, m.corps, ...(ecran ? [m.ecran || 'messages'] : []), JSON.stringify(m.audience),
+      JSON.stringify(m.destinataires || []), JSON.stringify(m.bilan || {}), m.creePar || '', versMysql(m.creeLe)];
+    try {
+      await r.query(`INSERT INTO app_messages (id, titre, corps, ecran, audience, destinataires, bilan, cree_par, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE bilan=VALUES(bilan)`, valeurs(true));
+    } catch (error) {
+      if (!colonneAbsente(error)) throw error;
+      await r.query(`INSERT INTO app_messages (id, titre, corps, audience, destinataires, bilan, cree_par, created_at)
+        VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE bilan=VALUES(bilan)`, valeurs(false));
+    }
     return m;
   }, donnees => {
     const index = donnees.messages.findIndex(x => x.id === m.id);
@@ -357,9 +371,31 @@ async function enregistrerMessage(m) {
   });
 }
 
+/**
+ * Retire une notification de l'historique (demande du 20/09/2026).
+ * Les envois antérieurs à la base, ou passés par le fichier pendant une
+ * coupure, y sont cherchés quand la base n'a rien supprimé.
+ */
+async function supprimerMessage(id) {
+  const cle = String(id || '');
+  let retires = 0;
+  if (cle && utiliserBase()) {
+    try { retires = (await repo().query('DELETE FROM app_messages WHERE id = ?', [cle]))[0]?.affectedRows || 0; }
+    catch (error) { if (!tableAbsente(error)) throw error; }
+  }
+  if (cle && !retires) {
+    const donnees = lireFichier();
+    const avant = donnees.messages.length;
+    donnees.messages = donnees.messages.filter(m => m.id !== cle);
+    retires = avant - donnees.messages.length;
+    if (retires) jsonStore.write(FICHIER, donnees);
+  }
+  return retires;
+}
+
 module.exports = {
   FICHIER, CIBLES, TYPES_ANNONCE, TITRE_MAX, CORPS_MAX,
   cleTelephone, validerAbonne, validerMessage, proprietairesDesAnnonces, annoncesSansProprietaire,
   personnesDe, destinataires, libelleAudience, messagesPour, messagesExpo,
-  configure, tout, enregistrerAbonne, retirerAbonne, oublierJetons, enregistrerMessage
+  configure, tout, enregistrerAbonne, retirerAbonne, oublierJetons, enregistrerMessage, supprimerMessage
 };

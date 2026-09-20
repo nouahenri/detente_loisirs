@@ -684,6 +684,7 @@ CREATE TABLE IF NOT EXISTS `app_messages` (
   `id`            CHAR(36)      NOT NULL,
   `titre`         VARCHAR(80)   NOT NULL,
   `corps`         VARCHAR(1000) NOT NULL,
+  `ecran`         VARCHAR(20)   NOT NULL DEFAULT 'messages',
   `audience`      JSON          NULL,
   `destinataires` JSON          NULL,
   `bilan`         JSON          NULL,
