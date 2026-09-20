@@ -101,7 +101,8 @@
       "./plugins/jdk-gradle-21",
       "./plugins/architecture-android",
       "./plugins/bundle-debug-android",
-      "./plugins/liens-android"
+      "./plugins/liens-android",
+      "./plugins/proguard-optimize-android"
     ],
     "experiments": {
       "typedRoutes": false,
