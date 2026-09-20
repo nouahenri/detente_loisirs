@@ -42,9 +42,16 @@ test('audiences : tous, employés (téléphone ou WhatsApp), propriétaires par 
 
 test('validation : message (titre, corps, audience) et abonné', () => {
   assert.deepEqual(NS.validerMessage({ titre: '', corps: '', audience: {} }).erreurs.length, 3);
-  const { message } = NS.validerMessage({ titre: 'T', corps: 'C', audience: { cible: 'proprietaires', type: 'vehicle' }, email: true });
+  // Titre d'au moins trois caractères (20/09/2026) : une notification au titre
+  // d'une lettre n'est lisible sur aucun écran verrouillé.
+  assert.match(NS.validerMessage({ titre: 'T', corps: 'C', audience: { cible: 'tous' } }).erreurs.join(' '), /au moins 3 caractères/);
+  const { message } = NS.validerMessage({ titre: 'Titre', corps: 'C', audience: { cible: 'proprietaires', type: 'vehicle' }, email: true });
   assert.deepEqual(message.audience, { cible: 'proprietaires', type: 'vehicle', proprietaireId: '' });
-  assert.equal(NS.validerMessage({ titre: 'T', corps: 'C', audience: { cible: 'tous' }, email: true }).message.email, false, 'pas d’e-mail à « tous »');
+  // Écran ouvert au clic : « messages » par défaut, valeur inconnue ignorée.
+  assert.equal(message.ecran, 'messages');
+  assert.equal(NS.validerMessage({ titre: 'Titre', corps: 'C', ecran: 'devis', audience: { cible: 'tous' } }).message.ecran, 'devis');
+  assert.equal(NS.validerMessage({ titre: 'Titre', corps: 'C', ecran: 'pirate', audience: { cible: 'tous' } }).message.ecran, 'messages');
+  assert.equal(NS.validerMessage({ titre: 'Titre', corps: 'C', audience: { cible: 'tous' }, email: true }).message.email, false, 'pas d’e-mail à « tous »');
   assert.equal(NS.validerAbonne({ visiteur: 'court' }).erreur, 'Téléphone non identifié.');
   const { abonne: a } = NS.validerAbonne({ visiteur: 'app-abcdefghijklmnop', jeton: 'pas-un-jeton', telephone: '+225 07 11 22 33 44', langue: 'es-ES' });
   assert.deepEqual([a.jeton, a.cleTelephone, a.langue], ['', '11223344', 'es']);

@@ -200,7 +200,7 @@
           <li>${esc(t("placesN", v.seats || 5))}</li>
           <li>${esc(LV.libelle(LV.BOITES, v.transmission, langue()))}</li>
           <li>${esc(LV.libelle(LV.CARBURANTS, v.fuel, langue()))}</li>
-          ${v.airConditioning !== false ? `<li>${esc(t("clim"))}</li>` : ""}
+          ${v.airConditioning ? `<li>${esc(t("clim"))}</li>` : ""}
         </ul>
         <div class="vehicule-card-pied">
           <p class="vehicule-card-prix">${aPartir ? `<small>${esc(t("aPartirDe"))}</small> <strong>${esc(prix(aPartir))}</strong> <small>${esc(t("parJour"))}</small>` : `<strong>${esc(t("surDemande"))}</strong>`}</p>
@@ -267,7 +267,9 @@
     ];
     const caracteristiques = [
       t("placesN", v.seats || 5), LV.libelle(LV.BOITES, v.transmission, langue()), LV.libelle(LV.CARBURANTS, v.fuel, langue()),
-      v.doors ? t("portes", v.doors) : "", v.luggage ? t("bagages", v.luggage) : "", v.airConditioning !== false ? t("clim") : ""
+      // La climatisation est un équipement coché depuis le 20/09/2026 : elle
+      // figure dans la liste des équipements, plus dans les caractéristiques.
+      v.doors ? t("portes", v.doors) : "", v.luggage ? t("bagages", v.luggage) : ""
     ].filter(Boolean);
     const features = equipementsLisibles(v);
     const description = champ(v, "description");

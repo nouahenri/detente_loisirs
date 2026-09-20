@@ -31,6 +31,9 @@ const jsonStore = require('./json-store');
 
 const FICHIER = 'notifications-studio.json';
 const CIBLES = ['tous', 'demandeurs', 'employes', 'proprietaires'];
+// Écrans de l'application qu'une notification peut ouvrir (20/09/2026) :
+// « messages » est le comportement d'origine (la boîte de réception de l'app).
+const ECRANS = ['messages', 'explorer', 'devis', 'profil'];
 const TYPES_ANNONCE = ['villa', 'vehicle', 'activity', 'terrain'];
 const LIBELLES_TYPES = { villa: 'résidences', vehicle: 'véhicules', activity: 'activités', terrain: 'terrains' };
 const LANGUES = ['fr', 'en', 'es'];
@@ -113,8 +116,11 @@ function validerMessage(source = {}) {
   const erreurs = [];
   const titre = texte(source.titre, TITRE_MAX);
   const corps = texte(source.corps, CORPS_MAX);
-  if (!titre) erreurs.push('Le titre de la notification est requis.');
+  if (titre.length < 3) erreurs.push('Le titre doit contenir au moins 3 caractères.');
   if (!corps) erreurs.push('Le message est requis.');
+  // Écran ouvert quand la personne touche la notification (20/09/2026).
+  // L'application sait déjà router sur ces écrans (useOuvertureNotifications).
+  const ecran = ECRANS.includes(source.ecran) ? source.ecran : 'messages';
   const a = source.audience && typeof source.audience === 'object' ? source.audience : {};
   const cible = CIBLES.includes(a.cible) ? a.cible : '';
   if (!cible) erreurs.push('Choisissez à qui envoyer la notification.');
@@ -123,7 +129,7 @@ function validerMessage(source = {}) {
     type: cible === 'proprietaires' && TYPES_ANNONCE.includes(a.type) ? a.type : 'tous',
     proprietaireId: cible === 'proprietaires' ? texte(a.proprietaireId, 90) : ''
   };
-  return { erreurs, message: erreurs.length ? null : { titre, corps, audience, email: source.email !== false && cible !== 'tous' } };
+  return { erreurs, message: erreurs.length ? null : { titre, corps, ecran, audience, email: source.email !== false && cible !== 'tous' } };
 }
 
 // ---------------------------------------------------------------------------
@@ -210,7 +216,7 @@ function messagesPour(visiteur, messages = [], depuis = '') {
 function messagesExpo(message, abonnes) {
   return abonnes.filter(a => a.jeton).map(a => ({
     to: a.jeton, sound: 'default', title: message.titre, body: message.corps,
-    data: { ecran: 'messages', message: message.id }
+    data: { ecran: message.ecran || 'messages', message: message.id }
   }));
 }
 

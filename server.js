@@ -857,6 +857,9 @@ function appliquerReferentiels(item, referentiels, errors, options) {
     // saisie. L'application mobile et les anciennes pages lisent `features`.
     if (typeEquipements === 'equipements-voiture') {
       resultat.features = equipements.map(code => REF.libelleDe(REF.trouver(referentiels, typeEquipements, code))).filter(Boolean);
+      // « Climatisation » n'a plus sa case à part (20/09/2026) : l'ancien champ
+      // du site et de l'application se déduit de l'équipement coché.
+      resultat.airConditioning = equipements.includes('climatisation');
     }
   }
   return resultat;

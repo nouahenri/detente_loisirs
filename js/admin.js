@@ -96,6 +96,22 @@
     document.addEventListener('click', event => {
       const jump = event.target.closest('[data-jump]'); if (jump) showView(jump.dataset.jump);
       const add = event.target.closest('[data-new]'); if (add) openEditor(add.dataset.new);
+      // Aperçu d'une annonce (20/09/2026) : toute la ligne ouvre la fiche,
+      // sauf les boutons d'action (crayon, corbeille) qu'elle contient.
+      const ligne = event.target.closest('[data-apercu]');
+      if (ligne && !event.target.closest('button, a')) {
+        const [kind, ...reste] = ligne.dataset.apercu.split('|');
+        ouvrirApercuAnnonce(kind, reste.join('|'));
+      }
+    });
+    // Même geste au clavier : Entrée ou Espace sur la ligne sélectionnée.
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const ligne = event.target.closest?.('[data-apercu]');
+      if (!ligne || event.target !== ligne) return;
+      event.preventDefault();
+      const [kind, ...reste] = ligne.dataset.apercu.split('|');
+      ouvrirApercuAnnonce(kind, reste.join('|'));
     });
     $('#leadFilters').addEventListener('click', event => { const button = event.target.closest('[data-status]'); if (!button) return; state.leadFilter = button.dataset.status; $$('#leadFilters button').forEach(b => b.classList.toggle('active', b === button)); renderLeads(); });
     $('#fbPublishBtn').addEventListener('click', publishFacebook);
@@ -352,7 +368,7 @@
     terrains:['VENTE DE TERRAIN','Terrains'], activities:['EXPÉRIENCES','Activités & loisirs'],
     vehicles:['LOCATION DE VOITURES','Voitures'], location:['LOCATION DE VOITURES','Planning & réservations'],
     referentiels:['LISTES DE CHOIX','Référentiels'],
-    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['RELATION CLIENT','Messages'], newsletter:['RELATION CLIENT','Newsletter'],
+    leads:['RELATION CLIENT','Demandes'], compta:['FINANCES','Comptabilité'], messages:['COMMUNICATION','Messagerie push'], newsletter:['RELATION CLIENT','Newsletter'],
     facebook:['SOCIAL STUDIO','Publications'], users:['SÉCURITÉ','Utilisateurs'],
     settings:['SITE PUBLIC','Réglages']
   };
@@ -632,7 +648,7 @@
   function renderVillas() {
     const head = '<div class="table-row header"><span>Visuel</span><span>Villa</span><span>Tarif / nuit</span><span>Capacité</span><span>Catégorie</span><span>Action</span></div>';
     const { onglets, items, actuel } = annoncesFiltrees('villa');
-    $('#villasTable').innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucune villa en ligne.' : actuel === 'suspendue' ? 'Aucune villa suspendue.' : 'Aucune villa archivée.'}</div>`) + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}${pastillesAnnonce('villa', item)}</div><div class="table-cell"><strong>${money(item.pricePerNight)}</strong></div><div>${item.capacity} pers.</div><div><span class="status">${esc(item.categoryLabel || item.category)}</span></div><div class="row-actions"><button title="Modifier" data-edit-villa="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-villa="${esc(item.id)}">×</button></div></div>`).join('');
+    $('#villasTable').innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucune villa en ligne.' : actuel === 'suspendue' ? 'Aucune villa suspendue.' : 'Aucune villa archivée.'}</div>`) + items.map(item => `<div role="button" tabindex="0" data-apercu="villa|${esc(item.id)}" class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}${pastillesAnnonce('villa', item)}</div><div class="table-cell"><strong>${money(item.pricePerNight)}</strong></div><div>${item.capacity} pers.</div><div><span class="status">${esc(item.categoryLabel || item.category)}</span></div><div class="row-actions"><button title="Modifier" data-edit-villa="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-villa="${esc(item.id)}">×</button></div></div>`).join('');
     $$('[data-edit-villa]').forEach(button => button.addEventListener('click', () => openEditor('villa', button.dataset.editVilla)));
     $$('[data-delete-villa]').forEach(button => button.addEventListener('click', () => supprimerAnnonce('villa', button.dataset.deleteVilla)));
     brancherListe($('#villasTable'), 'villa');
@@ -659,7 +675,7 @@
     const head = '<div class="table-row header"><span>Visuel</span><span>Terrain</span><span>Superficie</span><span>Prix total</span><span>Statut</span><span>Action</span></div>';
     const { onglets, items, actuel } = annoncesFiltrees('terrain');
     $('#terrainsTable').innerHTML = items.length
-      ? onglets + head + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.reference)} · ${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : item.status === 'vendu' ? '<span class="visibility-note">VENDU — RETIRÉ DU SITE</span>' : ''}${pastillesAnnonce('terrain', item)}</div><div>${new Intl.NumberFormat('fr-FR').format(Number(item.areaSqm || 0))} m²</div><div class="table-cell"><strong>${money(item.priceTotal)}</strong><small>${money(perSqm(item))} / m²</small></div><div><span class="status ${esc(item.status)}">${esc(libelleStatut('terrain', item.status) || TERRAIN_STATUS[item.status] || item.status)}</span></div><div class="row-actions"><button title="Modifier" data-edit-terrain="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-terrain="${esc(item.id)}">×</button></div></div>`).join('')
+      ? onglets + head + items.map(item => `<div role="button" tabindex="0" data-apercu="terrain|${esc(item.id)}" class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.reference)} · ${esc(item.location)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : item.status === 'vendu' ? '<span class="visibility-note">VENDU — RETIRÉ DU SITE</span>' : ''}${pastillesAnnonce('terrain', item)}</div><div>${new Intl.NumberFormat('fr-FR').format(Number(item.areaSqm || 0))} m²</div><div class="table-cell"><strong>${money(item.priceTotal)}</strong><small>${money(perSqm(item))} / m²</small></div><div><span class="status ${esc(item.status)}">${esc(libelleStatut('terrain', item.status) || TERRAIN_STATUS[item.status] || item.status)}</span></div><div class="row-actions"><button title="Modifier" data-edit-terrain="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-terrain="${esc(item.id)}">×</button></div></div>`).join('')
       : onglets + head + `<div class="empty">${actuel !== 'active' ? (actuel === 'suspendue' ? 'Aucun terrain suspendu.' : 'Aucun terrain archivé.') : 'Aucun terrain en ligne. Cliquez sur « Ajouter un terrain » pour publier une parcelle.'}</div>`;
     $$('[data-edit-terrain]').forEach(button => button.addEventListener('click', () => openEditor('terrain', button.dataset.editTerrain)));
     $$('[data-delete-terrain]').forEach(button => button.addEventListener('click', () => supprimerAnnonce('terrain', button.dataset.deleteTerrain)));
@@ -669,7 +685,7 @@
   function renderActivities() {
     const head = '<div class="table-row header"><span>Visuel</span><span>Activité</span><span>Tarif</span><span>Durée</span><span>Badge</span><span>Action</span></div>';
     const { onglets, items, actuel } = annoncesFiltrees('activity');
-    $('#activitiesTable').innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucune activité en ligne.' : actuel === 'suspendue' ? 'Aucune activité suspendue.' : 'Aucune activité archivée.'}</div>`) + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || item.image || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.subtitle)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}${pastillesAnnonce('activity', item)}</div><div>${esc(item.price)}</div><div>${esc(item.duration)}</div><div><span class="status">${esc(item.badge)}</span></div><div class="row-actions"><button data-edit-activity="${esc(item.id)}">✎</button><button data-delete-activity="${esc(item.id)}">×</button></div></div>`).join('');
+    $('#activitiesTable').innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucune activité en ligne.' : actuel === 'suspendue' ? 'Aucune activité suspendue.' : 'Aucune activité archivée.'}</div>`) + items.map(item => `<div role="button" tabindex="0" data-apercu="activity|${esc(item.id)}" class="table-row ${item.visible === false ? 'is-hidden':''}"><img src="${esc(item.images?.[0] || item.image || '')}" alt=""><div class="table-title"><strong>${esc(item.title)}</strong><small>${esc(item.subtitle)}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉE DU SITE</span>':''}${pastillesAnnonce('activity', item)}</div><div>${esc(item.price)}</div><div>${esc(item.duration)}</div><div><span class="status">${esc(item.badge)}</span></div><div class="row-actions"><button data-edit-activity="${esc(item.id)}">✎</button><button data-delete-activity="${esc(item.id)}">×</button></div></div>`).join('');
     $$('[data-edit-activity]').forEach(button => button.addEventListener('click', () => openEditor('activity', button.dataset.editActivity)));
     $$('[data-delete-activity]').forEach(button => button.addEventListener('click', () => supprimerAnnonce('activity', button.dataset.deleteActivity)));
     brancherListe($('#activitiesTable'), 'activity');
@@ -1046,7 +1062,10 @@
         ${nombreChamp('doors', 'Portes', item.doors ?? 4, 'min="0" max="6" step="1"')}
         ${nombreChamp('luggage', 'Bagages', item.luggage ?? 2, 'min="0" max="30" step="1"')}
       </div>
-      <div class="toggle-row"><label><input type="checkbox" name="airConditioning" value="yes" ${item.airConditioning !== false ? 'checked' : ''}> Climatisation</label><label><input type="checkbox" name="visible" value="yes" ${item.visible !== false ? 'checked' : ''}> Visible sur le site</label><label><input type="checkbox" name="featured" value="yes" ${item.featured ? 'checked' : ''}> Mise en avant</label></div>
+      <!-- « Climatisation » a quitté cette ligne le 20/09/2026 : elle se coche
+           dans les équipements du véhicule, plus bas. Le serveur en déduit
+           l'ancien champ « airConditioning » pour le site et l'application. -->
+      <div class="toggle-row"><label><input type="checkbox" name="visible" value="yes" ${item.visible !== false ? 'checked' : ''}> Visible sur le site</label><label><input type="checkbox" name="featured" value="yes" ${item.featured ? 'checked' : ''}> Mise en avant</label></div>
       <fieldset class="vehicule-bloc"><legend>Formule</legend>
         <label>Conduite<select name="driverMode" data-mode-chauffeur>${optionsListe(LV.MODES_CHAUFFEUR, mode)}</select></label>
         <p class="vehicule-aide" data-aide-chauffeur></p>
@@ -1105,7 +1124,9 @@
     return {
       ...old, id: v.id.trim().toLowerCase(), name: v.name.trim(), brand: String(v.brand || '').trim(), model: String(v.model || '').trim(),
       year: n(v.year, null), category: v.category, transmission: v.transmission, fuel: v.fuel,
-      seats: n(v.seats, 5), doors: n(v.doors, 4), luggage: n(v.luggage, 2), airConditioning: v.airConditioning === 'yes',
+      seats: n(v.seats, 5), doors: n(v.doors, 4), luggage: n(v.luggage, 2),
+      // `airConditioning` : recalculé par le serveur depuis l'équipement coché.
+      airConditioning: Array.isArray(v.equipements) && v.equipements.includes('climatisation'),
       driverMode: v.driverMode, driverPricePerDay: n(v.driverPricePerDay), deposit: n(v.deposit), minAge: n(v.minAge, 21), licenseYears: n(v.licenseYears, 2),
       pricePerDay: n(v.pricePerDay), pricePerDayWeek: n(v.pricePerDayWeek), pricePerDayMonth: n(v.pricePerDayMonth), minDays: n(v.minDays, 1),
       kmIncludedPerDay: n(v.kmIncludedPerDay), extraKmPrice: n(v.extraKmPrice),
@@ -1118,12 +1139,131 @@
     };
   }
 
+  /* =====================================================================
+   * APERÇU D'UNE ANNONCE (20/09/2026)
+   * Un clic sur une ligne de liste — villa, terrain, activité, voiture —
+   * montre la fiche telle que le client la voit : photo, titre, tarifs,
+   * description. Dessous, le propriétaire du bien : sa zone s'ouvre sur les
+   * trois gestes utiles, l'appeler, lui écrire sur WhatsApp, lui envoyer une
+   * notification. Le crayon de la ligne continue d'ouvrir l'éditeur.
+   * ===================================================================== */
+  const LISTES_ANNONCES = { villa: 'villas', terrain: 'terrains', activity: 'activities', vehicle: 'vehicles' };
+  const SURTITRES_ANNONCE = { villa: 'HÉBERGEMENT', terrain: 'VENTE DE TERRAIN', activity: 'EXPÉRIENCE', vehicle: 'LOCATION DE VOITURE' };
+  const annonceParId = (kind, id) => (state.content?.[LISTES_ANNONCES[kind]] || []).find(item => String(item.id) === String(id)) || null;
+
+  /** Titre, sous-titre et informations clés, selon le type d'annonce. */
+  function resumeAnnonce(kind, item) {
+    const l = (cle, valeur) => (valeur || valeur === 0 ? [cle, String(valeur)] : null);
+    if (kind === 'villa') {
+      return { titre: item.name, sous: item.location, lignes: [
+        l('Tarif par nuit', money(item.pricePerNight)), l('Forfait week-end', item.weekendPackage ? money(item.weekendPackage) : ''),
+        l('Capacité', `${item.capacity || '?'} personnes`), l('Chambres', item.bedrooms), l('Salles de bain', item.bathrooms),
+        l('Thème', item.categoryLabel), l('Badge', item.badge)] };
+    }
+    if (kind === 'terrain') {
+      const m2 = Number(item.areaSqm || 0);
+      return { titre: item.title || item.reference, sous: [item.reference, item.location].filter(Boolean).join(' · '), lignes: [
+        l('Prix total', money(item.priceTotal)), l('Superficie', m2 ? `${new Intl.NumberFormat('fr-FR').format(m2)} m²` : ''),
+        l('Prix au m²', m2 ? money(Math.round(Number(item.priceTotal || 0) / m2)) : ''),
+        l('Statut', libelleStatut('terrain', item.status) || item.status), l('Badge', item.badge)] };
+    }
+    if (kind === 'activity') {
+      return { titre: item.title, sous: item.subtitle, lignes: [
+        l('Tarif', item.price), l('Durée', item.duration), l('Badge', item.badge), l('Lieu', item.location)] };
+    }
+    return { titre: item.name, sous: [LV.libelle(LV.CATEGORIES, item.category, 'fr'), item.year].filter(Boolean).join(' · '), lignes: [
+      l('À partir de', LV.prixAPartirDe(item) ? `${money(LV.prixAPartirDe(item))} / jour` : 'Sur demande'),
+      l('Conduite', LV.libelle(LV.MODES_CHAUFFEUR, item.driverMode, 'fr')),
+      l('Chauffeur', item.driverPricePerDay ? `${money(item.driverPricePerDay)} / jour` : ''),
+      l('Caution', item.deposit ? money(item.deposit) : ''), l('Places', item.seats), l('Boîte', LV.libelle(LV.BOITES, item.transmission, 'fr')),
+      l('Kilométrage', item.kmIncludedPerDay ? `${item.kmIncludedPerDay} km / jour` : 'Illimité')] };
+  }
+
+  /** Bloc « Propriétaire du bien », cliquable quand le bien en a un. */
+  function blocProprietaireApercu(p) {
+    if (!p || !(p.nom || p.prenom || p.telephone || p.whatsapp)) {
+      return '<div class="apercu-proprietaire apercu-proprietaire-vide">Aucun propriétaire renseigné sur cette annonce. Ajoutez-le avec le crayon, pour pouvoir l’appeler d’ici.</div>';
+    }
+    const nom = [p.prenom, p.nom].filter(Boolean).join(' ') || p.telephone || p.whatsapp;
+    return `<button type="button" class="apercu-proprietaire" data-ouvrir-proprietaire>
+      <span class="apercu-proprietaire-avatar" aria-hidden="true">${esc((nom || '?').slice(0, 1).toUpperCase())}</span>
+      <span class="apercu-proprietaire-texte"><small>PROPRIÉTAIRE DU BIEN</small><strong>${esc(nom)}</strong><em>${esc([p.telephone, p.whatsapp && p.whatsapp !== p.telephone ? `WhatsApp ${p.whatsapp}` : ''].filter(Boolean).join(' · ') || 'Numéro non renseigné')}</em></span>
+      <span class="apercu-proprietaire-fleche" aria-hidden="true">›</span>
+    </button>`;
+  }
+
+  /** Vue de contact : appeler, WhatsApp, notification. */
+  function vueProprietaire(p, kind, item) {
+    const nom = [p.prenom, p.nom].filter(Boolean).join(' ') || p.telephone || p.whatsapp;
+    const tel = String(p.telephone || p.whatsapp || '').replace(/[^\d+]/g, '');
+    // Même règle que les campagnes WhatsApp : 10 chiffres = numéro ivoirien,
+    // wa.me exige l'indicatif pays, sinon le lien n'ouvre aucune conversation.
+    const wa = lienWhatsApp(p.whatsapp || p.telephone);
+    return `<div class="apercu-contact">
+      <div class="apercu-contact-tete"><span class="apercu-proprietaire-avatar" aria-hidden="true">${esc((nom || '?').slice(0, 1).toUpperCase())}</span>
+        <div><small>PROPRIÉTAIRE</small><strong>${esc(nom)}</strong><em>${esc(resumeAnnonce(kind, item).titre || '')}</em></div></div>
+      <dl class="apercu-infos">
+        ${p.telephone ? `<div><dt>Téléphone</dt><dd>${esc(p.telephone)}</dd></div>` : ''}
+        ${p.whatsapp ? `<div><dt>WhatsApp</dt><dd>${esc(p.whatsapp)}</dd></div>` : ''}
+      </dl>
+      <div class="apercu-actions">
+        ${tel ? `<a class="apercu-action" href="tel:${esc(tel)}"><span aria-hidden="true">📞</span> Appeler</a>` : ''}
+        ${wa ? `<a class="apercu-action apercu-action-wa" href="${esc(wa)}" target="_blank" rel="noopener"><span aria-hidden="true">💬</span> WhatsApp</a>` : ''}
+        ${can('notifications:manage') ? `<button type="button" class="apercu-action apercu-action-push" data-push-proprietaire="${esc(p.telephone || p.whatsapp || '')}"><span aria-hidden="true">🔔</span> Notification</button>` : ''}
+      </div>
+      ${tel || wa ? '' : '<p class="apercu-vide">Ce propriétaire n’a ni téléphone ni WhatsApp : ajoutez-les dans la fiche de l’annonce.</p>'}
+    </div>`;
+  }
+
+  function ouvrirApercuAnnonce(kind, id) {
+    const item = annonceParId(kind, id);
+    if (!item) return;
+    const { titre, sous, lignes } = resumeAnnonce(kind, item);
+    const photo = (item.images || [])[0] || item.image || '';
+    const equipements = (item.features || []).slice(0, 24);
+    const infos = lignes.filter(Boolean).map(([cle, valeur]) => `<div><dt>${esc(cle)}</dt><dd>${esc(valeur)}</dd></div>`).join('');
+    document.body.insertAdjacentHTML('beforeend', `<div class="editor-backdrop apercu-backdrop">
+      <div class="editor-drawer apercu-drawer" role="dialog" aria-modal="true" aria-label="Aperçu de l’annonce">
+        <div class="editor-head"><div><span class="eyebrow">${esc(SURTITRES_ANNONCE[kind] || 'ANNONCE')}</span><h2>${esc(titre || item.id)}</h2>${sous ? `<small class="apercu-sous">${esc(sous)}</small>` : ''}</div><button type="button" data-close-editor aria-label="Fermer">×</button></div>
+        <div class="editor-fields apercu-corps">
+          ${photo ? `<img class="apercu-photo" src="${esc(photo)}" alt="">` : ''}
+          ${item.visible === false ? '<p class="apercu-masquee">Cette annonce est masquée du site.</p>' : ''}
+          ${infos ? `<dl class="apercu-infos">${infos}</dl>` : ''}
+          ${item.tagline ? `<p class="apercu-accroche">${esc(item.tagline)}</p>` : ''}
+          ${item.description ? `<p class="apercu-description">${esc(item.description)}</p>` : ''}
+          ${equipements.length ? `<div class="apercu-equipements"><h3>Équipements</h3><ul>${equipements.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}
+          ${blocProprietaireApercu(item.proprietaire)}
+        </div>
+        <div class="editor-actions"><button type="button" data-close-editor>Fermer</button>${can('content:write') ? '<button type="button" class="primary" data-modifier-annonce>Modifier</button>' : ''}</div>
+      </div></div>`);
+    const fond = $('.apercu-backdrop');
+    const fermer = () => fond.remove();
+    $$('[data-close-editor]', fond).forEach(b => b.addEventListener('click', fermer));
+    fond.addEventListener('click', event => { if (event.target === fond) fermer(); });
+    $('[data-modifier-annonce]', fond)?.addEventListener('click', () => { fermer(); ouvrirEditeurAnnonce(kind, item); });
+    $('[data-ouvrir-proprietaire]', fond)?.addEventListener('click', () => {
+      $('.apercu-corps', fond).innerHTML = vueProprietaire(item.proprietaire, kind, item);
+      $('[data-push-proprietaire]', fond)?.addEventListener('click', bouton => {
+        gestionMessages.preselection = { cible: 'proprietaires', telephone: item.proprietaire.telephone || item.proprietaire.whatsapp || '' };
+        gestionMessages.onglet = 'notifications';
+        fermer();
+        showView('messages');
+      });
+    });
+  }
+
+  /** Ouvre l'éditeur du bon type depuis l'aperçu, via le crayon de la ligne. */
+  function ouvrirEditeurAnnonce(kind, item) {
+    const attribut = `data-edit-${kind}`;
+    $$(`[${attribut}]`).find(bouton => bouton.getAttribute(attribut) === String(item.id))?.click();
+  }
+
   function renderVehicles() {
     const hote = $('#vehiclesTable');
     if (!hote) return;
     const head = '<div class="table-row header"><span>Visuel</span><span>Véhicule</span><span>À partir de</span><span>Conduite</span><span>Catégorie</span><span>Action</span></div>';
     const { onglets, items, actuel } = annoncesFiltrees('vehicle');
-    hote.innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucun véhicule en ligne. Cliquez sur « Ajouter un véhicule ».' : actuel === 'suspendue' ? 'Aucun véhicule suspendu.' : 'Aucun véhicule archivé.'}</div>`) + items.map(item => `<div class="table-row ${item.visible === false ? 'is-hidden' : ''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc([LV.libelle(LV.BOITES, item.transmission, 'fr'), LV.libelle(LV.CARBURANTS, item.fuel, 'fr'), `${item.seats || 5} places`].join(' · '))}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : ''}${pastillesAnnonce('vehicle', item)}</div><div class="table-cell"><strong>${LV.prixAPartirDe(item) ? money(LV.prixAPartirDe(item)) : 'Sur demande'}</strong><small>par jour</small></div><div>${esc(LV.libelle(LV.MODES_CHAUFFEUR, item.driverMode, 'fr'))}</div><div><span class="status">${esc(LV.libelle(LV.CATEGORIES, item.category, 'fr'))}</span></div><div class="row-actions"><button title="Modifier" data-edit-vehicle="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-vehicle="${esc(item.id)}">×</button></div></div>`).join('');
+    hote.innerHTML = onglets + head + (items.length ? '' : `<div class="empty">${actuel === 'active' ? 'Aucun véhicule en ligne. Cliquez sur « Ajouter un véhicule ».' : actuel === 'suspendue' ? 'Aucun véhicule suspendu.' : 'Aucun véhicule archivé.'}</div>`) + items.map(item => `<div role="button" tabindex="0" data-apercu="vehicle|${esc(item.id)}" class="table-row ${item.visible === false ? 'is-hidden' : ''}"><img src="${esc(item.images?.[0] || '')}" alt=""><div class="table-title"><strong>${esc(item.name)}</strong><small>${esc([LV.libelle(LV.BOITES, item.transmission, 'fr'), LV.libelle(LV.CARBURANTS, item.fuel, 'fr'), `${item.seats || 5} places`].join(' · '))}</small>${item.visible === false ? '<span class="visibility-note">MASQUÉ DU SITE</span>' : ''}${pastillesAnnonce('vehicle', item)}</div><div class="table-cell"><strong>${LV.prixAPartirDe(item) ? money(LV.prixAPartirDe(item)) : 'Sur demande'}</strong><small>par jour</small></div><div>${esc(LV.libelle(LV.MODES_CHAUFFEUR, item.driverMode, 'fr'))}</div><div><span class="status">${esc(LV.libelle(LV.CATEGORIES, item.category, 'fr'))}</span></div><div class="row-actions"><button title="Modifier" data-edit-vehicle="${esc(item.id)}">✎</button><button title="Supprimer" data-delete-vehicle="${esc(item.id)}">×</button></div></div>`).join('');
     $$('[data-edit-vehicle]', hote).forEach(button => button.addEventListener('click', () => openEditor('vehicle', button.dataset.editVehicle)));
     $$('[data-delete-vehicle]', hote).forEach(button => button.addEventListener('click', () => supprimerAnnonce('vehicle', button.dataset.deleteVehicle)));
     brancherListe(hote, 'vehicle');
@@ -2158,7 +2298,9 @@
   // clients ayant coché l'accord dans le simulateur, hors « ne plus contacter ».
   let chargementMessages = null;
   // ---- Messages : WhatsApp, notifications de l'app, propriétaires (19/09/2026) ----
-  const gestionMessages = { onglet: 'whatsapp', donnees: null, chargement: null };
+  // `preselection` : renseignée quand on arrive depuis la fiche d'une annonce
+  // (bouton « Notification » du propriétaire), consommée au premier rendu.
+  const gestionMessages = { onglet: 'whatsapp', donnees: null, chargement: null, preselection: null };
   const SECTIONS_MESSAGES = [['whatsapp', 'WhatsApp', 'leads:read', 'bulle'], ['notifications', 'Notifications de l’app', 'notifications:manage', 'cloche'], ['proprietaires', 'Propriétaires', 'notifications:manage', 'carnet']];
   const TYPES_ANNONCE_PROPRIETAIRE = { villa: 'Résidences', vehicle: 'Véhicules', activity: 'Activités', terrain: 'Terrains' };
   const dateHeureCourte = valeur => { try { return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(valeur)); } catch { return ''; } };
@@ -2205,62 +2347,125 @@
     if (!d || !hote) return;
     const nombre = cible => d.audiences?.[cible]?.telephones ?? 0;
     const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+    /*
+     * Composition d'une notification (refonte du 20/09/2026, modèle fourni par
+     * le propriétaire) : une carte unique qui se lit de haut en bas — à qui,
+     * quoi, où cela ouvre, combien de téléphones, puis le bouton. Les compteurs
+     * de caractères et l'effectif joignable sont affichés en continu, et ce qui
+     * empêche l'envoi est écrit sous le bouton plutôt qu'en fenêtre d'alerte.
+     */
+    const AUDIENCES = [['tous', 'Tous les utilisateurs de l’app', 'Toute personne qui a installé l’application.'],
+      ['demandeurs', 'Les demandeurs', 'Les clients qui ont envoyé une demande depuis le site ou l’app.'],
+      ['employes', 'Les employés', 'Les salaires enregistrés en comptabilité, joints par leur numéro.'],
+      ['proprietaires', 'Les propriétaires', 'Les propriétaires des biens, d’après les fiches des annonces.']];
+    const ECRANS_APP = [['messages', 'Aucun — ouvrir l’application'], ['explorer', 'Explorer les annonces'], ['devis', 'Demander un devis'], ['profil', 'Mon profil']];
     hote.innerHTML = `
-      <div class="kpi-grid notif-kpis">
-        <article class="kpi-card"><small>Téléphones inscrits</small><strong>${d.abonnes.total}</strong><em>Notifications activées dans l’app</em></article>
-        <article class="kpi-card"><small>Identifiés</small><strong>${d.abonnes.identifies}</strong><em>Numéro du profil transmis</em></article>
-        <article class="kpi-card"><small>Instantanées (push)</small><strong>${d.abonnes.push}</strong><em>${d.abonnes.push ? 'Reçues aussitôt' : 'Service à activer dans l’app'}</em></article>
-      </div>
-      ${d.abonnes.push ? '' : '<p class="notif-aide">Les notifications instantanées ne sont pas encore activées dans l’application : chaque téléphone reçoit vos messages à l’ouverture de l’app ou lors de sa relève automatique (environ toutes les heures).</p>'}
       <div class="notif-grille">
-        <form class="wa-bloc notif-form" id="notifForm" novalidate>
-          <h3>Nouvelle notification</h3>
-          <label>Titre <small>(80 caractères au plus)</small><input name="titre" maxlength="80" required placeholder="Ex. : Réunion d’équipe samedi à 9 h"></label>
-          <label>Message<textarea name="corps" rows="5" maxlength="1000" required placeholder="Votre message…"></textarea></label>
-          <small class="notif-compteur" data-notif-compteur>0 / 1000</small>
-          <fieldset class="notif-audience"><legend>Destinataires</legend>
-            ${[['tous', 'Tous les utilisateurs de l’app'], ['demandeurs', 'Les demandeurs'], ['employes', 'Les employés'], ['proprietaires', 'Les propriétaires']].map(([id, libelle], i) => `<label><input type="radio" name="cible" value="${id}" ${i === 0 ? 'checked' : ''}> <span>${libelle}</span> <em>${pluriel(nombre(id), 'téléphone')}</em></label>`).join('')}
-          </fieldset>
-          <div class="form-grid notif-proprietaires" data-notif-proprietaires hidden>
-            <label>Annonces<select name="type"><option value="tous">Tous les propriétaires</option>${Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([id, libelle]) => `<option value="${id}">Propriétaires des ${libelle.toLowerCase()}</option>`).join('')}</select></label>
-            <label>Ou un propriétaire précis<select name="proprietaireId"><option value="">—</option>${d.proprietaires.filter(p => p.actif).map(p => `<option value="${esc(p.id)}">${esc(nomComplet(p) || p.telephone || p.whatsapp)} · ${p.annonces.length} bien${p.annonces.length > 1 ? 's' : ''}</option>`).join('')}</select></label>
+        <form class="notif-carte" id="notifForm" novalidate>
+          <div class="notif-carte-tete">
+            <span class="notif-carte-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 9.2a6 6 0 1 0-12 0c0 4.8-2 6.3-2 6.3h16s-2-1.5-2-6.3z"/><path d="M10.3 18.8a2 2 0 0 0 3.4 0"/></svg></span>
+            <div><small>NOUVEL ENVOI</small><strong>Composer une notification</strong></div>
           </div>
+          <label class="notif-champ">Audience <abbr title="obligatoire">*</abbr>
+            <select name="cible">${AUDIENCES.map(([id, libelle]) => `<option value="${id}">${libelle}</option>`).join('')}</select>
+            <small data-notif-aide-audience></small>
+          </label>
+          <div class="notif-precision" data-notif-proprietaires hidden>
+            <label class="notif-champ">Annonces concernées
+              <select name="type"><option value="tous">Tous les propriétaires</option>${Object.entries(TYPES_ANNONCE_PROPRIETAIRE).map(([id, libelle]) => `<option value="${id}">Propriétaires des ${libelle.toLowerCase()}</option>`).join('')}</select>
+            </label>
+            <label class="notif-champ">Un propriétaire précis
+              <select name="proprietaireId"><option value="">— toute l’audience —</option>${d.proprietaires.filter(p => p.actif).map(p => `<option value="${esc(p.id)}">${esc(nomComplet(p) || p.telephone || p.whatsapp)} · ${p.annonces.length} bien${p.annonces.length > 1 ? 's' : ''}</option>`).join('')}</select>
+            </label>
+          </div>
+          <label class="notif-champ">Titre <abbr title="obligatoire">*</abbr><span class="notif-compte" data-compte-titre>0/80</span>
+            <input name="titre" maxlength="80" required placeholder="Ex. : Nouvelle villa disponible à Assinie">
+          </label>
+          <label class="notif-champ">Message <abbr title="obligatoire">*</abbr><span class="notif-compte" data-compte-corps>0/500</span>
+            <textarea name="corps" rows="5" maxlength="500" required placeholder="Rédigez le message tel qu’il apparaîtra sur le téléphone…"></textarea>
+          </label>
+          <label class="notif-champ">Écran ouvert au clic
+            <select name="ecran">${ECRANS_APP.map(([id, libelle]) => `<option value="${id}">${libelle}</option>`).join('')}</select>
+          </label>
           <label class="notif-email" data-notif-email hidden><input type="checkbox" name="email" checked> <span>Envoyer aussi par e-mail aux contacts qui ont une adresse <small data-notif-email-note></small></span></label>
-          <p class="notif-apercu" data-notif-apercu aria-live="polite"></p>
-          <div class="wa-form-actions"><button class="primary" type="submit">Envoyer la notification</button></div>
+          <p class="notif-effectif" data-notif-apercu aria-live="polite">Sélectionnez une audience pour connaître son effectif.</p>
+          <button class="primary notif-envoyer" type="submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3 10.5 13.5M21 3l-6.8 18-3.7-7.5L3 9.8z"/></svg>
+            Diffuser la notification
+          </button>
+          <p class="notif-erreur" data-notif-erreur role="alert"></p>
         </form>
-        <div class="wa-bloc notif-historique"><h3>Envoyées</h3>
+        <div class="notif-carte notif-historique">
+          <div class="notif-carte-tete">
+            <span class="notif-carte-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7.5V12l3 1.8"/><circle cx="12" cy="12" r="8.2"/></svg></span>
+            <div><small>HISTORIQUE</small><strong>Notifications envoyées</strong></div>
+          </div>
+          <p class="notif-parc"><strong>${d.abonnes.push}</strong> appareil${d.abonnes.push > 1 ? 's' : ''} joignable${d.abonnes.push > 1 ? 's' : ''} sur <strong>${d.abonnes.total}</strong> téléphone${d.abonnes.total > 1 ? 's' : ''} inscrit${d.abonnes.total > 1 ? 's' : ''}${d.abonnes.identifies ? ` · ${d.abonnes.identifies} identifié${d.abonnes.identifies > 1 ? 's' : ''} par leur numéro` : ''}.</p>
+          ${d.abonnes.push ? '' : '<p class="notif-aide">Aucun appareil ne peut recevoir de notification instantanée : l’application n’est pas encore reliée au service d’envoi (identifiant de projet Expo absent, voir mobile/natif/PUSH.md). En attendant, vos messages restent lisibles dans l’application, à son ouverture.</p>'}
           ${d.messages.length ? d.messages.map(m => `<article class="notif-envoi"><header><strong>${esc(m.titre)}</strong><time>${esc(dateHeureCourte(m.creeLe))}</time></header><p>${esc(m.corps)}</p><footer>${esc(m.audience)} · ${pluriel(m.bilan?.telephones ?? 0, 'téléphone')}${m.bilan?.push ? ` · ${m.bilan.push} push` : ''}${m.bilan?.emails ? ` · ${m.bilan.emailsEnvoyes || 0} / ${pluriel(m.bilan.emails, 'e-mail')}` : ''}${m.creePar ? ` · par ${esc(m.creePar)}` : ''}</footer></article>`).join('') : '<div class="empty">Aucune notification envoyée.</div>'}
         </div>
       </div>`;
 
     const form = $('#notifForm', hote);
     const audience = () => ({ cible: form.elements.cible.value, type: form.elements.type.value, proprietaireId: form.elements.proprietaireId.value });
+    const erreurFormulaire = () => {
+      if (form.elements.titre.value.trim().length < 3) return 'Le titre doit contenir au moins 3 caractères.';
+      if (!form.elements.corps.value.trim()) return 'Écrivez le message qui s’affichera sur le téléphone.';
+      return '';
+    };
     let minuterie = null;
     const majApercu = () => {
       const a = audience();
       $('[data-notif-proprietaires]', form).hidden = a.cible !== 'proprietaires';
       $('[data-notif-email]', form).hidden = a.cible === 'tous';
       $('[data-notif-email-note]', form).textContent = a.cible === 'demandeurs' ? '(seulement ceux qui ont accepté de recevoir nos offres)' : '';
-      $('[data-notif-compteur]', form).textContent = `${form.elements.corps.value.length} / 1000`;
+      $('[data-notif-aide-audience]', form).textContent = (AUDIENCES.find(([id]) => id === a.cible) || [])[2] || '';
+      $('[data-compte-titre]', form).textContent = `${form.elements.titre.value.length}/80`;
+      $('[data-compte-corps]', form).textContent = `${form.elements.corps.value.length}/500`;
+      const probleme = erreurFormulaire();
+      $('[data-notif-erreur]', form).textContent = form.dataset.touche ? probleme : '';
       clearTimeout(minuterie);
       minuterie = setTimeout(async () => {
         try {
           const r = await api('/api/admin/notifications/apercu', { method: 'POST', body: JSON.stringify({ titre: 'aperçu', corps: 'aperçu', audience: a }) });
-          const email = a.cible !== 'tous' && form.elements.email.checked ? ` et par ${pluriel(r.emails, 'e-mail')}` : '';
-          const personnes = a.cible !== 'tous' ? ` · ${pluriel(r.personnes, 'personne')} dans cette audience` : '';
-          $('[data-notif-apercu]', form).textContent = `Sera reçue sur ${pluriel(r.telephones, 'téléphone')}${email}${personnes}.`;
+          const email = a.cible !== 'tous' && form.elements.email.checked ? `, et par e-mail à ${pluriel(r.emails, 'contact')}` : '';
+          // Dire aussi qui ne recevra rien : un compte sans appareil joignable
+          // n'est pas une erreur, mais il ne faut pas le croire prévenu.
+          const muets = Math.max(0, (a.cible === 'tous' ? r.telephones : r.personnes) - r.push);
+          const joignables = `${pluriel(r.push, 'appareil')} joignable${r.push > 1 ? 's' : ''} sur ${pluriel(a.cible === 'tous' ? r.telephones : r.personnes, a.cible === 'tous' ? 'téléphone' : 'personne')} dans cette audience${email}.`;
+          $('[data-notif-apercu]', form).textContent = muets
+            ? `${joignables} Les ${muets} autre${muets > 1 ? 's' : ''} n’${muets > 1 ? 'ont' : 'a'} pas encore ouvert l’application sur son téléphone : rien ne lui sera envoyé en direct.`
+            : joignables;
         } catch { /* aperçu indicatif */ }
       }, 250);
     };
     form.addEventListener('input', majApercu);
     form.addEventListener('change', majApercu);
     majApercu();
+
+    // Arrivée depuis la fiche d'une annonce : l'audience et le propriétaire
+    // sont déjà choisis, il ne reste qu'à écrire le message.
+    const pre = gestionMessages.preselection;
+    if (pre) {
+      gestionMessages.preselection = null;
+      form.elements.cible.value = pre.cible || 'tous';
+      if (pre.telephone) {
+        const fin = String(pre.telephone).replace(/\D/g, '').slice(-8);
+        const trouve = fin && d.proprietaires.find(p => [p.telephone, p.whatsapp].some(n => String(n || '').replace(/\D/g, '').endsWith(fin)));
+        if (trouve) form.elements.proprietaireId.value = trouve.id;
+      }
+      majApercu();
+      form.elements.titre.focus();
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
-      if (!form.reportValidity()) return;
+      // Ce qui manque s'écrit sous le bouton, où le regard vient de passer.
+      form.dataset.touche = '1';
+      const probleme = erreurFormulaire();
+      $('[data-notif-erreur]', form).textContent = probleme;
+      if (probleme) { (probleme.includes('titre') ? form.elements.titre : form.elements.corps).focus(); return; }
       const a = audience();
-      const corps = { titre: form.elements.titre.value, corps: form.elements.corps.value, audience: a, email: a.cible !== 'tous' && form.elements.email.checked };
+      const corps = { titre: form.elements.titre.value, corps: form.elements.corps.value, ecran: form.elements.ecran.value, audience: a, email: a.cible !== 'tous' && form.elements.email.checked };
       if (!confirm(`Envoyer « ${corps.titre} » ?\n${$('[data-notif-apercu]', form).textContent}`)) return;
       const bouton = $('button[type="submit"]', form);
       bouton.disabled = true;

@@ -214,7 +214,9 @@ export default function Annonce() {
             </Carte>
           ) : null}
           <TexteLong titre={t('fiche.description')} texte={fiche(v, 'description', langue)} C={C} />
-          <ListeCoches titre={t('fiche.equipements')} elements={[...(v.airConditioning ? [t('fiche.clim')] : []), ...(fiche(v, 'features', langue) || [])]} C={C} />
+          {/* La climatisation est un équipement coché au studio (20/09/2026) :
+              elle arrive dans `features`, sans être ajoutée une seconde fois. */}
+          <ListeCoches titre={t('fiche.equipements')} elements={fiche(v, 'features', langue) || []} C={C} />
           {conditions ? <TexteLong titre={t('louer.conditions')} texte={conditions} C={C} /> : null}
         </>,
         partage: { titre: v.name, texte: t('fiche.partageVoiture', { x: v.name }), url: lienPartage('vehicule', v.id) },

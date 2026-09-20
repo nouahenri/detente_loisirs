@@ -1384,6 +1384,79 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .notif-envoi header time { font-size:.75rem; color:var(--muted, #6b6f80); white-space:nowrap; }
 .notif-envoi p { margin:.35rem 0; font-size:.85rem; line-height:1.45; white-space:pre-line; overflow-wrap:anywhere; }
 .notif-envoi footer { font-size:.75rem; color:var(--muted, #6b6f80); }
+
+/* =====================================================================
+   COMMUNICATION → MESSAGERIE PUSH (refonte du 20/09/2026)
+   Une carte qui se lit de haut en bas : à qui, quoi, où cela ouvre,
+   combien de téléphones, puis le bouton pleine largeur. Mobile d'abord.
+   ===================================================================== */
+.notif-carte { display:grid; gap:.9rem; padding:1.1rem; border:1px solid var(--line); border-radius:18px; background:var(--paper); box-shadow:0 1px 2px rgba(21,24,55,.05); }
+.notif-carte-tete { display:flex; align-items:center; gap:.7rem; padding-bottom:.9rem; border-bottom:1px solid var(--line); }
+.notif-carte-ico { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:#f0f2f9; color:var(--ink); }
+.notif-carte-ico svg { width:20px; height:20px; }
+.notif-carte-tete small { display:block; font-size:.62rem; font-weight:800; letter-spacing:.14em; color:var(--gold); }
+.notif-carte-tete strong { font-size:.98rem; color:var(--ink); }
+.notif-champ { display:grid; grid-template-columns:1fr auto; gap:.35rem; font-size:.82rem; font-weight:700; color:var(--ink); }
+.notif-champ select, .notif-champ input, .notif-champ textarea { grid-column:1 / -1; }
+.notif-champ abbr { grid-column:auto; border:0; text-decoration:none; color:var(--gold); }
+.notif-champ > small { grid-column:1 / -1; font-weight:500; color:var(--muted); }
+.notif-compte { justify-self:end; font-size:.72rem; font-weight:600; color:var(--muted); font-variant-numeric:tabular-nums; }
+.notif-precision { display:grid; gap:.7rem; padding:.85rem; border-radius:14px; background:#f6f7fb; }
+.notif-precision[hidden] { display:none; }
+/* Effectif joignable : une information, pas une alerte — bleu clair, pas d'or. */
+.notif-effectif { margin:0; padding:.75rem .9rem; border-radius:12px; background:#eef4ff; color:#1d3a6b; font-size:.82rem; line-height:1.5; }
+.notif-envoyer { display:flex; align-items:center; justify-content:center; gap:.5rem; width:100%; min-height:48px; }
+.notif-envoyer svg { width:18px; height:18px; }
+.notif-erreur { min-height:1.2em; margin:0; font-size:.78rem; font-weight:700; color:#a3232e; }
+.notif-erreur:not(:empty)::before { content:"⚠ "; }
+.notif-parc { margin:0; font-size:.82rem; color:var(--muted); }
+.notif-parc strong { color:var(--ink); }
+.notif-historique .notif-envoi + .notif-envoi { margin-top:.6rem; }
+
+/* =====================================================================
+   APERÇU D'UNE ANNONCE (20/09/2026) — la fiche telle que le client la voit,
+   ouverte d'un clic sur une ligne de liste, propriétaire compris.
+   ===================================================================== */
+[data-apercu] { cursor:pointer; }
+[data-apercu]:hover { background:#f8f9fc; }
+[data-apercu]:focus-visible { outline:3px solid rgba(232,185,4,.45); outline-offset:-3px; }
+.apercu-drawer .editor-head h2 { margin:.1rem 0 0; }
+.apercu-sous { color:var(--muted); font-size:.82rem; }
+.apercu-corps { display:grid; gap:1rem; }
+.apercu-photo { width:100%; max-height:260px; object-fit:cover; border-radius:16px; background:#f0f2f7; }
+.apercu-masquee { margin:0; padding:.6rem .8rem; border-radius:12px; background:#fff8e1; color:#6b5200; font-size:.82rem; font-weight:700; }
+.apercu-infos { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.6rem .9rem; margin:0; }
+.apercu-infos dt { font-size:.68rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
+.apercu-infos dd { margin:.1rem 0 0; font-size:.92rem; font-weight:700; color:var(--ink); }
+.apercu-accroche { margin:0; font-size:.95rem; font-weight:600; color:var(--ink); }
+.apercu-description { margin:0; font-size:.88rem; line-height:1.6; color:var(--muted); white-space:pre-line; }
+.apercu-equipements h3 { margin:0 0 .4rem; font-size:.82rem; }
+.apercu-equipements ul { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:.25rem .9rem; margin:0; padding:0; list-style:none; font-size:.85rem; }
+.apercu-equipements li::before { content:"✓"; margin-right:.4rem; color:#1f8f5a; font-weight:800; }
+/* Le propriétaire : une zone qui se touche, pas une ligne de texte. */
+.apercu-proprietaire { display:flex; align-items:center; gap:.8rem; width:100%; padding:.9rem; border:1px solid var(--line); border-radius:16px; background:var(--paper); text-align:left; }
+.apercu-proprietaire:hover { border-color:var(--gold); background:#fffdf3; }
+.apercu-proprietaire-vide { display:block; color:var(--muted); font-size:.85rem; line-height:1.5; cursor:default; }
+.apercu-proprietaire-avatar { display:grid; place-items:center; flex:0 0 auto; width:42px; height:42px; border-radius:50%; background:var(--ink); color:#fff; font-weight:800; }
+.apercu-proprietaire-texte { display:grid; gap:.1rem; min-width:0; }
+.apercu-proprietaire-texte small { font-size:.62rem; font-weight:800; letter-spacing:.12em; color:var(--gold); }
+.apercu-proprietaire-texte strong { font-size:.95rem; color:var(--ink); }
+.apercu-proprietaire-texte em { font-style:normal; font-size:.8rem; color:var(--muted); }
+.apercu-proprietaire-fleche { margin-left:auto; font-size:1.4rem; color:var(--muted); }
+.apercu-contact { display:grid; gap:1rem; }
+.apercu-contact-tete { display:flex; align-items:center; gap:.8rem; }
+.apercu-contact-tete small { display:block; font-size:.62rem; font-weight:800; letter-spacing:.12em; color:var(--gold); }
+.apercu-contact-tete strong { display:block; font-size:1.05rem; color:var(--ink); }
+.apercu-contact-tete em { font-style:normal; font-size:.8rem; color:var(--muted); }
+.apercu-actions { display:grid; gap:.6rem; }
+.apercu-action { display:flex; align-items:center; justify-content:center; gap:.5rem; min-height:48px; padding:0 1rem; border:1px solid var(--line); border-radius:14px; background:var(--paper); color:var(--ink); font-size:.9rem; font-weight:800; text-decoration:none; }
+.apercu-action:hover { border-color:var(--ink); }
+.apercu-action-wa { border-color:#1fae55; color:#116b35; }
+.apercu-action-push { border-color:var(--gold); }
+.apercu-vide { margin:0; font-size:.82rem; color:var(--muted); }
+@media (min-width: 620px) {
+  .apercu-actions { grid-template-columns:repeat(3, minmax(0,1fr)); }
+}
 .editor-proprietaire { margin:1rem 0; padding:.9rem 1rem 1rem; border:1px dashed var(--line); border-radius:14px; background:#fbfaf6; }
 .editor-proprietaire legend { padding:0 .35rem; font-size:.82rem; font-weight:800; }
 .editor-proprietaire .compta-aide { margin:.1rem 0 .7rem; }
