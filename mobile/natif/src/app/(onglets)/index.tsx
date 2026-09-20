@@ -157,11 +157,12 @@ export default function Accueil() {
                 <Pressable key={r.segment} onPress={() => allerExplorer(r.segment)} style={({ pressed }) => [s.rubrique, pressed && { transform: [{ scale: 0.95 }] }]}
                   accessibilityRole="button" accessibilityLabel={`${r.nom.replace('\n', ' ')} (${r.nb})`}>
                   <View style={s.rubriqueIcone}><Icone nom={r.icone} taille={20} couleur={C.marque} /></View>
-                  {/* Deux lignes de hauteur fixe : les tuiles restent alignées même
-                      quand le libellé tient sur une seule ligne (« Actus »). */}
+                  {/* Deux lignes réservées au minimum : les tuiles restent alignées
+                      quand le libellé tient sur une seule ligne (« Actus ») comme
+                      quand il en prend trois (« Villa Résidence Meublée »). */}
                   <View style={s.rubriqueNomBloc}>
-                    {r.nom.split('\n').map(ligne => (
-                      <Text key={ligne} style={s.rubriqueNom} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{ligne}</Text>
+                    {r.nom.split('\n').map((ligne, i) => (
+                      <Text key={`${r.segment}-${i}`} style={s.rubriqueNom} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{ligne}</Text>
                     ))}
                   </View>
                   <Text style={s.rubriqueNb}>{r.nb}</Text>
@@ -202,9 +203,9 @@ const feuille = creerStyles(C => ({
   // Cinq rubriques depuis la location de voitures (17/09/2026), libellés sur deux
   // lignes depuis le 20/09/2026 : tuiles et icônes resserrées pour les loger.
   rubriques: { flexDirection: 'row', gap: 5, marginTop: 18 },
-  rubrique: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 3, borderRadius: 16, backgroundColor: C.carte, boxShadow: C.ombre },
+  rubrique: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, paddingHorizontal: 3, borderRadius: 16, backgroundColor: C.carte, boxShadow: C.ombre },
   rubriqueIcone: { width: 36, height: 36, borderRadius: 12, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', marginBottom: 5 },
-  rubriqueNomBloc: { alignSelf: 'stretch', height: 26, justifyContent: 'center' },
+  rubriqueNomBloc: { alignSelf: 'stretch', minHeight: 26, justifyContent: 'center' },
   rubriqueNom: { fontSize: 10.5, lineHeight: 13, fontWeight: '700', color: C.texte, textAlign: 'center' },
   rubriqueNb: { fontSize: 10, fontWeight: '600', color: C.texte3, marginTop: 1 },
 }));

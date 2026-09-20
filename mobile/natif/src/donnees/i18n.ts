@@ -25,7 +25,9 @@ const fr = {
   'rubrique.villas': 'Résidences', 'rubrique.terrains': 'Terrains', 'rubrique.activites': 'Activités', 'rubrique.publications': 'Actus',
   // Boutons de l'accueil et filtres d'Explorer : les mêmes libellés explicites
   // que le menu du site en mobile, coupés en deux lignes (20/09/2026).
-  'tuile.villas': 'Villa Résidence\nMeublée', 'tuile.activites': 'Activités &\nLoisirs',
+  // « Villa Résidence » ne tient pas sur la largeur d'une tuile (un cinquième
+  // d'un écran de téléphone) : ce libellé-là prend trois lignes.
+  'tuile.villas': 'Villa\nRésidence\nMeublée', 'tuile.activites': 'Activités &\nLoisirs',
   'tuile.voitures': 'Location\nVoiture', 'tuile.terrains': 'Vente de\nTerrains', 'tuile.publications': 'Actus',
   'aLaUne': 'À la une', 'toutVoir': 'Tout voir',
 
@@ -273,7 +275,7 @@ const en: Record<CleTexte, string> = {
   'recherche.budget': 'Budget / night', 'recherche.voyageurs': 'Guests', 'recherche.arrivee': 'Check-in date', 'recherche.depart': 'Check-out date',
   'recherche.bouton': 'Search', 'recherche.plus': 'More criteria',
   'rubrique.villas': 'Residences', 'rubrique.terrains': 'Plots', 'rubrique.activites': 'Activities', 'rubrique.publications': 'News',
-  'tuile.villas': 'Furnished Villa\n& Residence', 'tuile.activites': 'Activities &\nLeisure',
+  'tuile.villas': 'Furnished\nResidence', 'tuile.activites': 'Activities &\nLeisure',
   'tuile.voitures': 'Car\nHire', 'tuile.terrains': 'Land for\nSale', 'tuile.publications': 'News',
   'aLaUne': 'Featured', 'toutVoir': 'See all',
   'horsLigne.titre': 'No connection', 'horsLigne.texte': 'Listings could not be loaded. Check your connection and try again.', 'horsLigne.court': 'Try again once you are back online.',
@@ -501,7 +503,7 @@ const es: Record<CleTexte, string> = {
   'recherche.budget': 'Presupuesto / noche', 'recherche.voyageurs': 'Viajeros', 'recherche.arrivee': 'Fecha de llegada', 'recherche.depart': 'Fecha de salida',
   'recherche.bouton': 'Buscar', 'recherche.plus': 'Más criterios',
   'rubrique.villas': 'Residencias', 'rubrique.terrains': 'Terrenos', 'rubrique.activites': 'Actividades', 'rubrique.publications': 'Noticias',
-  'tuile.villas': 'Villa Residencia\nAmueblada', 'tuile.activites': 'Actividades\ny Ocio',
+  'tuile.villas': 'Villa\nResidencia\nAmueblada', 'tuile.activites': 'Actividades\ny Ocio',
   'tuile.voitures': 'Alquiler de\nCoches', 'tuile.terrains': 'Venta de\nTerrenos', 'tuile.publications': 'Noticias',
   'aLaUne': 'Destacados', 'toutVoir': 'Ver todo',
   'horsLigne.titre': 'Sin conexión', 'horsLigne.texte': 'No se pudieron cargar los anuncios. Compruebe su conexión e inténtelo de nuevo.', 'horsLigne.court': 'Inténtelo de nuevo cuando vuelva la red.',
