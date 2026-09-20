@@ -883,7 +883,23 @@
 
   const LEAD_STATUTS = [['nouveau', 'Nouveau'], ['contacte', 'Contacté'], ['confirme', 'Confirmé'], ['archive', 'Archivé']];
 
+  /**
+   * Pastille du menu (20/09/2026) : le nombre de demandes encore à traiter,
+   * visible sans ouvrir la rubrique. Zéro demande, pas de pastille.
+   */
+  function majCompteurDemandes() {
+    const bouton = $('#adminNav [data-view="leads"]');
+    if (!bouton) return;
+    const nombre = (state.leads || []).filter(lead => lead.status === 'nouveau').length;
+    let pastille = $('.nav-compte', bouton);
+    if (!nombre) { pastille?.remove(); return; }
+    if (!pastille) { pastille = document.createElement('span'); pastille.className = 'nav-compte'; bouton.appendChild(pastille); }
+    pastille.textContent = nombre > 99 ? '99+' : nombre;
+    pastille.title = `${nombre} demande${nombre > 1 ? 's' : ''} à traiter`;
+  }
+
   function renderLeads() {
+    majCompteurDemandes();
     const query = state.leadSearch.trim().toLocaleLowerCase('fr');
     const items = state.leads.filter(item => {
       if (state.leadFilter !== 'all' && item.status !== state.leadFilter) return false;
@@ -1200,6 +1216,7 @@
     // wa.me exige l'indicatif pays, sinon le lien n'ouvre aucune conversation.
     const wa = lienWhatsApp(p.whatsapp || p.telephone);
     return `<div class="apercu-contact">
+      <button type="button" class="apercu-retour" data-retour-apercu>‹ Retour à la fiche</button>
       <div class="apercu-contact-tete"><span class="apercu-proprietaire-avatar" aria-hidden="true">${esc((nom || '?').slice(0, 1).toUpperCase())}</span>
         <div><small>PROPRIÉTAIRE</small><strong>${esc(nom)}</strong><em>${esc(resumeAnnonce(kind, item).titre || '')}</em></div></div>
       <dl class="apercu-infos">
@@ -1233,17 +1250,23 @@
           ${item.description ? `<p class="apercu-description">${esc(item.description)}</p>` : ''}
           ${equipements.length ? `<div class="apercu-equipements"><h3>Équipements</h3><ul>${equipements.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}
           ${blocProprietaireApercu(item.proprietaire)}
+          <!-- Avis des visiteurs : même bloc que dans l'éditeur, modération
+               comprise (masquer, supprimer), chargé après l'ouverture. -->
+          <section class="avis-studio apercu-avis" data-avis-apercu><h3>Avis des visiteurs</h3><p class="avis-studio-vide">Chargement…</p></section>
         </div>
         <div class="editor-actions"><button type="button" data-close-editor>Fermer</button>${can('content:write') ? '<button type="button" class="primary" data-modifier-annonce>Modifier</button>' : ''}</div>
       </div></div>`);
     const fond = $('.apercu-backdrop');
     const fermer = () => fond.remove();
+    if (can('content:write')) rendreAvisStudio($('[data-avis-apercu]', fond), kind, item.id);
+    else $('[data-avis-apercu]', fond)?.remove();
     $$('[data-close-editor]', fond).forEach(b => b.addEventListener('click', fermer));
     fond.addEventListener('click', event => { if (event.target === fond) fermer(); });
     $('[data-modifier-annonce]', fond)?.addEventListener('click', () => { fermer(); ouvrirEditeurAnnonce(kind, item); });
     $('[data-ouvrir-proprietaire]', fond)?.addEventListener('click', () => {
       $('.apercu-corps', fond).innerHTML = vueProprietaire(item.proprietaire, kind, item);
-      $('[data-push-proprietaire]', fond)?.addEventListener('click', bouton => {
+      $('[data-retour-apercu]', fond)?.addEventListener('click', () => { fermer(); ouvrirApercuAnnonce(kind, item.id); });
+      $('[data-push-proprietaire]', fond)?.addEventListener('click', () => {
         gestionMessages.preselection = { cible: 'proprietaires', telephone: item.proprietaire.telephone || item.proprietaire.whatsapp || '' };
         gestionMessages.onglet = 'notifications';
         fermer();

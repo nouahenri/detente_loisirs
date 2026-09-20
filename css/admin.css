@@ -22,13 +22,29 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .login-card small { color:var(--muted); line-height:1.5; }
 .login-error { color:var(--ink2) !important; font-size:.8rem; }
 .admin-shell { min-height:100vh; display:grid; grid-template-columns:250px 1fr; }
-.admin-sidebar { position:sticky; top:0; height:100vh; padding:1.3rem; background:var(--ink); color:white; display:flex; flex-direction:column; }
+.admin-sidebar { position:sticky; top:0; height:100vh; padding:1.1rem .9rem; background:#12142f; color:white; display:flex; flex-direction:column; }
 .admin-brand { display:flex; align-items:center; gap:.8rem; color:white; text-decoration:none; font:700 1.1rem/1.05 'Playfair Display',serif; padding:.4rem .5rem 2rem; }
 .admin-brand img { width:42px; height:42px; object-fit:contain; background:white; border-radius:12px; padding:4px; }
-.admin-sidebar nav { display:grid; gap:.35rem; }
-.admin-sidebar nav button { border:0; color:rgba(255,255,255,.65); background:transparent; border-radius:12px; padding:.85rem .9rem; text-align:left; font-weight:700; }
-.admin-sidebar nav button span { display:inline-grid; place-items:center; width:24px; margin-right:.55rem; }
-.admin-sidebar nav button:hover,.admin-sidebar nav button.active { color:#fff; background:rgba(255,255,255,.1); }
+/* =====================================================================
+   BARRE LATÉRALE — modèle « pastille dorée », approuvé le 20/09/2026.
+   Entrées groupées par section, icônes dessinées (les pictogrammes ◈ ⌂ ◱
+   d'avant se lisaient mal et variaient d'une police à l'autre), et l'écran
+   ouvert porté par une pastille or pleine : repérable d'un coup d'œil.
+   ===================================================================== */
+.admin-sidebar nav { display:grid; gap:.14rem; }
+.admin-sidebar .nav-section { margin:.9rem .6rem .25rem; font-size:.58rem; font-weight:800; letter-spacing:.16em; color:rgba(232,185,4,.72); }
+.admin-sidebar .nav-section:first-child { margin-top:0; }
+.admin-sidebar nav button { display:flex; align-items:center; gap:.6rem; width:100%; border:0; border-radius:99px; padding:.6rem .8rem; text-align:left;
+  color:rgba(255,255,255,.66); background:transparent; font-size:.84rem; font-weight:700; }
+.admin-sidebar nav button .nav-ico { display:inline-grid; place-items:center; flex:0 0 auto; width:19px; height:19px; }
+.admin-sidebar nav button .nav-ico svg { width:19px; height:19px; }
+.admin-sidebar nav button:hover { color:#fff; background:rgba(255,255,255,.08); }
+.admin-sidebar nav button.active { color:var(--ink); background:var(--gold); font-weight:800; }
+.admin-sidebar nav button:focus-visible { outline:2px solid var(--gold); outline-offset:2px; }
+/* Compteur (demandes à traiter) : lisible sur les deux fonds. */
+.admin-sidebar nav button .nav-compte { margin-left:auto; min-width:1.2rem; height:1.2rem; padding:0 .32rem; display:grid; place-items:center;
+  border-radius:99px; background:rgba(255,255,255,.16); font-size:.62rem; font-weight:800; }
+.admin-sidebar nav button.active .nav-compte { background:rgba(21,24,55,.18); color:var(--ink); }
 .sidebar-foot { margin-top:auto; display:grid; gap:.6rem; padding:.8rem; border-top:1px solid rgba(255,255,255,.12); }
 .sidebar-foot a,.sidebar-foot button { color:rgba(255,255,255,.7); background:none; border:0; text-decoration:none; text-align:left; font-size:.78rem; }
 .admin-main { min-width:0; padding:0 clamp(1rem,3vw,3rem) 4rem; }
@@ -1203,7 +1219,7 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 
 .admin-sidebar nav .nav-sous-menu { display:grid; gap:.1rem; margin:-.2rem 0 .3rem 1.45rem; padding-left:.7rem; border-left:1px solid rgba(255,255,255,.14); }
 .admin-sidebar nav .nav-sous-menu[hidden] { display:none; }
-.admin-sidebar nav .nav-sous-menu button { padding:.5rem .7rem; border-radius:10px; font-size:.8rem; font-weight:600; color:rgba(255,255,255,.58); }
+.admin-sidebar nav .nav-sous-menu button { padding:.42rem .7rem; border-radius:99px; font-size:.78rem; font-weight:600; color:rgba(255,255,255,.58); }
 .admin-sidebar nav .nav-sous-menu button:hover { color:#fff; background:rgba(255,255,255,.08); }
 .admin-sidebar nav .nav-sous-menu button.active { color:#fff; background:rgba(255,255,255,.1); box-shadow:inset 3px 0 0 var(--gold); }
 
@@ -1454,6 +1470,11 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .apercu-action-wa { border-color:#1fae55; color:#116b35; }
 .apercu-action-push { border-color:var(--gold); }
 .apercu-vide { margin:0; font-size:.82rem; color:var(--muted); }
+.apercu-retour { justify-self:start; padding:.35rem .7rem .35rem 0; border:0; background:none; color:var(--ink); font-size:.8rem; font-weight:800; }
+.apercu-retour:hover { color:var(--gold); }
+/* Avis des visiteurs dans l'aperçu : séparés du reste par un filet. */
+.apercu-avis { padding-top:1rem; border-top:1px solid var(--line); }
+.apercu-avis h3 { margin:0 0 .5rem; font-size:.95rem; }
 @media (min-width: 620px) {
   .apercu-actions { grid-template-columns:repeat(3, minmax(0,1fr)); }
 }
