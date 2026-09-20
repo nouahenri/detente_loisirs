@@ -37,7 +37,7 @@
   <link rel="stylesheet" href="css/premium.css?v=20260912a">
   <link rel="stylesheet" href="css/design-polish.css?v=20260912a">
   <link rel="stylesheet" href="css/terrains.css?v=20260912a">
-  <link rel="stylesheet" href="css/refonte.css?v=20260913r">
+  <link rel="stylesheet" href="css/refonte.css?v=20260920a">
   <link rel="stylesheet" href="css/avis.css?v=20260917b">
 </head>
 <body class="page-accueil">
@@ -94,22 +94,41 @@
   </header>
 
   <!-- 2. Grand Hero (Elevate Estates Style) -->
-  <section class="hero-section" style="background-image: url('assets/images/residence-villa-luxe.jpg');">
+  <!-- Hero en trois scènes (20/09/2026) : résidences, activités, voitures.
+       Les images et les points de navigation sont posés par js/premium.js
+       (initHeroSlider) ; chaque scène a son texte ici, et le diaporama fait
+       défiler l'image ET le texte ensemble. Aucune vidéo : la première image
+       reste celle que le navigateur précharge pour le LCP. -->
+  <section class="hero-section hero-diaporama" style="background-image: url('assets/images/residence-villa-luxe.jpg');">
     <div class="container">
-      <div class="hero-content">
-        <span class="hero-tag" data-i18n="t.trouvez-votre-ecrin-a-assinie">Trouvez Votre Écrin à Assinie</span>
-        <h1 class="hero-title"><span data-i18n="t.la-ou-vos-reves-prennent">Là Où Vos Rêves Prennent</span> <span class="hero-animated-word text-gold">Vie</span></h1>
-        <p class="hero-subtitle" data-i18n="t.decouvrez-des-residences-et-villas">
-          Découvrez des résidences et villas d'exception avec piscine privée, pieds dans l'eau entre lagune et océan pour des vacances et week-ends inoubliables.
-        </p>
-        <div class="hero-cta-group">
-          <a href="residences.html" class="btn btn-forest" data-i18n="t.explorer-les-proprietes">
-            Explorer les Propriétés &rarr;
-          </a>
-          <a href="https://wa.me/2250767696318?text=Bonjour%20!%20Je%20souhaite%20des%20conseils%20pour%20mon%20s%C3%A9jour%20%C3%A0%20Assinie." target="_blank" rel="noopener" class="btn btn-outline-white" data-i18n="t.contacter-un-conseiller">
-            Contacter un Conseiller
-          </a>
-        </div>
+      <div class="hero-content hero-chapitres">
+        <article class="hero-chapitre is-active">
+          <span class="hero-tag" data-i18n="t.trouvez-votre-ecrin-a-assinie">Trouvez Votre Écrin à Assinie</span>
+          <h1 class="hero-title"><span data-i18n="t.la-ou-vos-reves-prennent">Là Où Vos Rêves Prennent</span> <span class="text-gold" data-i18n="t.hero-vie">Vie</span></h1>
+          <p class="hero-subtitle" data-i18n="t.decouvrez-des-residences-et-villas">
+            Découvrez des résidences et villas d'exception avec piscine privée, pieds dans l'eau entre lagune et océan pour des vacances et week-ends inoubliables.
+          </p>
+          <div class="hero-cta-group">
+            <a href="residences.html" class="btn btn-forest" data-i18n="t.explorer-les-proprietes">Explorer les Propriétés &rarr;</a>
+            <a href="https://wa.me/2250767696318?text=Bonjour%20!%20Je%20souhaite%20des%20conseils%20pour%20mon%20s%C3%A9jour%20%C3%A0%20Assinie." target="_blank" rel="noopener" class="btn btn-outline-white" data-i18n="t.contacter-un-conseiller">Contacter un Conseiller</a>
+          </div>
+        </article>
+        <article class="hero-chapitre">
+          <span class="hero-tag" data-i18n="t.hero-activites-tag">Activités &amp; Loisirs</span>
+          <p class="hero-title" role="heading" aria-level="2"><span data-i18n="t.hero-activites-titre">Des Journées Qui</span> <span class="text-gold" data-i18n="t.hero-activites-mot">Marquent</span></p>
+          <p class="hero-subtitle" data-i18n="t.hero-activites-texte">Jet-ski, quad, excursions en pirogue, pêche au gros : l'aventure commence au bout du ponton.</p>
+          <div class="hero-cta-group">
+            <a href="loisirs.html" class="btn btn-forest" data-i18n="t.hero-activites-bouton">Voir les Activités &rarr;</a>
+          </div>
+        </article>
+        <article class="hero-chapitre">
+          <span class="hero-tag" data-i18n="t.hero-voitures-tag">Location de Voitures</span>
+          <p class="hero-title" role="heading" aria-level="2"><span data-i18n="t.hero-voitures-titre">Abidjan &#8646; Assinie,</span> <span class="text-gold" data-i18n="t.hero-voitures-mot">Sans Souci</span></p>
+          <p class="hero-subtitle" data-i18n="t.hero-voitures-texte">Avec ou sans chauffeur, livrée à l'adresse de votre choix, kilométrage illimité.</p>
+          <div class="hero-cta-group">
+            <a href="voitures.html" class="btn btn-forest" data-i18n="t.hero-voitures-bouton">Réserver un Véhicule &rarr;</a>
+          </div>
+        </article>
       </div>
     </div>
   </section>
@@ -649,11 +668,11 @@
   </a>
 
   <!-- Scripts -->
-  <script src="js/i18n.js?v=20260919b"></script>
+  <script src="js/i18n.js?v=20260920a"></script>
   <script src="js/data.js?v=20260912a"></script>
   <script src="js/app.js?v=20260919b"></script>
   <script src="js/avis.js?v=20260919a"></script>
-  <script src="js/premium.js?v=20260913g"></script>
+  <script src="js/premium.js?v=20260920a"></script>
   <script src="js/pwa.js?v=20260914a" defer></script>
 </body>
 </html>

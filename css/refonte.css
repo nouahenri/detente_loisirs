@@ -569,6 +569,50 @@ iframe {
   color: rgba(255, 255, 255, 0.92) !important;
 }
 
+/* ==========================================================================
+   HERO EN TROIS SCÈNES (20/09/2026)
+   Résidences, activités, voitures. Les images, les points de navigation et le
+   rythme (6,2 s) viennent du diaporama déjà en place — js/premium.js,
+   initHeroSlider — qui posait jusqu'ici trois vues sous un texte fixe. Le
+   texte change maintenant avec l'image : un « chapitre » par scène, tous dans
+   la même case de grille pour qu'aucun ne décale la page.
+   ========================================================================== */
+.hero-chapitres { display: grid; }
+.hero-chapitre {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(14px);
+  transition: opacity 620ms ease, transform 620ms cubic-bezier(.2, .75, .25, 1), visibility 620ms;
+}
+.hero-chapitre.is-active { opacity: 1; visibility: visible; transform: none; }
+/* Un paragraphe qui joue le rôle d'un titre garde l'allure du <h1>. */
+.hero-chapitre p.hero-title { margin: var(--e-4) 0 var(--e-5); }
+
+/* Voile de lisibilité : les trois images n'ont ni la même luminosité ni le
+   même sujet, et le texte blanc doit rester lisible sur chacune. */
+.hero-diaporama::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 10, 26, .74) 0%, rgba(8, 10, 26, .6) 55%, rgba(8, 10, 26, .5) 100%);
+}
+.hero-diaporama > .container { position: relative; z-index: 3; }
+
+@media (min-width: 768px) {
+  .hero-diaporama::after {
+    background: linear-gradient(95deg, rgba(8, 10, 26, .86) 0%, rgba(8, 10, 26, .62) 44%, rgba(8, 10, 26, .2) 78%, rgba(8, 10, 26, .05) 100%);
+  }
+}
+
+/* Moins de mouvement demandé : le texte apparaît sans glisser. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-chapitre { transition: opacity 200ms ease, visibility 200ms; transform: none; }
+}
+}
+
 /* --------------------------------------------------------------------------
    D.2 — Voile de lisibilité
    Problème constaté : premium.css neutralisait tout assombrissement

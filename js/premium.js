@@ -61,25 +61,40 @@ function texteFiche(item, champ) {
   function initHeroSlider() {
     const hero = $('.hero-section');
     if (!hero) return;
+    /* Trois scènes (20/09/2026) : résidences, activités, voitures. Chacune a
+       son texte dans la page (`.hero-chapitre`) : le diaporama fait défiler
+       l'image ET le texte ensemble, plutôt qu'une image sous un texte fixe. */
     const slides = [
       { image: 'assets/images/residence-villa-luxe.jpg', cle: 'js.slideVillas', label: 'Villas signature' },
-      { image: 'assets/images/residence-ocean-assinie.jpg', cle: 'js.slideOcean', label: 'Océan Atlantique' },
-      { image: 'assets/images/banner-loisirs.jpg', cle: 'js.slideExperiences', label: 'Expériences privées' }
+      { image: 'assets/images/banner-loisirs.jpg', cle: 'js.slideExperiences', label: 'Expériences privées' },
+      { image: 'assets/images/banner-voitures.jpg', cle: 'js.slideVoitures', label: 'Location de voitures' }
     ];
     hero.style.backgroundImage = 'none';
+    // Un fragment, puis un seul `prepend` : trois `prepend` successifs
+    // rangeaient les couches à l'envers, et l'image affichée ne correspondait
+    // ni à son libellé ni à son point (corrigé le 20/09/2026).
+    const couches = document.createDocumentFragment();
     slides.forEach((slide, index) => {
       const layer = document.createElement('div');
       layer.className = `hero-media-layer${index === 0 ? ' is-active' : ''}`;
       layer.style.backgroundImage = `url('${slide.image}')`;
       layer.setAttribute('aria-hidden', 'true');
-      hero.prepend(layer);
+      couches.appendChild(layer);
     });
+    hero.prepend(couches);
     hero.insertAdjacentHTML('beforeend', `<div class="hero-slider-ui"><span class="hero-slide-label" data-i18n="${slides[0].cle}">${slides[0].label}</span>${slides.map((_, i) => `<button class="hero-dot${i === 0 ? ' is-active' : ''}" aria-label="Afficher la vue ${i + 1}" data-slide="${i}"></button>`).join('')}</div>`);
     let active = 0;
     let timer;
     const setSlide = index => {
       active = index;
       $$('.hero-media-layer', hero).forEach((layer, i) => layer.classList.toggle('is-active', i === active));
+      // Le texte suit l'image : un chapitre par scène, le premier par défaut
+      // si la page n'en compte qu'un (autres pages que l'accueil).
+      const chapitres = $$('.hero-chapitre', hero);
+      if (chapitres.length > 1) chapitres.forEach((chapitre, i) => {
+        chapitre.classList.toggle('is-active', i === active % chapitres.length);
+        chapitre.setAttribute('aria-hidden', String(i !== active % chapitres.length));
+      });
       $$('.hero-dot', hero).forEach((dot, i) => {
         dot.classList.toggle('is-active', i === active);
         dot.setAttribute('aria-pressed', String(i === active));
