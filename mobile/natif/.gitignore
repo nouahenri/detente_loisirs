@@ -17,6 +17,10 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+# Clé de signature Android téléchargée depuis EAS (20/09/2026) : elle n'a pas
+# d'extension, les règles ci-dessus ne l'attrapaient pas. À garder hors du
+# dépôt — et sauvegardée ailleurs : sans elle, plus de mise à jour sur Google Play.
+detente_loisirs
 
 # Metro
 .metro-health-check*
