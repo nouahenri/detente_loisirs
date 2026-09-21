@@ -3151,7 +3151,10 @@ async function handleApi(req, res, url) {
     // entrée utilisée se désactive au lieu de se supprimer.
     const usages = Object.fromEntries(REF.TYPES.map(type => [type,
       Object.fromEntries(referentiels[type].map(entree => [entree.id, REF.compterUsages(type, entree.id, biens)]))]));
-    return json(res, 200, { ok: true, referentiels, usages });
+    // Table de référentiel absente en base : le studio le signale (21/09/2026).
+    const repo = loadRepository();
+    const tablesManquantes = repo && typeof repo.tablesReferentielsManquantes === 'function' ? repo.tablesReferentielsManquantes() : [];
+    return json(res, 200, { ok: true, referentiels, usages, tablesManquantes });
   }
 
   // Le tiret est admis dans le type : « equipements-voiture » (19/09/2026).

@@ -175,13 +175,33 @@ function repoReferentiels(repondre) {
     bool: v => (v ? 1 : 0)
   });
   vm.runInContext(`${repository.slice(debut, fin)}
-    this.lister = listReferentiels; this.enregistrer = saveReferentiel; this.ordonner = ordonnerReferentiel; this.supprimer = deleteReferentiel;`, contexte);
+    this.lister = listReferentiels; this.enregistrer = saveReferentiel; this.ordonner = ordonnerReferentiel; this.supprimer = deleteReferentiel;
+    this.manquantes = tablesReferentielsManquantes;`, contexte);
   return { ...contexte, requetes };
 }
 
 test('tables absentes (migration pas encore passée) : null, pas d’exception', async () => {
   const r = repoReferentiels(() => { throw Object.assign(new Error('no table'), { code: 'ER_NO_SUCH_TABLE', errno: 1146 }); });
   assert.equal(await r.lister(), null);
+});
+
+test('une table absente ne masque plus les autres : localisations lues en base, table signalée (21/09/2026)', async () => {
+  // Production du 21/09/2026 : ref_equipements_voiture manquait, et les 9
+  // localisations de la base cédaient la place aux 6 du miroir JSON.
+  const r = repoReferentiels(sql => {
+    if (/ref_equipements_voiture/.test(sql)) throw Object.assign(new Error('no table'), { code: 'ER_NO_SUCH_TABLE', errno: 1146 });
+    if (/ref_localisations/.test(sql)) return [[{ id: 'adiake', nom: 'Adiaké', ordre: 7, actif: 1 }, { id: 'bonoua', nom: 'Bonoua', ordre: 8, actif: 1 }]];
+    return [[]];
+  });
+  const refs = hote(await r.lister());
+  assert.deepEqual(refs.localisations.map(l => l.nom), ['Adiaké', 'Bonoua']);
+  assert.equal(refs['equipements-voiture'], undefined, 'le type sans table reçoit ses valeurs initiales à la normalisation');
+  assert.deepEqual(hote(r.manquantes()), ['ref_equipements_voiture']);
+  const normalises = REF.normaliserReferentiels(refs);
+  assert.deepEqual(normalises.localisations.map(l => l.id), ['adiake', 'bonoua']);
+  assert.equal(normalises['equipements-voiture'].length, REF.DEFAUTS['equipements-voiture'].length);
+  assert.match(server, /tablesManquantes = repo && typeof repo\.tablesReferentielsManquantes === 'function'/);
+  assert.match(lire('js/admin.js'), /state\.refTablesManquantes = detail\.tablesManquantes \|\| \[\]/);
 });
 
 test('lecture : statuts identifiés par « cible:code », libellés en trois langues', async () => {

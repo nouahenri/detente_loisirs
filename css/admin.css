@@ -737,6 +737,8 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 /* Les onglets des référentiels suivent le modèle commun du studio
    (.onglets-nav, 19/09/2026) : plus rien de spécifique ici. */
 .ref-aide { margin: 0 0 1rem; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+.ref-alerte { margin: 0 0 1rem; padding: .75rem 1rem; border-radius: 12px; background: #fdecea; color: #8a1c12; font-size: .8rem; font-weight: 600; line-height: 1.5; }
+.ref-alerte[hidden] { display: none; }
 
 /* Vue compacte (demande du 13/09/2026) : une entrée de référentiel est une
    ligne de liste, pas une fiche. La hauteur minimale de 92 px de .table-row

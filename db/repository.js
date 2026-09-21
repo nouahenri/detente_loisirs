@@ -487,22 +487,32 @@ function referentielDepuisLigne(type, row) {
   return { id: row.id, libelle, ordre: Number(row.ordre) || 0, actif: Boolean(row.actif) };
 }
 
+/** Tables de référentiels absentes à la dernière lecture (migration pas encore importée). */
+let referentielsSansTable = [];
+const tablesReferentielsManquantes = () => [...referentielsSansTable];
+
 /**
- * Tous les référentiels. `null` si les tables n'existent pas encore :
- * server.js se replie alors sur le miroir JSON, puis sur les valeurs initiales.
+ * Tous les référentiels, table par table. Une table absente ne prive plus
+ * les autres de la base (21/09/2026) : ref_equipements_voiture manquait en
+ * production et les localisations ajoutées au studio n'étaient plus lues —
+ * le serveur servait son miroir JSON. Le type sans table reçoit ses valeurs
+ * initiales (REF.normaliserReferentiels) et le studio signale la table.
+ * `null` seulement si AUCUNE table n'existe : repli sur le miroir JSON.
  */
 async function listReferentiels() {
   const resultat = {};
-  try {
-    for (const [type, table] of Object.entries(TABLES_REFERENTIELS)) {
+  const manquantes = [];
+  for (const [type, table] of Object.entries(TABLES_REFERENTIELS)) {
+    try {
       const [rows] = await query(`SELECT * FROM \`${table}\` ORDER BY ordre ASC`);
       resultat[type] = rows.map(row => referentielDepuisLigne(type, row));
+    } catch (error) {
+      if (!tableAbsente(error)) throw error;
+      manquantes.push(table);
     }
-  } catch (error) {
-    if (tableAbsente(error)) return null;
-    throw error;
   }
-  return resultat;
+  referentielsSansTable = manquantes;
+  return manquantes.length === Object.keys(TABLES_REFERENTIELS).length ? null : resultat;
 }
 
 /** Crée ou met à jour une entrée déjà validée (normaliserEntree). */
@@ -1087,7 +1097,7 @@ module.exports = {
   listVillas, listTerrains, getTerrain, listActivities, listVehicles, listReviews, listFaq,
   getSettings, saveSettings,
   // référentiels
-  listReferentiels, saveReferentiel, ordonnerReferentiel, deleteReferentiel, semerReferentiels,
+  listReferentiels, tablesReferentielsManquantes, saveReferentiel, ordonnerReferentiel, deleteReferentiel, semerReferentiels,
   // leads
   listLeads, createLead, updateLead, deleteLeads,
   // facebook

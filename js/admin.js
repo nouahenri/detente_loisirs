@@ -332,7 +332,7 @@
     state.referentiels = managed.referentiels || null;
     if (can('content:write')) {
       const detail = await api('/api/admin/referentiels').catch(() => null);
-      if (detail) { state.referentiels = detail.referentiels; state.refUsages = detail.usages || {}; }
+      if (detail) { state.referentiels = detail.referentiels; state.refUsages = detail.usages || {}; state.refTablesManquantes = detail.tablesManquantes || []; }
     }
     state.content = {
       villas: managed.villas?.length ? managed.villas : structuredClone(VILLAS_DATA),
@@ -721,6 +721,17 @@
       bouton.setAttribute('aria-selected', String(actif));
     });
     $('#refAide').textContent = AIDES_REFERENTIELS[type];
+    // Table absente en base (21/09/2026) : sans ce message, la liste montrait ses
+    // valeurs initiales et rien n'expliquait pourquoi les ajouts n'apparaissaient pas.
+    const alerte = $('#refAlerte');
+    if (alerte) {
+      const typeDeTable = { ref_localisations: 'localisations', ref_categories: 'categories', ref_equipements: 'equipements', ref_equipements_voiture: 'equipements-voiture', ref_badges: 'badges', ref_statuts: 'statuts' };
+      const manquantes = (state.refTablesManquantes || []).map(table => `« ${TYPES_REFERENTIELS[typeDeTable[table]] || table} » (table ${table})`);
+      alerte.hidden = !manquantes.length;
+      alerte.textContent = manquantes.length
+        ? `Base de données incomplète : ${manquantes.join(', ')} ${manquantes.length > 1 ? 'n’existent' : 'n’existe'} pas. Ces listes montrent leurs valeurs initiales et ne peuvent pas être enregistrées tant que la migration correspondante (dossier db/) n’est pas importée dans phpMyAdmin.`
+        : '';
+    }
     $('#refNouveauBtn').hidden = type === 'statuts';
 
     const usages = state.refUsages?.[type] || {};
@@ -880,7 +891,7 @@
   async function actualiserReferentiels(referentiels) {
     state.referentiels = referentiels;
     const detail = await api('/api/admin/referentiels').catch(() => null);
-    if (detail) { state.referentiels = detail.referentiels; state.refUsages = detail.usages || {}; }
+    if (detail) { state.referentiels = detail.referentiels; state.refUsages = detail.usages || {}; state.refTablesManquantes = detail.tablesManquantes || []; }
     renderReferentiels(); renderVillas(); renderTerrains(); renderActivities();
   }
 
