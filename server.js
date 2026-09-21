@@ -892,6 +892,8 @@ function validateAndSanitizeContent(payload, referentiels = REF.normaliserRefere
         : (categorieBrute === 'ocean' ? 'ocean' : categorieBrute === 'lagune' ? 'lagune' : 'terre'),
       categoryLabel: text(item?.categoryLabel, 80), location: text(item?.location, 240),
       description: text(item?.description, 8000), pricePerNight, priceEuro: Math.round(pricePerNight / 655.957),
+      // Tarif de la villa entière ou d'une chambre (21/09/2026) : le devis multiplie par le nombre de chambres.
+      priceUnit: item?.priceUnit === 'chambre' ? 'chambre' : 'villa',
       weekendPackage: positiveNumber(item?.weekendPackage, 0, 100_000_000), capacity: numberBetween(item?.capacity, 1, 100, 1),
       bedrooms: numberBetween(item?.bedrooms, 1, 50, 1), bathrooms: numberBetween(item?.bathrooms, 1, 50, 1),
       visible: item?.visible !== false, featured: Boolean(item?.featured), badge: text(item?.badge, 80),

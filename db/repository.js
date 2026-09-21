@@ -129,6 +129,8 @@ function villaFromRow(row) {
     equipements: parseArray(row.equipements),
     description: row.description || '',
     pricePerNight: Number(row.price_per_night),
+    // Tarif de la villa entière, ou d'une chambre (db/migration-prix-par-chambre.sql).
+    priceUnit: row.price_unit === 'chambre' ? 'chambre' : 'villa',
     priceEuro: Number(row.price_euro),
     weekendPackage: Number(row.weekend_package),
     capacity: Number(row.capacity),
@@ -156,16 +158,16 @@ function villaFromRow(row) {
 }
 
 const VILLA_UPSERT = `INSERT INTO villas
-  (id, name, tagline, category, category_label, environment, location, description, price_per_night, price_euro,
+  (id, name, tagline, category, category_label, environment, location, description, price_per_night, price_unit, price_euro,
    weekend_package, capacity, bedrooms, bathrooms, beds, status, badge, visible, featured,
    rating, reviews_count, images, features, highlights, sort_order,
    localisation_id, localisation_precision, badge_id, equipements, translations, etat, facebook, proprietaire)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   ON DUPLICATE KEY UPDATE
     name=VALUES(name), tagline=VALUES(tagline), category=VALUES(category),
     category_label=VALUES(category_label), environment=VALUES(environment),
     location=VALUES(location), description=VALUES(description),
-    price_per_night=VALUES(price_per_night), price_euro=VALUES(price_euro),
+    price_per_night=VALUES(price_per_night), price_unit=VALUES(price_unit), price_euro=VALUES(price_euro),
     weekend_package=VALUES(weekend_package), capacity=VALUES(capacity), bedrooms=VALUES(bedrooms),
     bathrooms=VALUES(bathrooms), beds=VALUES(beds), status=VALUES(status), badge=VALUES(badge),
     visible=VALUES(visible), featured=VALUES(featured), rating=VALUES(rating),
@@ -179,7 +181,7 @@ function villaParams(item, index) {
   return [
     item.id, item.name || '', item.tagline || '', item.category || '', item.categoryLabel || '',
     item.environment || 'terre', item.location || '', item.description || '', Math.round(Number(item.pricePerNight) || 0),
-    Math.round(Number(item.priceEuro) || 0), Math.round(Number(item.weekendPackage) || 0),
+    item.priceUnit === 'chambre' ? 'chambre' : 'villa', Math.round(Number(item.priceEuro) || 0), Math.round(Number(item.weekendPackage) || 0),
     Number(item.capacity) || 1, Number(item.bedrooms) || 1, Number(item.bathrooms) || 1,
     item.beds || '', item.status || 'disponible', item.badge || '',
     bool(item.visible !== false), bool(item.featured),

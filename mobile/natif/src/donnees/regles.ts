@@ -67,6 +67,7 @@ function normaliserVilla(item: any): Villa {
     name: String(item.name || ''),
     capacity: nombreOu(item.capacity), bedrooms: nombreOu(item.bedrooms), bathrooms: nombreOu(item.bathrooms),
     pricePerNight: nombreOu(item.pricePerNight), priceEuro: nombreOu(item.priceEuro),
+    priceUnit: item.priceUnit === 'chambre' ? 'chambre' : 'villa',
     weekendPackage: nombreOu(item.weekendPackage), rating: nombreOu(item.rating, 5), reviewsCount: nombreOu(item.reviewsCount),
     images: images.length ? images : ['assets/images/residence-villa-luxe.jpg'],
     features: textes(item.features), highlights: textes(item.highlights),
@@ -318,6 +319,9 @@ export const photosPublication = (post: Publication) =>
 // ---------------------------------------------------------------------------
 // Messages WhatsApp (mêmes textes que le site)
 // ---------------------------------------------------------------------------
+/** Villa ou résidence facturée par chambre : le tarif vaut une chambre par nuit (21/09/2026). */
+export const parChambre = (v: Villa | null | undefined) => Boolean(v && v.priceUnit === 'chambre');
+
 export const messageVilla = (v: Villa) =>
   `Bonjour Détente & Loisirs à Assinie ! Je souhaite avoir des informations et réserver la villa : ${v.name} (${v.location}). Pouvez-vous me confirmer les disponibilités ?`;
 export const messageTerrain = (t: Terrain) =>
@@ -337,6 +341,8 @@ export const VOYAGEURS = ['2', '4', '6', '8', '10', '12', '15+'];
 
 export type Devis = {
   pret: boolean; etape: number; mode: 'sejour' | 'activites' | 'voiture'; filtre: string; villaId: string;
+  /** Chambres réservées quand la résidence est facturée par chambre (21/09/2026). */
+  chambres: number;
   arrivee: string; depart: string; voyageurs: string; activites: string[];
   /** Voiture facultative (séjour, activités) ou seule (formule « voiture »), 19/09/2026. */
   voiture: SaisieVoiture;
@@ -344,7 +350,7 @@ export type Devis = {
 };
 
 export const devisVide = (): Devis => ({
-  pret: false, etape: 1, mode: 'sejour', filtre: 'all', villaId: '', arrivee: '', depart: '', voyageurs: '8',
+  pret: false, etape: 1, mode: 'sejour', filtre: 'all', villaId: '', chambres: 1, arrivee: '', depart: '', voyageurs: '8',
   activites: [], nom: '', tel: '', email: '', optin: false, suiviNotif: true, voiture: saisieVoitureInitiale(undefined),
 });
 
@@ -414,13 +420,18 @@ export function changerFormule(d: Donnees, devis: Devis, mode: Devis['mode'], ga
   return {
     mode,
     villaId: '',
+    chambres: 1,
     activites: garder ? repris.activites : [],
     voiture: garder && repris.vehiculeId ? devis.voiture : saisieVoitureInitiale(d.location),
   };
 }
 
 /** « Tout effacer » et après un envoi : plus aucun choix chiffré, la formule reste. */
-export const choixEffaces = (d: Donnees): Partial<Devis> => ({ villaId: '', activites: [], voiture: saisieVoitureInitiale(d.location) });
+export const choixEffaces = (d: Donnees): Partial<Devis> => ({ villaId: '', chambres: 1, activites: [], voiture: saisieVoitureInitiale(d.location) });
+
+/** Chambres comptées : 1 à « Chambres » de la fiche ; toujours 1 pour une villa louée entière. */
+export const chambresDuDevis = (villa: Villa | null, devis: Devis) =>
+  parChambre(villa) && villa ? Math.min(Math.max(1, villa.bedrooms || 1), Math.max(1, Math.round(devis.chambres) || 1)) : 1;
 
 type Prix ={ montant: number; parJour: boolean; parPersonne: boolean; forfaitGroupe: { montant: number; taille: number } | null };
 
@@ -484,7 +495,9 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
   const villa = sansResidence ? null : (d.villas.find(v => v.id === devis.villaId) || null);
   let jours = Math.ceil((new Date(devis.depart).getTime() - new Date(devis.arrivee).getTime()) / 86400000);
   if (Number.isNaN(jours) || jours < 1) jours = 1;
-  const sousTotalVilla = sansResidence || !villa ? 0 : villa.pricePerNight * jours;
+  // Résidence facturée par chambre : tarif × chambres × nuits.
+  const chambres = chambresDuDevis(villa, devis);
+  const sousTotalVilla = sansResidence || !villa ? 0 : villa.pricePerNight * chambres * jours;
   const personnes = parseInt(devis.voyageurs, 10) || 1;
 
   let totalActivites = 0;
@@ -542,7 +555,7 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
     ? ''
     : sansResidence
       ? `🎯 Formule : Activités uniquement (sans hébergement)\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} journée${jours > 1 ? 's' : ''})\n`
-      : `📍 Résidence : ${villa ? villa.name : ''}\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} nuit${jours > 1 ? 's' : ''})\n`;
+      : `📍 Résidence : ${villa ? villa.name : ''}${parChambre(villa) ? ` (${chambres} chambre${chambres > 1 ? 's' : ''})` : ''}\n📅 Dates : Du ${devis.arrivee} au ${devis.depart} (${jours} nuit${jours > 1 ? 's' : ''})\n`;
   const cloture = voitureSeule
     ? 'Pouvez-vous me confirmer la disponibilité du véhicule ? Merci !'
     : sansResidence
@@ -558,7 +571,7 @@ ${lignesContact}${ligneSejour}${lignesSejour}${ligneVoiture}💰 Estimation Tota
 ${cloture}`;
 
   return {
-    voitureSeule, sansResidence, villa, jours, personnes, sousTotalVilla, totalActivites, lignes, total, totalEuro,
+    voitureSeule, sansResidence, villa, chambres, jours, personnes, sousTotalVilla, totalActivites, lignes, total, totalEuro,
     voiture: avecVoiture && vehicule && estimation ? { vehicule, saisie, estimation, montant: montantVoiture } : null,
     lien: lienWhatsApp(message),
     // Même contenu que la demande du simulateur du site (POST /api/leads).
@@ -569,7 +582,7 @@ ${cloture}`;
       villa: voitureSeule ? '' : sansResidence ? 'Activités uniquement' : (villa ? villa.name : ''),
       dates: voitureSeule ? `${saisie.debutJour} ${saisie.debutHeure} → ${saisie.finJour} ${saisie.finHeure}` : `${devis.arrivee} → ${devis.depart}`,
       amount: total,
-      message: voitureSeule ? '' : `${devis.voyageurs} voyageur(s) · ${options.join(', ') || 'Sans option'}`,
+      message: voitureSeule ? '' : `${devis.voyageurs} voyageur(s) · ${parChambre(villa) ? `${chambres} chambre(s) · ` : ''}${options.join(', ') || 'Sans option'}`,
       source: 'app',
       ...(vehicule ? {
         location: { vehicule: vehicule.id, ...demandeDeSaisie(saisie), conditionsConducteur: saisie.attestation, montant: montantVoiture },

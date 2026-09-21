@@ -152,6 +152,16 @@
                et tarifs se relisent sans quitter le devis en cours. -->
           <a id="simVillaFiche" class="sim-fiche-lien" href="residences.html" hidden
              data-i18n="t.voir-la-fiche-de-la-residence">Voir la fiche de la résidence ↗</a>
+          <!-- Rempli par js/app.js quand l'envoi est demandé sans résidence choisie. -->
+          <p id="simVillaAlerte" class="sim-contact-alerte" role="alert" hidden></p>
+          <!-- Résidence facturée par chambre (21/09/2026) : nombre de chambres,
+               de 1 à celui de la fiche. Rempli et affiché par js/app.js. -->
+          <div id="simChambresField" style="margin-top: 0.9rem;" hidden>
+            <label for="simChambres" style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 0.4rem;" data-i18n="t.nombre-de-chambres">
+              Nombre de chambres :
+            </label>
+            <select id="simChambres" class="form-control" style="width: 100%;" disabled></select>
+          </div>
         </div>
 
         <div class="simulator-date-grid" id="simDatesField" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.2rem;">
@@ -441,11 +451,11 @@
   </a>
 
   <!-- Scripts -->
-  <script src="js/i18n.js?v=20260920c"></script>
+  <script src="js/i18n.js?v=20260921a"></script>
   <script src="js/data.js?v=20260912a"></script>
   <script src="js/location-voitures.js?v=20260919b"></script>
   <script src="js/devis-voiture.js?v=20260920d"></script>
-  <script src="js/app.js?v=20260920e"></script>
+  <script src="js/app.js?v=20260921a"></script>
   <script src="js/premium.js?v=20260920b"></script>
   <script src="js/pwa.js?v=20260914a" defer></script>
 </body>

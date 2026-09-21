@@ -18,6 +18,8 @@ export type Villa = {
   id: string; name: string; tagline?: string; category?: string; categoryLabel?: string; environment?: string;
   location?: string; localisationId?: string; badgeId?: string; badge?: string; equipements?: string[];
   description?: string; pricePerNight: number; priceEuro: number; weekendPackage: number;
+  /** Tarif de la villa entière (défaut) ou d'une chambre, par nuit (21/09/2026). */
+  priceUnit?: 'villa' | 'chambre';
   capacity: number; bedrooms: number; bathrooms: number; beds?: string; status?: string;
   visible?: boolean; featured?: boolean; rating: number; reviewsCount: number;
   images: string[]; features: string[]; highlights: string[];

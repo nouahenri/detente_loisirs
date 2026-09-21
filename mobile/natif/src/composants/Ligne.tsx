@@ -11,7 +11,7 @@ import { dateCourte, type Langue, type Traduire } from '@/donnees/i18n';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
 import {
-  cadreVilla, CRITERES_HORS_THEME, estIndisponible, estNombre, fcfa, fiche, libelle, nombre,
+  cadreVilla, CRITERES_HORS_THEME, estIndisponible, estNombre, fcfa, fiche, libelle, nombre, parChambre,
   photosPublication, tarifActivite, titrePublication, uniteActivite,
 } from '@/donnees/regles';
 import { creerStyles } from '@/donnees/theme';
@@ -133,7 +133,7 @@ export function modeleVilla(v: Villa, { refs, t, langue }: Contexte): Modele {
       v.bedrooms > 0 ? ['bed-outline', t('ligne.ch', { n: v.bedrooms })] : null,
       v.bathrooms > 0 ? ['water-outline', t('ligne.sdb', { n: v.bathrooms })] : null,
     ]),
-    prix: v.pricePerNight > 0 ? { montant: fcfa(v.pricePerNight), unite: t('ligne.parNuit') } : { texte: t('ligne.surDemande') },
+    prix: v.pricePerNight > 0 ? { montant: fcfa(v.pricePerNight), unite: t(parChambre(v) ? 'ligne.parChambreNuit' : 'ligne.parNuit') } : { texte: t('ligne.surDemande') },
     valeurPrix: v.pricePerNight || null, valeurTaille: v.capacity || null,
   };
 }

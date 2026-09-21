@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS `villas` (
   `localisation_precision` VARCHAR(240) NOT NULL DEFAULT '',
   `description`     TEXT            NULL,
   `price_per_night` BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  `price_unit`      VARCHAR(16)     NOT NULL DEFAULT 'villa' COMMENT 'villa : prix de la villa entière ; chambre : prix par chambre',
   `price_euro`      INT UNSIGNED    NOT NULL DEFAULT 0,
   `weekend_package` BIGINT UNSIGNED NOT NULL DEFAULT 0,
   `capacity`        SMALLINT UNSIGNED NOT NULL DEFAULT 1,

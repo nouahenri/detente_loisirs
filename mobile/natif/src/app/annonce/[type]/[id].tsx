@@ -21,7 +21,7 @@ import { dateLongue } from '@/donnees/i18n';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
 import {
-  cadreVilla, changerFormule, CRITERES_HORS_THEME, estIndisponible, estNombre, euro, fcfa, fiche, libelle, lienWhatsApp,
+  cadreVilla, changerFormule, CRITERES_HORS_THEME, parChambre, estIndisponible, estNombre, euro, fcfa, fiche, libelle, lienWhatsApp,
   messageActivite, messagePublication, messageTerrain, messageVilla, nombre, photosPublication,
   tarifActivite, titrePublication, uniteActivite, VIABILISATION,
 } from '@/donnees/regles';
@@ -97,7 +97,7 @@ export default function Annonce() {
           <ListeCoches titre={t('fiche.pointsForts')} elements={fiche(v, 'highlights', langue)} C={C} />
         </>,
         partage: { titre: v.name, texte: t('fiche.partageVilla', { x: v.name }), url: lienPartage('villa', v.id) },
-        prix: v.pricePerNight > 0 ? { montant: fcfa(v.pricePerNight), detail: t('fiche.parNuitEuro', { x: euro(v.priceEuro || v.pricePerNight / TAUX_EUR) }) } : null,
+        prix: v.pricePerNight > 0 ? { montant: fcfa(v.pricePerNight), detail: t(parChambre(v) ? 'fiche.parChambreNuitEuro' : 'fiche.parNuitEuro', { x: euro(v.priceEuro || v.pricePerNight / TAUX_EUR) }) } : null,
         actions: <>
           <Bouton texte={t('fiche.devis')} variante="contour" desactive={indispo} onPress={() => allerAuDevis(d => ({
             // Autre formule en cours : nouvelle demande, rien d'ancien ne s'ajoute en silence (21/09/2026).

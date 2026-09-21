@@ -155,6 +155,9 @@ function stringListOr(value, fallback = []) {
   return list.filter(item => typeof item === "string" && item.trim()).map(item => item.trim());
 }
 
+/** Villa ou résidence facturée par chambre : le tarif vaut une chambre par nuit (21/09/2026). */
+const parChambre = villa => Boolean(villa) && villa.priceUnit === "chambre";
+
 function normalizeManagedVilla(item, fallback = {}) {
   const images = stringListOr(item?.images, fallback.images);
   return {
@@ -167,6 +170,8 @@ function normalizeManagedVilla(item, fallback = {}) {
     bedrooms: numberOr(item?.bedrooms, fallback.bedrooms),
     bathrooms: numberOr(item?.bathrooms, fallback.bathrooms),
     pricePerNight: numberOr(item?.pricePerNight, fallback.pricePerNight),
+    // Tarif de la villa entière, ou d'une chambre (21/09/2026).
+    priceUnit: item?.priceUnit === "chambre" ? "chambre" : "villa",
     priceEuro: numberOr(item?.priceEuro, fallback.priceEuro),
     weekendPackage: numberOr(item?.weekendPackage, fallback.weekendPackage),
     rating: numberOr(item?.rating, fallback.rating || 5),
@@ -717,7 +722,7 @@ function createVillaCardHTML(villa) {
         <div class="property-card-footer">
           <div class="property-price-block">
             <span class="property-price">${formatFCFA(villa.pricePerNight)}</span>
-            <span class="property-period">${T("js.parNuitee")}</span>
+            <span class="property-period">${T(parChambre(villa) ? "js.parChambreNuitee" : "js.parNuitee")}</span>
           </div>
           <button type="button" class="btn-property-detail btn-open-modal" data-id="${escapeAttribute(villa.id)}" aria-label="Voir les détails de ${escapeAttribute(villa.name)}">
             ${T("js.details")}
@@ -1591,7 +1596,7 @@ function openVillaModal(villaId) {
   tagline.textContent = ficheTexte(villa, "tagline");
   location.textContent = villa.location;
   desc.textContent = ficheTexte(villa, "description");
-  price.innerHTML = `${formatFCFA(villa.pricePerNight)} <span>/ nuit · ${formatEUR(villa.priceEuro || villa.pricePerNight / 655.957)}</span>`;
+  price.innerHTML = `${formatFCFA(villa.pricePerNight)} <span>${parChambre(villa) ? (T("js.parChambreNuit") || "/ chambre / nuit") : "/ nuit"} · ${formatEUR(villa.priceEuro || villa.pricePerNight / 655.957)}</span>`;
 
   // Forfait week-end : saisi dans le studio, affiché depuis le 13/09/2026.
   // Information seulement — le simulateur de devis ne l'applique pas.
@@ -1853,14 +1858,51 @@ function initSimulator(villaParam, activityParam) {
 
   function remplirVillas() {
     // On conserve la résidence choisie si elle satisfait encore le filtre.
+    // Sinon, aucune : jamais la première de la liste d'office (21/09/2026),
+    // elle s'ajoutait au total sans que le visiteur l'ait choisie.
     const avant = villaSelect.value;
     const liste = villasFiltrees();
-    villaSelect.innerHTML = liste.map(v => `
-    <option value="${v.id}"${estIndisponible(v) ? " disabled" : ""}>${v.name} - ${formatFCFA(v.pricePerNight)}/nuit${estIndisponible(v) ? " — indisponible" : ""}</option>
+    villaSelect.innerHTML = `<option value="">${escapeAttribute(T("js.choisirResidence") || "— Choisissez une résidence —")}</option>` + liste.map(v => `
+    <option value="${v.id}"${estIndisponible(v) ? " disabled" : ""}>${v.name} - ${formatFCFA(v.pricePerNight)}/${parChambre(v) ? "chambre/nuit" : "nuit"}${estIndisponible(v) ? " — indisponible" : ""}</option>
   `).join("");
-    if (liste.some(v => v.id === avant && !estIndisponible(v))) villaSelect.value = avant;
+    villaSelect.value = liste.some(v => v.id === avant && !estIndisponible(v)) ? avant : "";
   }
   remplirVillas();
+
+  /**
+   * Nombre de chambres (21/09/2026) : proposé seulement pour une résidence
+   * facturée par chambre, de 1 au nombre de chambres de sa fiche. Le choix
+   * est gardé d'une résidence à l'autre, ramené au maximum si besoin.
+   */
+  const chambresField = document.getElementById("simChambresField");
+  const chambresSelect = document.getElementById("simChambres");
+  function remplirChambres() {
+    if (!chambresSelect) return;
+    const villa = VILLAS_DATA.find(v => v.id === villaSelect.value) || null;
+    const actif = modeActuel() === "sejour" && parChambre(villa);
+    if (chambresField) chambresField.hidden = !actif;
+    chambresSelect.disabled = !actif;
+    if (!actif) return;
+    const max = Math.max(1, Number(villa.bedrooms) || 1);
+    const avant = Math.min(max, Math.max(1, parseInt(chambresSelect.value, 10) || 1));
+    chambresSelect.innerHTML = Array.from({ length: max }, (_, i) =>
+      `<option value="${i + 1}">${i + 1} ${T(i ? "js.chambresMot" : "js.chambreMot") || (i ? "chambres" : "chambre")}</option>`).join("");
+    chambresSelect.value = String(avant);
+  }
+  const chambresChoisies = villa => (parChambre(villa) && chambresSelect ? Math.max(1, parseInt(chambresSelect.value, 10) || 1) : 1);
+
+  // Séjour sans résidence choisie : signalé sous la liste, au clic sur l'envoi.
+  const alerteVilla = document.getElementById("simVillaAlerte");
+  function residenceManquante() {
+    const manque = modeActuel() === "sejour" && !VILLAS_DATA.some(v => v.id === villaSelect.value && !estIndisponible(v));
+    if (alerteVilla) {
+      alerteVilla.hidden = !manque;
+      alerteVilla.textContent = manque ? (T("js.residenceRequise") || "Choisissez une résidence pour envoyer votre demande.") : "";
+    }
+    if (manque) villaSelect.setAttribute("aria-invalid", "true");
+    else villaSelect.removeAttribute("aria-invalid");
+    return manque;
+  }
 
   /**
    * Alerte quand le nombre de voyageurs dépasse la capacité de la résidence.
@@ -1908,12 +1950,15 @@ function initSimulator(villaParam, activityParam) {
     }
     if (labelArrivee) labelArrivee.textContent = activitesSeules ? "Début des activités :" : "Arrivée (Check-in 14h) :";
     if (labelDepart) labelDepart.textContent = activitesSeules ? "Fin des activités :" : "Départ (Check-out 12h) :";
+    remplirChambres();
+    if (activitesSeules && alerteVilla) alerteVilla.hidden = true;
   }
 
   // Présélection de la villa si passée en paramètre d'URL
   if (villaParam && VILLAS_DATA.some(v => v.id === villaParam && !estIndisponible(v))) {
     villaSelect.value = villaParam;
   }
+  remplirChambres();
 
   // Initialiser les dates par défaut (vendredi prochain -> dimanche prochain)
   const today = new Date();
@@ -1932,9 +1977,11 @@ function initSimulator(villaParam, activityParam) {
     // le séjour vaut zéro.
     const voitureSeule = modeActuel() === "voiture";
     const sansResidence = modeActuel() !== "sejour";
+    // Pas de repli sur la première résidence : sans choix, le séjour vaut zéro.
     const selectedVilla = sansResidence
       ? null
-      : (VILLAS_DATA.find(v => v.id === villaSelect.value) || VILLAS_DATA[0]);
+      : (VILLAS_DATA.find(v => v.id === villaSelect.value) || null);
+    const chambres = chambresChoisies(selectedVilla);
 
     // Lien « Voir la fiche » (20/09/2026) : residences.html#id ouvre la fiche
     // de la résidence, comme les liens partagés depuis l'application.
@@ -1953,7 +2000,8 @@ function initSimulator(villaParam, activityParam) {
     if (isNaN(diffDays) || diffDays < 1) diffDays = 1;
 
     // Calcul Villa
-    const villaSubtotal = sansResidence ? 0 : selectedVilla.pricePerNight * diffDays;
+    // Résidence facturée par chambre : tarif × chambres × nuits.
+    const villaSubtotal = selectedVilla ? selectedVilla.pricePerNight * chambres * diffDays : 0;
 
     // Calcul Options
     let addonsTotal = 0;
@@ -2009,14 +2057,16 @@ function initSimulator(villaParam, activityParam) {
     const euroTotal = grandTotal / 655.957; // Taux officiel 1 EUR = 655.957 FCFA
 
     // Mise à jour de l'UI
-    resVillaName.textContent = voitureSeule ? "Location de voiture" : sansResidence ? "Activités uniquement" : selectedVilla.name;
+    resVillaName.textContent = voitureSeule ? "Location de voiture" : sansResidence ? "Activités uniquement"
+      : selectedVilla ? selectedVilla.name : (T("js.aucuneResidenceChoisie") || "Choisissez une résidence");
     document.querySelectorAll(".summary-row[data-sejour]").forEach(ligne => { ligne.hidden = voitureSeule; });
     const ligneVoiture = document.getElementById("summaryVoitureRow");
     if (ligneVoiture) {
       ligneVoiture.hidden = !voiture;
       document.getElementById("summaryVoitureTotal").textContent = voiture ? (voiture.devis.ok ? formatFCFA(montantVoiture) : "Sur devis") : "-";
     }
-    resNightlyRate.textContent = sansResidence ? "Sans hébergement" : `${formatFCFA(selectedVilla.pricePerNight)} / nuit`;
+    resNightlyRate.textContent = sansResidence ? "Sans hébergement" : !selectedVilla ? "—"
+      : parChambre(selectedVilla) ? `${formatFCFA(selectedVilla.pricePerNight)} / chambre × ${chambres}` : `${formatFCFA(selectedVilla.pricePerNight)} / nuit`;
     resNights.textContent = sansResidence
       ? `${diffDays} journée${diffDays > 1 ? "s" : ""} d’activités`
       : `${diffDays} nuit${diffDays > 1 ? "s" : ""}`;
@@ -2051,7 +2101,7 @@ function initSimulator(villaParam, activityParam) {
     const ligneSejour = sansResidence
       ? `🎯 Formule : Activités uniquement (sans hébergement)
 📅 Dates : Du ${checkinInput.value} au ${checkoutInput.value} (${diffDays} journée${diffDays > 1 ? "s" : ""})`
-      : `📍 Résidence : ${selectedVilla.name}
+      : `📍 Résidence : ${selectedVilla ? selectedVilla.name : "à choisir"}${parChambre(selectedVilla) ? ` (${chambres} chambre${chambres > 1 ? "s" : ""})` : ""}
 📅 Dates : Du ${checkinInput.value} au ${checkoutInput.value} (${diffDays} nuit${diffDays > 1 ? "s" : ""})`;
     const cloture = voitureSeule
       ? "Pouvez-vous me confirmer la disponibilité du véhicule ? Merci !"
@@ -2093,12 +2143,12 @@ ${cloture}`;
       email: emailValide ? email : "",
       // Case d'accord présente (simulateur à jour) : choix explicite oui/non.
       ...(optinInput ? { whatsappOptIn: optinInput.checked } : {}),
-      villa: voitureSeule ? "" : sansResidence ? "Activités uniquement" : selectedVilla.name,
+      villa: voitureSeule ? "" : sansResidence ? "Activités uniquement" : selectedVilla ? selectedVilla.name : "",
       dates: voitureSeule && voiture
         ? `${voiture.saisie.debutJour} ${voiture.saisie.debutHeure} → ${voiture.saisie.finJour} ${voiture.saisie.finHeure}`
         : `${checkinInput.value} → ${checkoutInput.value}`,
       amount: grandTotal,
-      message: voitureSeule ? "" : `${guestsSelect.value} voyageur(s) · ${selectedAddonsList.join(", ") || "Sans option"}`,
+      message: voitureSeule ? "" : `${guestsSelect.value} voyageur(s) · ${parChambre(selectedVilla) ? `${chambres} chambre(s) · ` : ""}${selectedAddonsList.join(", ") || "Sans option"}`,
       source: "site",
       // Voiture jointe : le serveur recalcule son prix et crée sa réservation.
       ...(voiture && DV ? { location: DV.location() } : {})
@@ -2117,7 +2167,12 @@ ${cloture}`;
 
   // Les cases des activités sont générées dynamiquement : on les récupère
   // depuis `activityAddons` plutôt que par des identifiants figés.
-  const champsSimulateur = [villaSelect, checkinInput, checkoutInput, guestsSelect, nomInput, telInput, emailInput, optinInput]
+  // Résidence changée : liste des chambres refaite, alerte « résidence à choisir » retirée.
+  villaSelect.addEventListener("change", () => {
+    remplirChambres();
+    if (alerteVilla && !alerteVilla.hidden) residenceManquante();
+  });
+  const champsSimulateur = [villaSelect, chambresSelect, checkinInput, checkoutInput, guestsSelect, nomInput, telInput, emailInput, optinInput]
     .concat(activityAddons.map(a => a.input));
 
   champsSimulateur.forEach(el => {
@@ -2143,6 +2198,9 @@ ${cloture}`;
   // la page reste partageable.
   if (reprendreSaisieDevis()) {
     remplirVillas();
+    // Les chambres proposées dépendent de la résidence reprise : seconde passe.
+    remplirChambres();
+    reprendreSaisieDevis();
     appliquerMode();
     if (window.DevisVoiture) window.DevisVoiture.definirMode(modeActuel());
     const adresse = new URL(window.location.href);
@@ -2157,6 +2215,7 @@ ${cloture}`;
   if (villaFilter) {
     villaFilter.addEventListener("change", () => {
       remplirVillas();
+      remplirChambres();
       calculateTotal();
     });
   }
@@ -2194,6 +2253,13 @@ ${cloture}`;
     // Voiture incomplète ou indisponible : on reste sur la page pour corriger.
     if (window.DevisVoiture && window.DevisVoiture.verifier()) {
       event.preventDefault();
+      return;
+    }
+    // Séjour : une résidence choisie par le visiteur (21/09/2026).
+    if (residenceManquante()) {
+      event.preventDefault();
+      villaSelect.focus();
+      villaSelect.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     const enDefaut = champContactEnDefaut();

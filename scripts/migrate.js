@@ -181,7 +181,9 @@ async function main() {
       // Propriétaire du bien (db/migration-proprietaires-annonces.sql).
       ['villas', 'proprietaire', 'JSON NULL AFTER `facebook`'],
       ['terrains', 'proprietaire', 'JSON NULL AFTER `facebook`'],
-      ['activities', 'proprietaire', 'JSON NULL AFTER `facebook`']
+      ['activities', 'proprietaire', 'JSON NULL AFTER `facebook`'],
+      // Villas facturées par chambre (db/migration-prix-par-chambre.sql).
+      ['villas', 'price_unit', "VARCHAR(16) NOT NULL DEFAULT 'villa' AFTER `price_per_night`"]
     ];
     for (const [table, column, definition] of additions) {
       const [existing] = await connection.execute(

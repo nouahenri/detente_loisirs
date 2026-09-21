@@ -112,7 +112,7 @@ test('app : estimation sans choix d’office, changement de formule sans choix c
   assert.doesNotMatch(regles, /d\.villas\[0\]/);
   assert.match(regles, /const villa = sansResidence \? null : \(d\.villas\.find\(v => v\.id === devis\.villaId\) \|\| null\);/);
   // Nouvelle formule : la résidence part toujours, le reste seulement si le client le garde.
-  assert.match(regles, /mode,\n    villaId: '',\n    activites: garder \? repris\.activites : \[\],/);
+  assert.match(regles, /mode,\n    villaId: '',\n    chambres: 1,\n    activites: garder \? repris\.activites : \[\],/);
   assert.match(regles, /activites: mode === 'voiture' \? \[\] : devis\.activites/);
   const ecran = lire('mobile/natif/src/app/(onglets)/devis.tsx');
   assert.match(ecran, /if \(lignesEstimation\.length\) \{ setFormuleDemandee\(mode\); return; \}/);

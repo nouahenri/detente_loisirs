@@ -31,7 +31,7 @@ import { modeChauffeur, type SaisieVoiture } from '@/donnees/location';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
 import {
-  calculDevis, champEnDefaut, changerFormule, choixEffaces, dateISO, estIndisponible, euro, fcfa, fiche, FILTRES_VILLA, nombre, prixActivite, villasFiltrees,
+  calculDevis, champEnDefaut, changerFormule, choixEffaces, dateISO, estIndisponible, euro, fcfa, fiche, FILTRES_VILLA, nombre, parChambre, prixActivite, villasFiltrees,
   voitureDuDevis, VOYAGEURS, type Devis as DevisEnCours,
 } from '@/donnees/regles';
 import { creerStyles, type Palette } from '@/donnees/theme';
@@ -106,11 +106,16 @@ export default function Devis() {
   const residenceManquante = devis.mode === 'sejour' && (!c.villa || estIndisponible(c.villa));
   const nomsFormules: Record<Formule, string> = { sejour: t('devis.sejour'), activites: t('devis.activitesSeules'), voiture: t('devis.voitureSeule') };
 
+  // Détail du prix de la résidence : « × 2 chambres » quand elle est facturée par chambre.
+  const detailResidence = () => c.villa ? (parChambre(c.villa)
+    ? t('devis.chambresNuitsPers', { x: fcfa(c.villa.pricePerNight), ch: t(c.chambres > 1 ? 'devis.chambres' : 'devis.chambre', { n: c.chambres }), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs })
+    : t('devis.nuitsPers', { x: fcfa(c.villa.pricePerNight), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs })) : '';
+
   // Tout ce qui compose l'estimation affichée, ligne par ligne.
   const lignesEstimation: LigneEstimation[] = [
     ...(c.villa ? [{
       cle: 'villa', sorte: 'villa' as const, libelle: c.villa.name, montant: fcfa(c.sousTotalVilla),
-      detail: t('devis.nuitsPers', { x: fcfa(c.villa.pricePerNight), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs }),
+      detail: detailResidence(),
     }] : []),
     ...c.lignes.map((l, i) => ({ cle: `activite-${i}`, sorte: 'activite' as const, libelle: l.libelle, detail: l.calcul, montant: l.montant === null ? t('devis.surDevis') : fcfa(l.montant) })),
     ...(c.voiture ? [{
@@ -120,19 +125,31 @@ export default function Devis() {
     }] : []),
   ];
 
+  /**
+   * « Voiture seule » n'a rien d'autre à choisir à l'étape 1 : un appui mène
+   * directement au véhicule (21/09/2026) — ses dates, lieux et formule en dépendent.
+   */
+  const etapeApresFormule = (mode: Formule) => (mode === 'voiture' ? 2 : 1);
+  const allerAEtape = (cible: number) => {
+    setSens(cible > etape ? 1 : -1);
+    majDevis({ etape: cible });
+    defil.current?.scrollTo({ y: 0, animated: false });
+  };
   /** Choix de la formule : si des choix sont déjà faits, le client décide de leur sort. */
   const choisirFormule = (mode: Formule) => {
     setErreur(null);
-    if (mode === devis.mode) return;
+    if (mode === devis.mode) { if (mode === 'voiture') allerAEtape(2); return; }
     if (lignesEstimation.length) { setFormuleDemandee(mode); return; }
     majDevis(d => changerFormule(donnees, d, mode, false));
+    if (etapeApresFormule(mode) > 1) allerAEtape(etapeApresFormule(mode));
   };
   const appliquerFormule = (garder: boolean) => {
     if (!formuleDemandee) return;
     const mode = formuleDemandee;
     vibrerSelection();
     setFormuleDemandee(null);
-    majDevis(d => ({ ...changerFormule(donnees, d, mode, garder), etape: 1 }));
+    majDevis(d => changerFormule(donnees, d, mode, garder));
+    allerAEtape(etapeApresFormule(mode));
   };
   const toutEffacer = () => {
     vibrerSelection();
@@ -279,12 +296,6 @@ export default function Devis() {
             <Choix C={C} icone="car-sport-outline" titre={t('devis.voitureSeule')} detail={t('devis.voitureSeuleDetail')} actif={devis.mode === 'voiture'} onPress={() => choisirFormule('voiture')} />
           </View>
         ) : null}
-        {devis.mode === 'voiture' ? (
-          <View style={[s.info, { marginTop: 16 }]}>
-            <Icone nom="information-circle-outline" taille={18} couleur={C.marque} />
-            <Text style={[s.infoTexte, { fontWeight: '500' }]}>{t('devis.voitureSeuleAide')}</Text>
-          </View>
-        ) : null}
         {devis.mode === 'activites' ? (
           <>
             <Text style={s.h3}>{t('devis.choisirActivites')}</Text>
@@ -325,7 +336,7 @@ export default function Devis() {
                 C={C}
                 image={v.images[0]}
                 titre={v.name}
-                detail={<><Text style={s.montant}>{t('devis.parNuit', { x: fcfa(v.pricePerNight) })}</Text>{v.capacity ? t('devis.jusquA', { n: v.capacity }) : ''}{estIndisponible(v) ? t('devis.indispo') : ''}</>}
+                detail={<><Text style={s.montant}>{t(parChambre(v) ? 'devis.parChambreNuit' : 'devis.parNuit', { x: fcfa(v.pricePerNight) })}</Text>{v.capacity ? t('devis.jusquA', { n: v.capacity }) : ''}{estIndisponible(v) ? t('devis.indispo') : ''}</>}
                 actif={v.id === devis.villaId}
                 desactive={estIndisponible(v)}
                 forme="radio"
@@ -373,6 +384,21 @@ export default function Devis() {
           <Text style={s.compteurValeur}>{devis.voyageurs}</Text>
           <BoutonCompteur C={C} icone="add" libelle={t('devis.plus')} desactive={rang >= VOYAGEURS.length - 1} onPress={() => majDevis({ voyageurs: VOYAGEURS[rang + 1] })} />
         </View>
+        {c.villa && parChambre(c.villa) ? (
+          <>
+            {/* Résidence facturée par chambre (21/09/2026) : 1 à « Chambres » de la fiche. */}
+            <Text style={s.h3}>{t('devis.chambresTitre')}</Text>
+            <View style={s.compteur}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.compteurTitre}>{t(c.chambres > 1 ? 'devis.chambres' : 'devis.chambre', { n: c.chambres })}</Text>
+                <Text style={s.compteurDetail}>{t('devis.chambresDetail', { x: fcfa(c.villa.pricePerNight), max: Math.max(1, c.villa.bedrooms || 1) })}</Text>
+              </View>
+              <BoutonCompteur C={C} icone="remove" libelle={t('devis.moins')} desactive={c.chambres <= 1} onPress={() => majDevis({ chambres: c.chambres - 1 })} />
+              <Text style={s.compteurValeur}>{c.chambres}</Text>
+              <BoutonCompteur C={C} icone="add" libelle={t('devis.plus')} desactive={c.chambres >= Math.max(1, c.villa.bedrooms || 1)} onPress={() => majDevis({ chambres: c.chambres + 1 })} />
+            </View>
+          </>
+        ) : null}
         {depasse ? (
           <View style={s.alerte}>
             <Icone nom="warning-outline" taille={18} couleur={C.alerte} />
@@ -451,7 +477,7 @@ export default function Devis() {
               libelle={c.sansResidence ? t('devis.activitesSeules') : c.villa?.name || ''}
               detail={c.sansResidence
                 ? t('devis.joursPers', { jours: t(c.jours > 1 ? 'devis.journees' : 'devis.journee', { n: c.jours }), n: devis.voyageurs })
-                : t('devis.nuitsPers', { x: fcfa(c.villa?.pricePerNight || 0), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs })}
+                : detailResidence()}
               montant={fcfa(c.sousTotalVilla)}
             />
           )}
