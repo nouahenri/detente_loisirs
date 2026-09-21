@@ -13,12 +13,20 @@
  * data/app-appareils.json et data/app-notifications.json.
  */
 
+const LV = require('../js/location-voitures.js');
+
 const LANGUES = ['fr', 'en', 'es'];
 const MAX_APPAREILS = 20000;
 // Une publication plus ancienne (resynchronisée, réimportée) n'est pas une
 // nouveauté : on ne réveille pas les téléphones pour elle.
 const FRAICHEUR_PUBLICATION_MS = 3 * 24 * 3600 * 1000;
 const TAILLE_LOT_EXPO = 100;
+// Types annoncés. Un type ajouté après l'amorçage (voitures, 21/09/2026) est
+// d'abord mémorisé en silence : ses annonces existantes ne sont pas « nouvelles ».
+const TYPES_INITIAUX = ['villa', 'terrain', 'activite', 'publication'];
+const TYPES_ANNONCES = [...TYPES_INITIAUX, 'vehicule'];
+// Au-delà, une seule notification récapitulative (décision du 21/09/2026).
+const MAX_NOTIFICATIONS_PAR_ANNONCE = 3;
 
 function estJetonExpo(jeton) {
   return typeof jeton === 'string' && jeton.length <= 200 && /^Expo(nent)?PushToken\[[A-Za-z0-9_\-]{10,}\]$/.test(jeton);
@@ -70,10 +78,25 @@ function annoncesPubliques(contenu, { publicationsExclues = new Set(), maintenan
   const c = contenu && typeof contenu === 'object' ? contenu : {};
   const visibles = liste => (Array.isArray(liste) ? liste : []).filter(item => item && item.id && item.visible !== false);
   const annonces = [];
-  visibles(c.villas).forEach(v => annonces.push({ cle: `villa:${v.id}`, type: 'villa', id: String(v.id), titre: String(v.name || '') }));
+  // `infos` : ce que dit la notification (lieu, capacité…), jamais le prix (21/09/2026).
+  visibles(c.villas).forEach(v => annonces.push({
+    cle: `villa:${v.id}`, type: 'villa', id: String(v.id), titre: String(v.name || ''),
+    infos: { lieu: v.location, personnes: v.capacity, chambres: v.bedrooms }
+  }));
   visibles(c.terrains).filter(t => String(t.status || '').toLowerCase() !== 'vendu')
-    .forEach(t => annonces.push({ cle: `terrain:${t.id}`, type: 'terrain', id: String(t.id), titre: String(t.title || '') }));
-  visibles(c.activities).forEach(a => annonces.push({ cle: `activite:${a.id}`, type: 'activite', id: String(a.id), titre: String(a.title || '') }));
+    .forEach(t => annonces.push({
+      cle: `terrain:${t.id}`, type: 'terrain', id: String(t.id), titre: String(t.title || ''),
+      infos: { lieu: t.location, surface: t.areaSqm, traductions: t.translations }
+    }));
+  visibles(c.activities).forEach(a => annonces.push({
+    cle: `activite:${a.id}`, type: 'activite', id: String(a.id), titre: String(a.title || ''),
+    infos: { duree: a.duration, traductions: a.translations }
+  }));
+  // Location de voitures (17/09/2026), annoncée depuis le 21/09/2026.
+  visibles(c.vehicles).forEach(v => annonces.push({
+    cle: `vehicule:${v.id}`, type: 'vehicule', id: String(v.id), titre: String(v.name || ''),
+    infos: { categorie: v.category, places: v.seats, chauffeur: v.driverMode }
+  }));
   (Array.isArray(c.facebookPosts) ? c.facebookPosts : []).forEach(p => {
     if (!p || !p.id || publicationsExclues.has(String(p.id))) return;
     if (!p.message && !p.full_picture) return;
@@ -93,43 +116,103 @@ function annoncesPubliques(contenu, { publicationsExclues = new Set(), maintenan
 function detecterNouveautes(etatBrut, annonces, maintenant = new Date().toISOString()) {
   const etat = etatBrut && typeof etatBrut === 'object' ? etatBrut : {};
   const connues = new Set(Array.isArray(etat.cles) ? etat.cles : []);
+  // Types déjà suivis avant ce passage (mémoire antérieure au 21/09/2026 : les quatre d'origine).
+  const suivis = Array.isArray(etat.typesAmorces) ? etat.typesAmorces : (etat.amorce === true ? TYPES_INITIAUX : []);
   const cles = [...new Set([...connues, ...annonces.map(a => a.cle)])].slice(-5000);
-  const suivant = { ...etat, amorce: true, amorceAt: etat.amorceAt || maintenant, cles, dernierPassage: maintenant };
+  const suivant = { ...etat, amorce: true, amorceAt: etat.amorceAt || maintenant, cles, typesAmorces: [...TYPES_ANNONCES], dernierPassage: maintenant };
   if (etat.amorce !== true) return { etat: suivant, nouvelles: [] };
-  const nouvelles = annonces.filter(a => !connues.has(a.cle) && (a.type !== 'publication' || a.recente));
+  const nouvelles = annonces.filter(a => suivis.includes(a.type) && !connues.has(a.cle) && (a.type !== 'publication' || a.recente));
   return { etat: suivant, nouvelles };
 }
 
+/*
+ * Textes des notifications de nouveautés (décision du 21/09/2026) : un titre
+ * par rubrique avec son emoji, puis le nom, le lieu et deux ou trois infos
+ * clés, et l'invitation à toucher. Jamais de prix, comme sur Facebook.
+ */
 const TEXTES = {
   fr: {
-    villa: 'Nouvelle résidence', terrain: 'Nouveau terrain à vendre', activite: 'Nouvelle activité', publication: 'Nouvelle publication',
-    plusieurs: n => `${n} nouvelles annonces à Assinie`, plusieursCorps: 'Découvrez-les dans l’application.',
+    titres: {
+      villa: '🏡 Nouvelle résidence à découvrir', activite: '🌴 Nouvelle activité à Assinie', vehicule: '🚗 Nouvelle voiture à louer',
+      terrain: '📍 Nouveau terrain à vendre', publication: '📣 Nouveauté Détente & Loisirs'
+    },
+    appels: { fiche: 'Touchez pour voir la fiche.', activite: 'Touchez pour découvrir l’activité.', publication: 'Touchez pour la lire.' },
+    personnes: n => `${n} pers.`, chambres: n => `${n} chambre${n > 1 ? 's' : ''}`, places: n => `${n} places`,
+    plusieurs: n => `✨ ${n} nouvelles annonces à Assinie`, plusieursCorps: 'Découvrez-les dans l’application.',
     contacte: ['Votre demande est prise en charge', 'Notre conciergerie vous contacte sur WhatsApp.'],
     confirme: ['Votre réservation est confirmée', 'Merci ! Retrouvez le détail avec notre conciergerie.']
   },
   en: {
-    villa: 'New residence', terrain: 'New plot for sale', activite: 'New activity', publication: 'New post',
-    plusieurs: n => `${n} new listings in Assinie`, plusieursCorps: 'Discover them in the app.',
+    titres: {
+      villa: '🏡 New residence to discover', activite: '🌴 New activity in Assinie', vehicule: '🚗 New car for rent',
+      terrain: '📍 New plot for sale', publication: '📣 What’s new at Détente & Loisirs'
+    },
+    appels: { fiche: 'Tap to see the listing.', activite: 'Tap to discover the activity.', publication: 'Tap to read it.' },
+    personnes: n => `${n} guests`, chambres: n => `${n} bedroom${n > 1 ? 's' : ''}`, places: n => `${n} seats`,
+    plusieurs: n => `✨ ${n} new listings in Assinie`, plusieursCorps: 'Discover them in the app.',
     contacte: ['Your request is being handled', 'Our concierge will contact you on WhatsApp.'],
     confirme: ['Your booking is confirmed', 'Thank you! Our concierge will share the details.']
   },
   es: {
-    villa: 'Nueva residencia', terrain: 'Nuevo terreno en venta', activite: 'Nueva actividad', publication: 'Nueva publicación',
-    plusieurs: n => `${n} nuevos anuncios en Assinie`, plusieursCorps: 'Descúbralos en la aplicación.',
+    titres: {
+      villa: '🏡 Nueva residencia por descubrir', activite: '🌴 Nueva actividad en Assinie', vehicule: '🚗 Nuevo coche en alquiler',
+      terrain: '📍 Nuevo terreno en venta', publication: '📣 Novedad de Détente & Loisirs'
+    },
+    appels: { fiche: 'Toque para ver la ficha.', activite: 'Toque para descubrir la actividad.', publication: 'Toque para leerla.' },
+    personnes: n => `${n} pers.`, chambres: n => (n > 1 ? `${n} habitaciones` : `${n} habitación`), places: n => `${n} plazas`,
+    plusieurs: n => `✨ ${n} nuevos anuncios en Assinie`, plusieursCorps: 'Descúbralos en la aplicación.',
     contacte: ['Su solicitud está en curso', 'Nuestra conserjería le contactará por WhatsApp.'],
     confirme: ['Su reserva está confirmada', '¡Gracias! Nuestra conserjería le dará los detalles.']
   }
 };
+const LOCALES = { fr: 'fr-FR', en: 'en-US', es: 'es-ES' };
 
-/** Contenu d'une notification de nouveautés, dans la langue du téléphone. */
-function messageNouveautes(nouvelles, langue) {
-  const t = TEXTES[langueValide(langue)];
-  if (!nouvelles.length) return null;
-  if (nouvelles.length === 1) {
-    const a = nouvelles[0];
-    return { title: t[a.type], body: a.titre || t.plusieursCorps, data: { type: a.type, id: a.id } };
+const court = (valeur, max) => {
+  const texte = String(valeur ?? '').replace(/\s+/g, ' ').trim();
+  return texte.length > max ? `${texte.slice(0, max - 1).trimEnd()}…` : texte;
+};
+const entier = valeur => (Number.isFinite(Number(valeur)) && Number(valeur) > 0 ? Math.round(Number(valeur)) : 0);
+/** Texte traduit d'une fiche (saisi dans le studio), repli sur le français. */
+const traduit = (infos, champ, langue, repli) => court(infos?.traductions?.[langue]?.[champ] || repli, 90);
+const minusculeInitiale = texte => (texte ? texte.charAt(0).toLocaleLowerCase('fr') + texte.slice(1) : '');
+
+/** Notification d'UNE annonce : ouvre sa fiche au toucher. */
+function messageAnnonce(annonce, langue) {
+  const l = langueValide(langue);
+  const t = TEXTES[l];
+  const i = annonce.infos || {};
+  const nom = annonce.type === 'activite' || annonce.type === 'terrain' ? traduit(i, 'title', l, annonce.titre) : court(annonce.titre, 90);
+  let phrase = nom;
+  if (annonce.type === 'villa') {
+    const faits = [entier(i.personnes) && t.personnes(entier(i.personnes)), entier(i.chambres) && t.chambres(entier(i.chambres))].filter(Boolean).join(', ');
+    phrase = [nom, court(i.lieu, 60)].filter(Boolean).join(' · ') + (faits ? ` — ${faits}` : '');
+  } else if (annonce.type === 'activite') {
+    phrase = [nom, traduit(i, 'duration', l, i.duree)].filter(Boolean).join(' · ');
+  } else if (annonce.type === 'vehicule') {
+    const modele = [i.categorie ? LV.libelle(LV.CATEGORIES, i.categorie, l) : '', entier(i.places) && t.places(entier(i.places))].filter(Boolean).join(', ');
+    const chauffeur = LV.MODES_CHAUFFEUR[i.chauffeur] ? minusculeInitiale(LV.libelle(LV.MODES_CHAUFFEUR, i.chauffeur, l)) : '';
+    phrase = [nom, modele, chauffeur].filter(Boolean).join(' · ');
+  } else if (annonce.type === 'terrain') {
+    // Le lieu n'est repris que s'il n'est pas déjà dans le titre du terrain.
+    const lieu = court(i.lieu, 60);
+    const surface = entier(i.surface) ? `${new Intl.NumberFormat(LOCALES[l]).format(entier(i.surface))} m²` : '';
+    phrase = [nom, lieu && !nom.toLowerCase().includes(lieu.toLowerCase()) ? lieu : '', surface].filter(Boolean).join(' · ');
   }
-  return { title: t.plusieurs(nouvelles.length), body: t.plusieursCorps, data: { ecran: 'explorer' } };
+  const appel = annonce.type === 'activite' ? t.appels.activite : annonce.type === 'publication' ? t.appels.publication : t.appels.fiche;
+  const corps = phrase ? `${court(phrase, 150)}${/[.!?…]$/.test(phrase) ? '' : '.'} ${appel}` : appel;
+  return { title: t.titres[annonce.type] || t.titres.publication, body: corps, data: { type: annonce.type, id: annonce.id } };
+}
+
+/**
+ * Notifications de nouveautés d'un téléphone, dans sa langue : une par
+ * annonce (chacune ouvre sa fiche), trois au plus ; au-delà, un récapitulatif
+ * qui ouvre Explorer (décision du 21/09/2026).
+ */
+function messagesNouveautes(nouvelles, langue) {
+  if (!nouvelles.length) return [];
+  if (nouvelles.length <= MAX_NOTIFICATIONS_PAR_ANNONCE) return nouvelles.map(a => messageAnnonce(a, langue));
+  const t = TEXTES[langueValide(langue)];
+  return [{ title: t.plusieurs(nouvelles.length), body: t.plusieursCorps, data: { ecran: 'explorer' } }];
 }
 
 const STATUTS_NOTIFIES = ['contacte', 'confirme'];
@@ -154,10 +237,8 @@ function suiviDemande(suiviBrut, statut) {
 /** Messages Expo pour tous les téléphones, regroupés par lots de 100. */
 function lotsNouveautes(registreBrut, nouvelles) {
   const registre = lireRegistre(registreBrut);
-  const messages = Object.entries(registre.appareils).map(([jeton, appareil]) => {
-    const contenu = messageNouveautes(nouvelles, appareil.langue);
-    return contenu ? { to: jeton, sound: 'default', ...contenu } : null;
-  }).filter(Boolean);
+  const messages = Object.entries(registre.appareils).flatMap(([jeton, appareil]) =>
+    messagesNouveautes(nouvelles, appareil.langue).map(contenu => ({ to: jeton, sound: 'default', ...contenu })));
   return decouper(messages);
 }
 
@@ -195,5 +276,5 @@ function statutsDemandes(leads, ids) {
 module.exports = {
   statutsDemandes,
   estJetonExpo, enregistrerAppareil, retirerAppareils, annoncesPubliques, detecterNouveautes,
-  messageNouveautes, suiviDemande, lotsNouveautes, jetonsPerimes, decouper, STATUTS_NOTIFIES
+  messageAnnonce, messagesNouveautes, suiviDemande, lotsNouveautes, jetonsPerimes, decouper, STATUTS_NOTIFIES, TYPES_ANNONCES
 };

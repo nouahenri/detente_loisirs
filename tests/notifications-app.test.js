@@ -63,18 +63,75 @@ test('nouveautés : amorçage silencieux, puis seules les annonces inconnues (pu
   assert.equal(NOTIF.detecterNouveautes(passage.etat, plus).nouvelles.length, 0, 'jamais deux fois');
 });
 
-test('messages : une annonce ouvre sa fiche, plusieurs ouvrent Explorer, dans la langue du téléphone', () => {
-  const une = NOTIF.messageNouveautes([{ type: 'villa', id: 'villa-neuve', titre: 'Villa Neuve' }], 'fr');
-  assert.deepEqual(une, { title: 'Nouvelle résidence', body: 'Villa Neuve', data: { type: 'villa', id: 'villa-neuve' } });
-  const deux = NOTIF.messageNouveautes([{ type: 'villa', id: 'a' }, { type: 'terrain', id: 'b' }], 'es');
-  assert.equal(deux.title, '2 nuevos anuncios en Assinie');
-  assert.deepEqual(deux.data, { ecran: 'explorer' });
+// Textes décidés le 21/09/2026 : titre par rubrique avec emoji, nom + lieu + infos clés, jamais de prix.
+const NOUVELLES = [
+  { type: 'villa', id: 'villa-mondoukou', titre: 'Villa Mondoukou', infos: { lieu: 'Grand-Bassam', personnes: 6, chambres: 3 } },
+  { type: 'activite', id: 'balade', titre: 'Balade en bateau vers La Passe', infos: { duree: '2 h', traductions: { en: { title: 'Boat trip to La Passe' } } } },
+  { type: 'vehicule', id: 'tucson', titre: 'Hyundai Tucson 2025', infos: { categorie: 'suv', places: 5, chauffeur: 'choix' } },
+  { type: 'terrain', id: 'lot-mafia', titre: 'Lot Assinie-Mafia', infos: { lieu: 'Assinie-Mafia', surface: 600 } },
+  { type: 'publication', id: 'p1', titre: 'Nouvelle villa disponible !' }
+];
+
+test('messages : titre par rubrique, nom, lieu et infos clés, jamais de prix ; le toucher ouvre la fiche', () => {
+  const fr = NOUVELLES.map(a => NOTIF.messageAnnonce(a, 'fr'));
+  assert.deepEqual(fr.map(m => [m.title, m.body]), [
+    ['🏡 Nouvelle résidence à découvrir', 'Villa Mondoukou · Grand-Bassam — 6 pers., 3 chambres. Touchez pour voir la fiche.'],
+    ['🌴 Nouvelle activité à Assinie', 'Balade en bateau vers La Passe · 2 h. Touchez pour découvrir l’activité.'],
+    ['🚗 Nouvelle voiture à louer', 'Hyundai Tucson 2025 · SUV, 5 places · avec ou sans chauffeur. Touchez pour voir la fiche.'],
+    ['📍 Nouveau terrain à vendre', 'Lot Assinie-Mafia · 600 m². Touchez pour voir la fiche.'],
+    ['📣 Nouveauté Détente & Loisirs', 'Nouvelle villa disponible ! Touchez pour la lire.']
+  ]);
+  assert.deepEqual(fr.map(m => m.data), NOUVELLES.map(a => ({ type: a.type, id: a.id })));
+  const en = NOTIF.messageAnnonce(NOUVELLES[1], 'en');
+  assert.equal(en.body, 'Boat trip to La Passe · 2 h. Tap to discover the activity.', 'titre traduit saisi au studio');
+  const villaChere = NOTIF.messageAnnonce({ ...NOUVELLES[0], infos: { ...NOUVELLES[0].infos, prix: 350000 } }, 'fr');
+  assert.doesNotMatch(villaChere.body, /FCFA|350/);
+});
+
+test('messages : une notification par annonce jusqu’à 3, au-delà un récapitulatif qui ouvre Explorer', () => {
+  assert.equal(NOTIF.messagesNouveautes([], 'fr').length, 0);
+  assert.equal(NOTIF.messagesNouveautes(NOUVELLES.slice(0, 3), 'fr').length, 3);
+  const recap = NOTIF.messagesNouveautes(NOUVELLES, 'es');
+  assert.deepEqual(recap, [{ title: '✨ 5 nuevos anuncios en Assinie', body: 'Descúbralos en la aplicación.', data: { ecran: 'explorer' } }]);
 
   const registre = { appareils: { [JETON]: { langue: 'en' }, [JETON_2]: { langue: 'fr' } } };
-  const lots = NOTIF.lotsNouveautes(registre, [{ type: 'terrain', id: 't9', titre: 'Plot' }]);
+  const lots = NOTIF.lotsNouveautes(registre, NOUVELLES.slice(2, 4));
   assert.equal(lots.length, 1);
-  assert.deepEqual(lots[0].map(m => [m.to, m.title]), [[JETON, 'New plot for sale'], [JETON_2, 'Nouveau terrain à vendre']]);
+  assert.deepEqual(lots[0].map(m => [m.to, m.title]), [
+    [JETON, '🚗 New car for rent'], [JETON, '📍 New plot for sale'],
+    [JETON_2, '🚗 Nouvelle voiture à louer'], [JETON_2, '📍 Nouveau terrain à vendre']
+  ]);
+  assert.ok(lots[0].every(m => m.sound === 'default'));
   assert.equal(NOTIF.decouper(Array.from({ length: 250 }, (_, i) => i)).length, 3, 'lots de 100 au plus');
+});
+
+test('voitures : celles déjà en ligne sont mémorisées en silence, les suivantes sont annoncées', () => {
+  // Mémoire écrite avant le 21/09/2026 : amorcée, sans liste de types.
+  const ancienne = NOTIF.detecterNouveautes({}, NOTIF.annoncesPubliques(CONTENU, { maintenant: MAINTENANT })).etat;
+  delete ancienne.typesAmorces;
+  const avecTucson = { ...CONTENU, vehicles: [{ id: 'tucson', name: 'Hyundai Tucson 2025', category: 'suv', seats: 5, driverMode: 'choix' }] };
+  const premier = NOTIF.detecterNouveautes(ancienne, NOTIF.annoncesPubliques(avecTucson, { maintenant: MAINTENANT }));
+  assert.equal(premier.nouvelles.length, 0, 'la voiture déjà publiée n’est pas une nouveauté');
+  assert.ok(premier.etat.typesAmorces.includes('vehicule'));
+  const avecPrado = { ...avecTucson, vehicles: [...avecTucson.vehicles, { id: 'prado', name: 'Toyota Prado', visible: true }, { id: 'cachee', name: 'Cachée', visible: false }] };
+  const second = NOTIF.detecterNouveautes(premier.etat, NOTIF.annoncesPubliques(avecPrado, { maintenant: MAINTENANT }));
+  assert.deepEqual(second.nouvelles.map(a => a.cle), ['vehicule:prado']);
+  assert.match(lire('server.js'), /typesAmorces: suivant\.typesAmorces/, 'la liste des types suivis est enregistrée');
+});
+
+test('app : la veille locale dit la même chose que le site et annonce aussi les voitures', () => {
+  const veille = lire('mobile/natif/src/donnees/veille.ts');
+  assert.match(veille, /visibles\(contenu\.vehicles\)/);
+  assert.match(veille, /const MAX_NOTIFICATIONS_PAR_ANNONCE = 3;/);
+  assert.match(veille, /suivis\.includes\(a\.type\) && !dejaVues\.has\(a\.cle\)/);
+  const i18n = lire('mobile/natif/src/donnees/i18n.ts');
+  for (const cle of ['notif.vehicule', 'notif.appelFiche', 'notif.appelActivite', 'notif.appelPublication', 'notif.personnes', 'notif.places']) {
+    assert.equal(i18n.split(`'${cle}': `).length - 1, 3, `${cle} : FR, EN, ES`);
+  }
+  assert.match(i18n, /'notif\.villa': '🏡 Nouvelle résidence à découvrir'/);
+  // Le toucher ouvre la fiche : /annonce/[type]/[id] connaît les voitures.
+  assert.match(lire('mobile/natif/src/donnees/notifications.ts'), /pathname: '\/annonce\/\[type\]\/\[id\]'/);
+  assert.match(lire('mobile/natif/src/app/annonce/[type]/[id].tsx'), /type === 'vehicule'/);
 });
 
 test('suivi de demande : prévenu une seule fois par statut « contacté » puis « confirmé »', () => {

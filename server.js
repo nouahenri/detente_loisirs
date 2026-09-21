@@ -4682,7 +4682,7 @@ async function notifierNouveautesApp(origine) {
     const annonces = NOTIF.annoncesPubliques(contenu, { publicationsExclues: exclues });
     const etat = readJSON(APP_NOTIF_FILE, {});
     const { etat: suivant, nouvelles } = NOTIF.detecterNouveautes(etat, annonces);
-    writeJSON(APP_NOTIF_FILE, { ...readJSON(APP_NOTIF_FILE, {}), amorce: suivant.amorce, amorceAt: suivant.amorceAt, cles: suivant.cles, dernierPassage: suivant.dernierPassage });
+    writeJSON(APP_NOTIF_FILE, { ...readJSON(APP_NOTIF_FILE, {}), amorce: suivant.amorce, amorceAt: suivant.amorceAt, cles: suivant.cles, typesAmorces: suivant.typesAmorces, dernierPassage: suivant.dernierPassage });
     if (!nouvelles.length) return;
     const resultat = await envoyerLotsExpo(NOTIF.lotsNouveautes(readJSON(APP_APPAREILS_FILE, {}), nouvelles), origine);
     audit('app.nouveautes_notifiees', { origine, annonces: nouvelles.map(a => a.cle).slice(0, 20), ...resultat });
