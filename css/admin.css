@@ -1493,11 +1493,18 @@ input:focus,textarea:focus,select:focus { border-color:var(--gold); box-shadow:0
 .editor-proprietaire { margin:1rem 0; padding:.9rem 1rem 1rem; border:1px dashed var(--line); border-radius:14px; background:#fbfaf6; }
 .editor-proprietaire legend { padding:0 .35rem; font-size:.82rem; font-weight:800; }
 .editor-proprietaire .compta-aide { margin:.1rem 0 .7rem; }
-.proprietaire-ligne { cursor:default; }
-.proprietaire-biens-liste { display:flex; flex-wrap:wrap; gap:.35rem .8rem; margin-top:.35rem; }
-.proprietaire-bien { font-size:.8rem; }
-.proprietaire-bien em { font-style:normal; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted, #6b6f80); margin-right:.2rem; }
-.lien-annonce { padding:0; border:0; background:none; font:inherit; font-weight:700; color:var(--ink, #151837); text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+/* Propriétaires (Messages → Propriétaires) : avatar + texte, à toutes les
+   largeurs (21/09/2026). Ils héritaient de la grille des écritures (colonne
+   de date, montant) : sur mobile, l'avatar prenait la colonne large, le texte
+   la colonne étroite, et un nom de bien long passait sous l'avatar. */
+.compta-ligne.proprietaire-ligne { grid-template-columns:44px minmax(0,1fr); align-items:start; cursor:default; }
+.proprietaire-ligne .compta-avatar { margin-top:.1rem; }
+.proprietaire-ligne .compta-ligne-texte strong,
+.proprietaire-ligne .compta-ligne-texte small { white-space:normal; overflow-wrap:anywhere; }
+.proprietaire-biens-liste { display:grid; gap:.3rem; margin-top:.35rem; }
+.proprietaire-bien { display:flex; flex-wrap:wrap; align-items:baseline; gap:.1rem .4rem; min-width:0; font-size:.8rem; }
+.proprietaire-bien em { font-style:normal; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted, #6b6f80); }
+.lien-annonce { padding:0; border:0; background:none; font:inherit; font-weight:700; color:var(--ink, #151837); text-align:left; overflow-wrap:anywhere; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
 .proprietaire-manquants { margin-top:1rem; padding:.8rem 1rem; border-radius:14px; background:#fff8e1; }
 .proprietaire-manquants summary { cursor:pointer; font-weight:700; color:#6b5200; }
 .proprietaire-manquants > div { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin-top:.6rem; }
