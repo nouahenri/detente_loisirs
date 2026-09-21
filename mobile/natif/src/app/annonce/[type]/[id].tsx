@@ -21,7 +21,7 @@ import { dateLongue } from '@/donnees/i18n';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
 import {
-  cadreVilla, CRITERES_HORS_THEME, estIndisponible, estNombre, euro, fcfa, fiche, libelle, lienWhatsApp,
+  cadreVilla, changerFormule, CRITERES_HORS_THEME, estIndisponible, estNombre, euro, fcfa, fiche, libelle, lienWhatsApp,
   messageActivite, messagePublication, messageTerrain, messageVilla, nombre, photosPublication,
   tarifActivite, titrePublication, uniteActivite, VIABILISATION,
 } from '@/donnees/regles';
@@ -99,7 +99,10 @@ export default function Annonce() {
         partage: { titre: v.name, texte: t('fiche.partageVilla', { x: v.name }), url: lienPartage('villa', v.id) },
         prix: v.pricePerNight > 0 ? { montant: fcfa(v.pricePerNight), detail: t('fiche.parNuitEuro', { x: euro(v.priceEuro || v.pricePerNight / TAUX_EUR) }) } : null,
         actions: <>
-          <Bouton texte={t('fiche.devis')} variante="contour" desactive={indispo} onPress={() => allerAuDevis({ mode: 'sejour', villaId: v.id, filtre: 'all', etape: 2 })} />
+          <Bouton texte={t('fiche.devis')} variante="contour" desactive={indispo} onPress={() => allerAuDevis(d => ({
+            // Autre formule en cours : nouvelle demande, rien d'ancien ne s'ajoute en silence (21/09/2026).
+            ...(d.mode === 'sejour' ? {} : changerFormule(donnees, d, 'sejour', false)), villaId: v.id, filtre: 'all', etape: 2,
+          }))} />
           <Bouton texte={t('fiche.reserver')} icone="logo-whatsapp" variante="wa" onPress={() => lien(lienWhatsApp(messageVilla(v)))} />
         </>,
       };
@@ -168,7 +171,13 @@ export default function Annonce() {
         partage: { titre, texte: t('fiche.partageVilla', { x: titre }), url: lienPartage('activite', a.id) },
         prix: montant > 0 ? { montant: fcfa(montant), detail: t(`unite.${uniteActivite(a)}`) } : null,
         actions: <>
-          <Bouton texte={t('fiche.devis')} variante="contour" onPress={() => allerAuDevis({ mode: 'activites', activites: [a.id], etape: 1 })} />
+          <Bouton texte={t('fiche.devis')} variante="contour" onPress={() => allerAuDevis(d => {
+            const avec = d.activites.includes(a.id) ? d.activites : [...d.activites, a.id];
+            // Séjour déjà choisi : l'activité s'y ajoute, à l'étape « Activités » (3e) du séjour.
+            if (d.mode === 'sejour' && d.villaId) return { activites: avec, etape: 3 };
+            if (d.mode === 'activites') return { activites: avec, etape: 1 };
+            return { ...changerFormule(donnees, d, 'activites', false), activites: [a.id], etape: 1 };
+          })} />
           <Bouton texte={t('fiche.reserver')} icone="logo-whatsapp" variante="wa" onPress={() => lien(lienWhatsApp(messageActivite(a)))} />
         </>,
       };

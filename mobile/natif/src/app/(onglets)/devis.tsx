@@ -7,12 +7,17 @@
  * L'étape « Voiture » (19/09/2026) est facultative (« Sans voiture » par défaut)
  * et n'existe que si des véhicules sont publiés. La voiture reprend les dates
  * du séjour, modifiables. Une seule demande part au site, voiture comprise.
+ *
+ * Estimation (21/09/2026) : elle ne compte que ce que le client a choisi —
+ * aucune résidence d'office. Changer de formule alors que des choix sont faits
+ * ouvre une feuille : garder ce qui s'applique encore, ou repartir de zéro.
+ * Un appui sur l'estimation en bas de l'écran en montre le détail.
  */
 import { useRouter } from 'expo-router';
 import { useRef, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import Animated, { FadeIn, SlideInLeft, SlideInRight } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChampDate } from '@/composants/ChampDate';
 import { ImageSite } from '@/composants/ImageSite';
@@ -26,12 +31,19 @@ import { modeChauffeur, type SaisieVoiture } from '@/donnees/location';
 import { useMagasin } from '@/donnees/magasin';
 import { usePreferences } from '@/donnees/preferences';
 import {
-  calculDevis, champEnDefaut, dateISO, estIndisponible, euro, fcfa, fiche, FILTRES_VILLA, nombre, prixActivite, villasFiltrees, voitureDuDevis, VOYAGEURS,
+  calculDevis, champEnDefaut, changerFormule, choixEffaces, dateISO, estIndisponible, euro, fcfa, fiche, FILTRES_VILLA, nombre, prixActivite, villasFiltrees,
+  voitureDuDevis, VOYAGEURS, type Devis as DevisEnCours,
 } from '@/donnees/regles';
 import { creerStyles, type Palette } from '@/donnees/theme';
 
 type Etape = 'projet' | 'dates' | 'activites' | 'voiture' | 'coordonnees';
-type ErreurDevis = 'nom' | 'tel' | 'activite' | 'voiture' | 'estimation' | 'occupe' | 'attestation' | 'serveur';
+type ErreurDevis = 'nom' | 'tel' | 'residence' | 'activite' | 'voiture' | 'estimation' | 'occupe' | 'attestation' | 'serveur';
+type Formule = DevisEnCours['mode'];
+/** Une ligne de l'estimation : `sorte` dit à quelles formules elle appartient. */
+type LigneEstimation = { cle: string; sorte: 'villa' | 'activite' | 'voiture'; libelle: string; detail: string; montant: string };
+
+/** La ligne reste valable dans la formule `mode` : résidence = séjour seulement, activités = hors « Voiture seule ». */
+const resteValable = (l: LigneEstimation, mode: Formule) => l.sorte === 'voiture' || (l.sorte === 'activite' && mode !== 'voiture');
 
 function parcoursDe(mode: 'sejour' | 'activites' | 'voiture', avecVehicules: boolean): Etape[] {
   if (mode === 'voiture') return ['projet', 'voiture', 'coordonnees'];
@@ -51,6 +63,9 @@ export default function Devis() {
   const [envoi, setEnvoi] = useState(false);
   // Tirer vers le bas pour recharger villas, activités et tarifs (étapes 1 et 3).
   const [tire, setTire] = useState(false);
+  // Feuilles : formule demandée alors que des choix sont faits, détail de l'estimation.
+  const [formuleDemandee, setFormuleDemandee] = useState<Formule | null>(null);
+  const [detailOuvert, setDetailOuvert] = useState(false);
   // Dates déjà prises du véhicule choisi (étape « Voiture »).
   const occupations = useOccupations(devis.voiture.vehiculeId);
 
@@ -88,8 +103,53 @@ export default function Devis() {
     return null;
   };
   const suiviPossible = notifications !== 'indisponible' && notifications !== 'nonConfigure';
+  const residenceManquante = devis.mode === 'sejour' && (!c.villa || estIndisponible(c.villa));
+  const nomsFormules: Record<Formule, string> = { sejour: t('devis.sejour'), activites: t('devis.activitesSeules'), voiture: t('devis.voitureSeule') };
+
+  // Tout ce qui compose l'estimation affichée, ligne par ligne.
+  const lignesEstimation: LigneEstimation[] = [
+    ...(c.villa ? [{
+      cle: 'villa', sorte: 'villa' as const, libelle: c.villa.name, montant: fcfa(c.sousTotalVilla),
+      detail: t('devis.nuitsPers', { x: fcfa(c.villa.pricePerNight), nuits: t(c.jours > 1 ? 'devis.nuits' : 'devis.nuit', { n: c.jours }), n: devis.voyageurs }),
+    }] : []),
+    ...c.lignes.map((l, i) => ({ cle: `activite-${i}`, sorte: 'activite' as const, libelle: l.libelle, detail: l.calcul, montant: l.montant === null ? t('devis.surDevis') : fcfa(l.montant) })),
+    ...(c.voiture ? [{
+      cle: 'voiture', sorte: 'voiture' as const, libelle: c.voiture.vehicule.name,
+      detail: t('devis.recapVoiture', { jours: t(c.voiture.estimation.jours > 1 ? 'louer.jours' : 'louer.jour', { n: c.voiture.estimation.jours }), formule: modeChauffeur(c.voiture.estimation.chauffeur ? 'avec' : 'sans', langue) }),
+      montant: c.voiture.estimation.ok ? fcfa(c.voiture.montant) : t('devis.surDevis'),
+    }] : []),
+  ];
+
+  /** Choix de la formule : si des choix sont déjà faits, le client décide de leur sort. */
+  const choisirFormule = (mode: Formule) => {
+    setErreur(null);
+    if (mode === devis.mode) return;
+    if (lignesEstimation.length) { setFormuleDemandee(mode); return; }
+    majDevis(d => changerFormule(donnees, d, mode, false));
+  };
+  const appliquerFormule = (garder: boolean) => {
+    if (!formuleDemandee) return;
+    const mode = formuleDemandee;
+    vibrerSelection();
+    setFormuleDemandee(null);
+    majDevis(d => ({ ...changerFormule(donnees, d, mode, garder), etape: 1 }));
+  };
+  const toutEffacer = () => {
+    vibrerSelection();
+    setDetailOuvert(false);
+    setErreur(null);
+    setSens(-1);
+    majDevis({ ...choixEffaces(donnees), etape: 1 });
+    defil.current?.scrollTo({ y: 0, animated: false });
+  };
 
   const changerEtape = (delta: number) => {
+    // Séjour : une résidence choisie par le client avant d'aller plus loin.
+    if (delta > 0 && cleEtape === 'projet' && residenceManquante) {
+      setErreur('residence');
+      vibrerErreur();
+      return;
+    }
     // Activités uniquement : au moins une activité avant d'aller plus loin.
     if (delta > 0 && cleEtape === 'projet' && devis.mode === 'activites' && !devis.activites.length) {
       setErreur('activite');
@@ -142,6 +202,12 @@ export default function Devis() {
       majDevis({ etape: parcours.indexOf('voiture') + 1 });
       return;
     }
+    if (residenceManquante) {
+      setErreur('residence');
+      vibrerErreur();
+      majDevis({ etape: 1 });
+      return;
+    }
     const defaut = champEnDefaut(devis);
     if (defaut) {
       setErreur(defaut);
@@ -192,7 +258,8 @@ export default function Devis() {
     });
     router.push({ pathname: '/envoye', params: { enregistree: enregistree ? '1' : '0', total: fcfa(demande.total), lien: demande.lien } });
     ouvrirLien(demande.lien, t);
-    majDevis({ etape: 1 });
+    // Demande partie : la suivante repart de zéro (coordonnées, dates et voyageurs gardés).
+    majDevis({ ...choixEffaces(donnees), etape: 1 });
   };
 
   let contenu: ReactNode = null;
@@ -204,12 +271,12 @@ export default function Devis() {
         <Text style={s.h2}>{t('devis.quoi')}</Text>
         <Text style={s.aide}>{t('devis.aideEstimation')}</Text>
         <View style={s.modes}>
-          <Choix C={C} icone="home-outline" titre={t('devis.sejour')} detail={t('devis.sejourDetail')} actif={devis.mode === 'sejour'} desactive={!donnees.villas.length} onPress={() => { setErreur(null); majDevis({ mode: 'sejour' }); }} />
-          <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={devis.mode === 'activites'} onPress={() => { setErreur(null); majDevis({ mode: 'activites' }); }} />
+          <Choix C={C} icone="home-outline" titre={t('devis.sejour')} detail={t('devis.sejourDetail')} actif={devis.mode === 'sejour'} desactive={!donnees.villas.length} onPress={() => choisirFormule('sejour')} />
+          <Choix C={C} icone="boat-outline" titre={t('devis.activitesSeules')} detail={t('devis.sansHebergement')} actif={devis.mode === 'activites'} onPress={() => choisirFormule('activites')} />
         </View>
         {avecVehicules ? (
           <View style={[s.modes, { marginTop: 10 }]}>
-            <Choix C={C} icone="car-sport-outline" titre={t('devis.voitureSeule')} detail={t('devis.voitureSeuleDetail')} actif={devis.mode === 'voiture'} onPress={() => { setErreur(null); majDevis({ mode: 'voiture' }); }} />
+            <Choix C={C} icone="car-sport-outline" titre={t('devis.voitureSeule')} detail={t('devis.voitureSeuleDetail')} actif={devis.mode === 'voiture'} onPress={() => choisirFormule('voiture')} />
           </View>
         ) : null}
         {devis.mode === 'voiture' ? (
@@ -233,14 +300,21 @@ export default function Devis() {
         {devis.mode === 'sejour' ? (
           <>
             <Text style={s.h3}>{t('devis.residence')}</Text>
+            {erreur === 'residence' ? (
+              <View style={[s.alerte, { backgroundColor: C.dangerPale, marginTop: 0, marginBottom: 10 }]}>
+                <Icone nom="alert-circle-outline" taille={18} couleur={C.danger} />
+                <Text style={[s.alerteTexte, { color: C.danger }]}>{t('devis.erreurResidence')}</Text>
+              </View>
+            ) : null}
             {filtres.length > 1 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, marginBottom: 12 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
                 {filtres.map(f => (
                   <Puce key={f.value} texte={t(`devis.filtre.${f.value}` as 'devis.filtre.all')} compte={donnees.villas.filter(f.test).length} actif={devis.filtre === f.value}
                     onPress={() => majDevis(d => {
-                      const suivante = villasFiltrees(donnees.villas, f.value);
-                      const garde = suivante.some(v => v.id === d.villaId && !estIndisponible(v));
-                      return { filtre: f.value, villaId: garde ? d.villaId : (suivante.find(v => !estIndisponible(v))?.id || d.villaId) };
+                      // La résidence choisie reste si le filtre la montre encore ; sinon
+                      // elle sort de l'estimation — jamais remplacée par une autre d'office.
+                      const garde = villasFiltrees(donnees.villas, f.value).some(v => v.id === d.villaId && !estIndisponible(v));
+                      return { filtre: f.value, villaId: garde ? d.villaId : '' };
                     })} />
                 ))}
               </ScrollView>
@@ -255,7 +329,7 @@ export default function Devis() {
                 actif={v.id === devis.villaId}
                 desactive={estIndisponible(v)}
                 forme="radio"
-                onPress={() => majDevis({ villaId: v.id })}
+                onPress={() => { if (erreur === 'residence') setErreur(null); majDevis({ villaId: v.id }); }}
               />
             ))}
           </>
@@ -433,17 +507,89 @@ export default function Devis() {
                 <Icone nom="chevron-back" taille={22} couleur="#fff" />
               </Pressable>
             ) : null}
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.barreLibelle}>{t('devis.estimation')}</Text>
+            <Pressable onPress={() => { vibrerSelection(); setDetailOuvert(true); }} style={({ pressed }) => [{ flex: 1, minWidth: 0 }, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button" accessibilityLabel={`${t('devis.estimation')} ${fcfa(c.total)}`} accessibilityHint={t('devis.voirDetail')}>
+              <View style={s.barreLibelleLigne}>
+                <Text style={s.barreLibelle}>{t('devis.estimation')}</Text>
+                <Icone nom="chevron-up" taille={13} couleur="rgba(255,255,255,0.6)" />
+              </View>
               <Text style={s.barreTotal} numberOfLines={1} adjustsFontSizeToFit>{fcfa(c.total)}</Text>
-            </View>
+            </Pressable>
             {etape < nbEtapes
               ? <Bouton texte={t('devis.continuer')} variante="or" onPress={() => changerEtape(1)} style={s.barreBouton} />
               : <Bouton texte={t('devis.envoyer')} icone="logo-whatsapp" variante="wa" charge={envoi} onPress={() => { vibrerImpact(); envoyer(); }} style={s.barreBouton} />}
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
+
+      {/* Changement de formule avec des choix déjà faits : garder ce qui vaut encore, ou repartir de zéro. */}
+      <Feuille C={C} visible={formuleDemandee !== null} onFermer={() => setFormuleDemandee(null)}
+        titre={formuleDemandee ? t('devis.changerTitre', { x: nomsFormules[formuleDemandee] }) : ''}>
+        {formuleDemandee ? (() => {
+          const gardables = lignesEstimation.filter(l => resteValable(l, formuleDemandee));
+          return (
+            <>
+              <Text style={s.feuilleTexte}>{t('devis.changerTexte', { x: fcfa(c.total) })}</Text>
+              {lignesEstimation.map(l => (
+                <LigneRecap C={C} key={l.cle} libelle={l.libelle} montant={l.montant} barre={!resteValable(l, formuleDemandee)}
+                  detail={resteValable(l, formuleDemandee) ? l.detail : t('devis.nonRepris', { x: nomsFormules[formuleDemandee] })} />
+              ))}
+              {gardables.length ? null : <Text style={[s.feuilleTexte, { marginTop: 12 }]}>{t('devis.changerAucun', { x: nomsFormules[formuleDemandee] })}</Text>}
+              <View style={s.feuilleBoutons}>
+                {gardables.length ? (
+                  <>
+                    <Bouton texte={t('devis.garderChoix')} variante="or" plein onPress={() => appliquerFormule(true)} />
+                    <Bouton texte={t('devis.repartirZero')} variante="contour" plein onPress={() => appliquerFormule(false)} />
+                  </>
+                ) : <Bouton texte={t('devis.changerFormule')} variante="or" plein onPress={() => appliquerFormule(false)} />}
+                <Pressable onPress={() => setFormuleDemandee(null)} style={s.feuilleLien} accessibilityRole="button">
+                  <Text style={s.feuilleLienTexte}>{t('devis.annuler')}</Text>
+                </Pressable>
+              </View>
+            </>
+          );
+        })() : null}
+      </Feuille>
+
+      {/* Détail de l'estimation, à tout moment du parcours. */}
+      <Feuille C={C} visible={detailOuvert} onFermer={() => setDetailOuvert(false)} titre={t('devis.detailTitre')}>
+        {lignesEstimation.length ? (
+          <>
+            {lignesEstimation.map(l => <LigneRecap C={C} key={l.cle} libelle={l.libelle} detail={l.detail} montant={l.montant} />)}
+            <View style={s.total}>
+              <Text style={s.totalLibelle}>{t('devis.estimationTotale')}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={s.totalMontant}>{fcfa(c.total)}</Text>
+                <Text style={s.totalEuro}>{euro(c.totalEuro)}</Text>
+              </View>
+            </View>
+          </>
+        ) : <Text style={s.feuilleTexte}>{t('devis.detailVide')}</Text>}
+        <View style={s.feuilleBoutons}>
+          {lignesEstimation.length ? <Bouton texte={t('devis.toutEffacer')} icone="refresh" variante="contour" plein onPress={toutEffacer} /> : null}
+          <Pressable onPress={() => setDetailOuvert(false)} style={s.feuilleLien} accessibilityRole="button">
+            <Text style={s.feuilleLienTexte}>{t('fermer')}</Text>
+          </Pressable>
+        </View>
+      </Feuille>
     </View>
+  );
+}
+
+/** Feuille glissée depuis le bas, comme les menus déroulants de l'app (ChampChoix). */
+function Feuille({ C, visible, titre, onFermer, children }: { C: Palette; visible: boolean; titre: string; onFermer: () => void; children: ReactNode }) {
+  const s = feuille(C);
+  const insets = useSafeAreaInsets();
+  const { t } = usePreferences();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onFermer} statusBarTranslucent>
+      <Pressable style={s.feuilleFond} onPress={onFermer} accessibilityLabel={t('fermer')} />
+      <View style={[s.feuilleCorps, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={s.feuillePoignee} />
+        <Text style={s.feuilleTitre}>{titre}</Text>
+        <ScrollView style={{ maxHeight: 520 }} bounces={false}>{children}</ScrollView>
+      </View>
+    </Modal>
   );
 }
 
@@ -531,15 +677,16 @@ function Champ({ C, libelle, valeur, onChange, placeholder, requis, enDefaut, cl
   );
 }
 
-function LigneRecap({ C, libelle, detail, montant }: { C: Palette; libelle: string; detail: string; montant: string }) {
+/** `barre` : ligne qui ne sera pas reprise (changement de formule). */
+function LigneRecap({ C, libelle, detail, montant, barre }: { C: Palette; libelle: string; detail: string; montant: string; barre?: boolean }) {
   const s = feuille(C);
   return (
     <View style={s.recap}>
       <View style={{ flex: 1 }}>
-        <Text style={s.recapLibelle}>{libelle}</Text>
-        <Text style={s.recapDetail}>{detail}</Text>
+        <Text style={[s.recapLibelle, barre && s.recapBarre]}>{libelle}</Text>
+        <Text style={[s.recapDetail, barre && { color: C.danger }]}>{detail}</Text>
       </View>
-      <Text style={s.recapMontant}>{montant}</Text>
+      <Text style={[s.recapMontant, barre && s.recapBarre]}>{montant}</Text>
     </View>
   );
 }
@@ -589,6 +736,15 @@ const feuille = creerStyles(C => ({
   recapLibelle: { fontSize: 14, fontWeight: '600', color: C.texte },
   recapDetail: { fontSize: 12, color: C.texte3, marginTop: 1 },
   recapMontant: { fontSize: 14, fontWeight: '700', color: C.texte },
+  recapBarre: { textDecorationLine: 'line-through', color: C.texte3 },
+  feuilleFond: { flex: 1, backgroundColor: 'rgba(10,12,30,0.45)' },
+  feuilleCorps: { backgroundColor: C.carte, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 18, paddingTop: 8 },
+  feuillePoignee: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: C.bord, marginBottom: 12 },
+  feuilleTitre: { fontSize: 19, fontWeight: '800', color: C.texte, marginBottom: 6 },
+  feuilleTexte: { fontSize: 14, lineHeight: 20, color: C.texte2, marginBottom: 4 },
+  feuilleBoutons: { gap: 10, marginTop: 18 },
+  feuilleLien: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 20 },
+  feuilleLienTexte: { fontSize: 15, fontWeight: '700', color: C.texte2 },
   total: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12 },
   totalLibelle: { fontSize: 14, color: C.texte2, fontWeight: '600' },
   totalMontant: { fontSize: 22, fontWeight: '800', color: C.marque },
@@ -597,6 +753,7 @@ const feuille = creerStyles(C => ({
   barreConteneur: { paddingHorizontal: 12, paddingTop: 8, backgroundColor: 'transparent' },
   barre: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 7, paddingLeft: 16, borderRadius: 999, backgroundColor: C.sombre ? '#262a55' : '#151837', boxShadow: C.ombreForte, marginBottom: 8 },
   retour: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', marginLeft: -9 },
+  barreLibelleLigne: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   barreLibelle: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.6)' },
   barreTotal: { fontSize: 16.5, fontWeight: '800', color: '#fff' },
   barreBouton: { height: 46 },

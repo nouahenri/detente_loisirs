@@ -368,7 +368,11 @@ export function villasFiltrees(villas: Villa[], filtre: string) {
   return liste.length ? liste : villas;
 }
 
-/** Valeurs de départ du simulateur : vendredi prochain → dimanche, aucune activité cochée d’office (19/09/2026). */
+/**
+ * Valeurs de départ du simulateur : vendredi prochain → dimanche. Rien n'est
+ * choisi d'office : ni activité (19/09/2026), ni résidence (21/09/2026) — la
+ * première résidence s'ajoutait à l'estimation sans que le client l'ait choisie.
+ */
 export function preparerDevis(d: Donnees, actuel: Devis, coordonnees: { nom?: string; tel?: string; email?: string }): Devis {
   if (actuel.pret) return actuel;
   const aujourdhui = new Date();
@@ -382,7 +386,6 @@ export function preparerDevis(d: Donnees, actuel: Devis, coordonnees: { nom?: st
     // Dates déjà choisies (formulaire de recherche de l'accueil) : conservées.
     arrivee: actuel.arrivee || dateISO(vendredi),
     depart: actuel.depart || dateISO(dimanche),
-    villaId: actuel.villaId || (d.villas.find(v => !estIndisponible(v)) || { id: '' }).id,
     mode: d.villas.length || actuel.mode === 'voiture' ? actuel.mode : 'activites',
     // Horaires, délai et lieux de la location connus : dates et lieu par défaut.
     voiture: { ...saisieVoitureInitiale(d.location), vehiculeId: actuel.voiture.vehiculeId, chauffeur: actuel.voiture.chauffeur },
@@ -392,7 +395,34 @@ export function preparerDevis(d: Donnees, actuel: Devis, coordonnees: { nom?: st
   };
 }
 
-type Prix = { montant: number; parJour: boolean; parPersonne: boolean; forfaitGroupe: { montant: number; taille: number } | null };
+/**
+ * Choix encore valables dans une autre formule : les activités hors « Voiture
+ * seule », la voiture partout. La résidence n'appartient qu'au séjour.
+ */
+export function choixCompatibles(devis: Devis, mode: Devis['mode']) {
+  return { activites: mode === 'voiture' ? [] : devis.activites, vehiculeId: devis.voiture.vehiculeId };
+}
+
+/**
+ * Changement de formule (21/09/2026). `garder` : les choix compatibles sont
+ * repris tels quels ; sinon l'estimation repart de zéro (dates, voyageurs et
+ * coordonnées restent). Dans les deux cas, rien d'incompatible ne reste caché
+ * dans le devis pour réapparaître au retour sur l'ancienne formule.
+ */
+export function changerFormule(d: Donnees, devis: Devis, mode: Devis['mode'], garder: boolean): Partial<Devis> {
+  const repris = choixCompatibles(devis, mode);
+  return {
+    mode,
+    villaId: '',
+    activites: garder ? repris.activites : [],
+    voiture: garder && repris.vehiculeId ? devis.voiture : saisieVoitureInitiale(d.location),
+  };
+}
+
+/** « Tout effacer » et après un envoi : plus aucun choix chiffré, la formule reste. */
+export const choixEffaces = (d: Donnees): Partial<Devis> => ({ villaId: '', activites: [], voiture: saisieVoitureInitiale(d.location) });
+
+type Prix ={ montant: number; parJour: boolean; parPersonne: boolean; forfaitGroupe: { montant: number; taille: number } | null };
 
 export function prixActivite(item: Activite): Prix {
   const groupe = Number(item.groupPriceAmount) || 0;
@@ -450,7 +480,8 @@ export function calculDevis(d: Donnees, devis: Devis, reglages: { t?: Traduire; 
   const { t, langue = 'fr', appareil } = reglages;
   const voitureSeule = devis.mode === 'voiture';
   const sansResidence = devis.mode !== 'sejour';
-  const villa = sansResidence ? null : (d.villas.find(v => v.id === devis.villaId) || d.villas[0] || null);
+  // Pas de repli sur la première résidence : sans choix du client, le séjour vaut zéro.
+  const villa = sansResidence ? null : (d.villas.find(v => v.id === devis.villaId) || null);
   let jours = Math.ceil((new Date(devis.depart).getTime() - new Date(devis.arrivee).getTime()) / 86400000);
   if (Number.isNaN(jours) || jours < 1) jours = 1;
   const sousTotalVilla = sansResidence || !villa ? 0 : villa.pricePerNight * jours;

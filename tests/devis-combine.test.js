@@ -104,3 +104,23 @@ test('app : parcours avec étape « Voiture », voiture jointe à la même deman
   assert.match(regles, /location: \{ vehicule: vehicule\.id, \.\.\.demandeDeSaisie\(saisie\), conditionsConducteur: saisie\.attestation, montant: montantVoiture \}/);
   assert.match(regles, /const total = sousTotalVilla \+ totalActivites \+ montantVoiture;/);
 });
+
+test('app : estimation sans choix d’office, changement de formule sans choix cachés (21/09/2026)', () => {
+  const regles = lire('mobile/natif/src/donnees/regles.ts');
+  // Aucune résidence préchoisie, aucun repli sur la première du catalogue.
+  assert.doesNotMatch(regles, /villaId: actuel\.villaId \|\|/);
+  assert.doesNotMatch(regles, /d\.villas\[0\]/);
+  assert.match(regles, /const villa = sansResidence \? null : \(d\.villas\.find\(v => v\.id === devis\.villaId\) \|\| null\);/);
+  // Nouvelle formule : la résidence part toujours, le reste seulement si le client le garde.
+  assert.match(regles, /mode,\n    villaId: '',\n    activites: garder \? repris\.activites : \[\],/);
+  assert.match(regles, /activites: mode === 'voiture' \? \[\] : devis\.activites/);
+  const ecran = lire('mobile/natif/src/app/(onglets)/devis.tsx');
+  assert.match(ecran, /if \(lignesEstimation\.length\) \{ setFormuleDemandee\(mode\); return; \}/);
+  assert.match(ecran, /cleEtape === 'projet' && residenceManquante/);
+  assert.match(ecran, /return \{ filtre: f\.value, villaId: garde \? d\.villaId : '' \};/);
+  assert.match(ecran, /majDevis\(\{ \.\.\.choixEffaces\(donnees\), etape: 1 \}\);/);
+  const i18n = lire('mobile/natif/src/donnees/i18n.ts');
+  for (const cle of ['devis.erreurResidence', 'devis.changerTitre', 'devis.garderChoix', 'devis.repartirZero', 'devis.detailTitre', 'devis.toutEffacer']) {
+    assert.equal(i18n.split(`'${cle}': `).length - 1, 3, `${cle} : FR, EN, ES`);
+  }
+});
